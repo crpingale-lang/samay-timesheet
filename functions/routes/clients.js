@@ -82,6 +82,39 @@ router.post('/import', async (req, res) => {
   res.json({ inserted, updated, skipped, errors });
 });
 
+router.post('/deduplicate', async (req, res) => {
+  if (req.user.role !== 'partner') return res.status(403).json({ error: 'Partner only' });
+  try {
+    const snap = await db.collection('clients').get();
+    const codes = {};
+    const deleteBatch = db.batch();
+    let deletedCount = 0;
+
+    snap.forEach(doc => {
+      const data = doc.data();
+      const code = (data.code || '').trim().toUpperCase();
+      if (!codes[code]) {
+        codes[code] = doc;
+      } else {
+        // keep the one with more data or arbitrarily the first one
+        const existing = codes[code].data();
+        const scoreA = (existing.contact_person?1:0) + (existing.email?1:0) + (existing.phone?1:0);
+        const scoreB = (data.contact_person?1:0) + (data.email?1:0) + (data.phone?1:0);
+        if (scoreB > scoreA) {
+          deleteBatch.delete(codes[code].ref);
+          codes[code] = doc;
+        } else {
+          deleteBatch.delete(doc.ref);
+        }
+        deletedCount++;
+      }
+    });
+
+    if (deletedCount > 0) await deleteBatch.commit();
+    res.json({ success: true, deleted: deletedCount });
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
 router.get('/template', (req, res) => {
   const csv = ['Name,Code,Contact Person,Phone,Email,Billing Rate (INR/hr)', '"ABC Traders Pvt Ltd","ABC001","Rajesh Shah","9876543210","rajesh@abc.com","2500"'].join('\n');
   res.setHeader('Content-Type','text/csv'); res.setHeader('Content-Disposition','attachment; filename="client-import-template.csv"');

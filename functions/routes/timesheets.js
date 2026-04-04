@@ -45,13 +45,14 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { entry_date, client_id, task_type, description, hours, billable } = req.body;
+  const { entry_date, client_id, task_type, description, hours, billable, start_time, end_time } = req.body;
   if (!entry_date || !task_type || !hours) return res.status(400).json({ error: 'Missing fields' });
   try {
     const docRef = await db.collection('timesheets').add({
       user_id: req.user.id,
       entry_date, client_id: client_id||null, task_type,
       description: description||'', hours: parseFloat(hours),
+      start_time: start_time||null, end_time: end_time||null,
       billable: billable?1:0,
       status: 'draft',
       created_at: new Date().toISOString()
@@ -61,7 +62,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { entry_date, client_id, task_type, description, hours, billable } = req.body;
+  const { entry_date, client_id, task_type, description, hours, billable, start_time, end_time } = req.body;
   try {
     const ref = db.collection('timesheets').doc(req.params.id);
     const doc = await ref.get();
@@ -71,6 +72,7 @@ router.put('/:id', async (req, res) => {
     await ref.update({
       entry_date, client_id: client_id||null, task_type,
       description: description||'', hours: parseFloat(hours),
+      start_time: start_time||null, end_time: end_time||null,
       billable: billable?1:0
     });
     res.json({ success: true });

@@ -38,7 +38,9 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Client</label>
-                <select class="form-control" id="client-id"><option value="">Loading…</option></select>
+                <input class="form-control" type="text" id="client-search" list="client-datalist" placeholder="Search client name/code..." autocomplete="off">
+                <datalist id="client-datalist"></datalist>
+                <input type="hidden" id="client-id">
               </div>
             </div>
             <div class="form-group">
@@ -51,8 +53,21 @@
             </div>
             <div class="form-row">
               <div class="form-group">
+                <label class="form-label">Start Time <i>(optional)</i></label>
+                <input class="form-control" type="time" id="start-time" oninput="calcTime()">
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="display:flex;justify-content:space-between;">
+                  <span>End Time</span>
+                  <span style="font-size:11px;color:var(--primary);cursor:pointer;" onclick="calcEndTime()">Auto-calc ↶</span>
+                </label>
+                <input class="form-control" type="time" id="end-time" oninput="calcTime()">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
                 <label class="form-label">Hours *</label>
-                <input class="form-control" type="number" id="hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5" required>
+                <input class="form-control" type="number" id="hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5" required oninput="calcEndTimeIfStartExists()">
               </div>
               <div class="form-group" style="align-self:end;padding-bottom:4px;">
                 <div class="toggle-row" style="border:none;padding:0;">
@@ -133,11 +148,42 @@ TASK_TYPES.forEach(t => document.getElementById('task-type').innerHTML += `<opti
 
 async function loadClients() {
   const clients = await apiFetch('/clients');
-  const sel = document.getElementById('client-id');
-  sel.innerHTML = '<option value="">— Internal / No Client —</option>' +
-    clients.filter(c=>c.active).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  window.allClientsStore = clients.filter(c=>c.active);
+  const dl = document.getElementById('client-datalist');
+  dl.innerHTML = window.allClientsStore.map(c=>`<option value="${c.name} [${c.code}]">`).join('');
 }
+document.getElementById('client-search').addEventListener('input', e => {
+  const val = e.target.value;
+  const match = window.allClientsStore.find(c => `${c.name} [${c.code}]` === val);
+  document.getElementById('client-id').value = match ? match.id : '';
+});
 loadClients();
+
+function calcTime() {
+  const s = document.getElementById('start-time').value;
+  const e = document.getElementById('end-time').value;
+  if (s && e) {
+    const d1 = new Date(`2000-01-01T${s}`);
+    const d2 = new Date(`2000-01-01T${e}`);
+    let diff = (d2 - d1) / 3600000;
+    if (diff < 0) diff += 24;
+    document.getElementById('hours').value = diff.toFixed(2);
+  }
+}
+function calcEndTime() {
+  const s = document.getElementById('start-time').value;
+  const h = parseFloat(document.getElementById('hours').value);
+  if (s && h > 0) {
+    const d1 = new Date(`2000-01-01T${s}`);
+    d1.setMinutes(d1.getMinutes() + h * 60);
+    document.getElementById('end-time').value = d1.toTimeString().substr(0,5);
+  }
+}
+function calcEndTimeIfStartExists() {
+  if (document.getElementById('start-time').value && parseFloat(document.getElementById('hours').value) > 0) {
+    calcEndTime();
+  }
+}
 
 // Timer
 let timerInterval=null, timerSeconds=0;
@@ -170,6 +216,8 @@ async function saveEntry(andSubmit=false) {
     task_type: document.getElementById('task-type').value,
     description: document.getElementById('description').value,
     hours: document.getElementById('hours').value,
+    start_time: document.getElementById('start-time').value||null,
+    end_time: document.getElementById('end-time').value||null,
     billable: document.getElementById('billable').checked
   };
   if (!payload.task_type||!payload.hours) { toast('Fill required fields','error'); return null; }
@@ -189,10 +237,13 @@ function saveAndSubmit() { saveEntry(true); }
 function resetForm() {
   document.getElementById('edit-id').value='';
   document.getElementById('entry-date').value=today();
+  document.getElementById('client-search').value='';
   document.getElementById('client-id').value='';
   document.getElementById('task-type').value='';
   document.getElementById('description').value='';
   document.getElementById('hours').value='';
+  document.getElementById('start-time').value='';
+  document.getElementById('end-time').value='';
   document.getElementById('billable').checked=true;
   resetTimer();
 }
@@ -200,10 +251,19 @@ function resetForm() {
 function editEntry(entry) {
   document.getElementById('edit-id').value=entry.id;
   document.getElementById('entry-date').value=entry.entry_date;
-  document.getElementById('client-id').value=entry.client_id||'';
+  if(entry.client_id) {
+    const c = window.allClientsStore?.find(x=>x.id==entry.client_id);
+    document.getElementById('client-search').value = c ? `${c.name} [${c.code}]` : '';
+    document.getElementById('client-id').value = entry.client_id;
+  } else {
+    document.getElementById('client-search').value = '';
+    document.getElementById('client-id').value = '';
+  }
   document.getElementById('task-type').value=entry.task_type;
   document.getElementById('description').value=entry.description||'';
   document.getElementById('hours').value=entry.hours;
+  document.getElementById('start-time').value=entry.start_time||'';
+  document.getElementById('end-time').value=entry.end_time||'';
   document.getElementById('billable').checked=!!entry.billable;
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -232,7 +292,7 @@ async function loadTodayEntries() {
     <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13.5px;font-weight:600;">${e.task_type}</div>
+          <div style="font-size:13.5px;font-weight:600;">${e.task_type} ${e.start_time ? `<span style="font-weight:normal;font-size:11.5px;color:var(--text-muted);margin-left:6px;">(${e.start_time}${e.end_time?' - '+e.end_time:''})</span>` : ''}</div>
           <div style="font-size:12px;color:var(--text-muted);">${e.client_name||'Internal'}</div>
           ${e.description?`<div style="font-size:11.5px;color:var(--text-faint);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description}</div>`:''}
         </div>
