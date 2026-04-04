@@ -22,7 +22,4 @@ async function seedDefaultAdmin() {
   }
 }
 
-// Fire and forget seed
-seedDefaultAdmin().catch(console.error);
-
-module.exports = { db, admin };
+module.exports = { db, admin, seedDefaultAdmin };

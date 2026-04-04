@@ -8,6 +8,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": "22"
+  },
   "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.3",

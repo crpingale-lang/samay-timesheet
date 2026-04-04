@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { db, seedDefaultAdmin } = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -11,6 +11,8 @@ router.post('/login', async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
 
   try {
+    await seedDefaultAdmin(); // Safely ensure default partner exists or bypasses if already seeded
+
     const snapshot = await db.collection('users').where('username', '==', username).limit(1).get();
     if (snapshot.empty) return res.status(401).json({ error: 'Invalid credentials' });
     
