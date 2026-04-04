@@ -1,0 +1,25 @@
+{
+  "name": "Samay",
+  "short_name": "Timesheet",
+  "description": "CA Firm Practice Timesheet Management System",
+  "start_url": "/dashboard.html",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#4338ca",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png" },
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    { "name": "Log Time", "short_name": "Log Time", "description": "Log time for today", "url": "/timesheet.html", "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }] },
+    { "name": "My Timesheets", "short_name": "Timesheets", "description": "View my timesheets", "url": "/my-timesheets.html", "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }] }
+  ]
+}

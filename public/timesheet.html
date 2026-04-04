@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log Time — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Menu">☰</button>
+        <div class="topbar-title">Log Time</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="loadTodayEntries()">🔄</button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="grid-2" style="align-items:start;">
+        <!-- ENTRY FORM -->
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">New Time Entry</div><div class="card-subtitle" id="submit-label">Log your work</div></div>
+          </div>
+          <form id="entry-form">
+            <input type="hidden" id="edit-id">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input class="form-control" type="date" id="entry-date" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Client</label>
+                <select class="form-control" id="client-id"><option value="">Loading…</option></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Task Type *</label>
+              <select class="form-control" id="task-type" required><option value="">— Select Task —</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-control" id="description" rows="2" placeholder="Brief description of work done…"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Hours *</label>
+                <input class="form-control" type="number" id="hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5" required>
+              </div>
+              <div class="form-group" style="align-self:end;padding-bottom:4px;">
+                <div class="toggle-row" style="border:none;padding:0;">
+                  <label class="toggle-label">💰 Billable</label>
+                  <label class="toggle"><input type="checkbox" id="billable" checked><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- TIMER -->
+            <div style="background:var(--primary-bg);border:1px solid var(--border-hover);border-radius:10px;padding:12px;margin-bottom:14px;">
+              <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">⏱ Timer — auto-fill hours</div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <div class="timer-display" id="timer-disp" style="font-size:22px;">00:00:00</div>
+                <button type="button" class="btn btn-success btn-sm" id="timer-start" onclick="startTimer()">▶ Start</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="timer-stop" onclick="stopTimer()" style="display:none;">⏹ Stop</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="timer-reset" onclick="resetTimer()" style="display:none;">↺</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="submit" class="btn btn-primary" id="save-btn" style="flex:1;justify-content:center;">💾 Save Draft</button>
+              <button type="button" class="btn btn-accent" id="save-submit-btn" onclick="saveAndSubmit()" style="flex:1;justify-content:center;" id="submit-btn-label">📤 Submit</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="resetForm()">✕</button>
+            </div>
+            <div id="submit-hint" style="font-size:11.5px;color:var(--text-muted);margin-top:8px;text-align:center;"></div>
+          </form>
+        </div>
+
+        <!-- TODAY'S ENTRIES -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Today's Entries</div>
+              <div class="card-subtitle">Total: <strong id="today-total" style="color:var(--primary);">0.0 hrs</strong></div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="submitAllDrafts()">📤 Submit All</button>
+          </div>
+          <div id="today-entries"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries yet</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile bottom nav -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
+    <a class="bottom-nav-item active" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
+    <a class="bottom-nav-item" href="/approvals.html" id="bn-approvals" style="display:none;"><span class="bn-icon">✅</span>Approve</a>
+  </div>
+</nav>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+
+// Register service worker
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+const user = getUser();
+// Set submit label based on role
+const hints = { article: 'Submits to Manager for approval', manager: 'Submits to Partner for approval', partner: 'Self-approved instantly ✓' };
+document.getElementById('submit-hint').textContent = hints[user.role] || '';
+if (user.role === 'partner') document.getElementById('save-submit-btn').textContent = '✅ Submit & Approve';
+
+// Show approvals in bottom nav for managers+
+if (isManagerOrAbove()) document.getElementById('bn-approvals').style.display = '';
+
+document.getElementById('entry-date').value = today();
+
+// Populate task types
+TASK_TYPES.forEach(t => document.getElementById('task-type').innerHTML += `<option value="${t}">${t}</option>`);
+
+async function loadClients() {
+  const clients = await apiFetch('/clients');
+  const sel = document.getElementById('client-id');
+  sel.innerHTML = '<option value="">— Internal / No Client —</option>' +
+    clients.filter(c=>c.active).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}
+loadClients();
+
+// Timer
+let timerInterval=null, timerSeconds=0;
+function startTimer() {
+  document.getElementById('timer-start').style.display='none';
+  document.getElementById('timer-stop').style.display='';
+  document.getElementById('timer-reset').style.display='';
+  timerInterval = setInterval(()=>{ timerSeconds++; document.getElementById('timer-disp').textContent=new Date(timerSeconds*1000).toISOString().substr(11,8); },1000);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  document.getElementById('hours').value=(timerSeconds/3600).toFixed(2);
+  document.getElementById('timer-start').style.display='';
+  document.getElementById('timer-stop').style.display='none';
+  toast(`Timer: ${fmtHours(timerSeconds/3600)} logged`,'success');
+}
+function resetTimer() {
+  clearInterval(timerInterval); timerSeconds=0;
+  document.getElementById('timer-disp').textContent='00:00:00';
+  document.getElementById('timer-start').style.display='';
+  document.getElementById('timer-stop').style.display='none';
+  document.getElementById('timer-reset').style.display='none';
+}
+
+async function saveEntry(andSubmit=false) {
+  const editId = document.getElementById('edit-id').value;
+  const payload = {
+    entry_date: document.getElementById('entry-date').value,
+    client_id: document.getElementById('client-id').value||null,
+    task_type: document.getElementById('task-type').value,
+    description: document.getElementById('description').value,
+    hours: document.getElementById('hours').value,
+    billable: document.getElementById('billable').checked
+  };
+  if (!payload.task_type||!payload.hours) { toast('Fill required fields','error'); return null; }
+  try {
+    let id;
+    if (editId) { await apiFetch(`/timesheets/${editId}`,{method:'PUT',body:payload}); id=editId; }
+    else { const r=await apiFetch('/timesheets',{method:'POST',body:payload}); id=r.id; }
+    if (andSubmit) await apiFetch('/timesheets/submit',{method:'POST',body:{entry_ids:[parseInt(id)]}});
+    resetForm(); loadTodayEntries();
+    const msg = andSubmit ? (user.role==='partner'?'Entry approved!':'Entry submitted for approval!') : 'Draft saved';
+    toast(msg,'success');
+  } catch(e) { toast(e.message,'error'); }
+}
+document.getElementById('entry-form').addEventListener('submit', e=>{e.preventDefault();saveEntry(false);});
+function saveAndSubmit() { saveEntry(true); }
+
+function resetForm() {
+  document.getElementById('edit-id').value='';
+  document.getElementById('entry-date').value=today();
+  document.getElementById('client-id').value='';
+  document.getElementById('task-type').value='';
+  document.getElementById('description').value='';
+  document.getElementById('hours').value='';
+  document.getElementById('billable').checked=true;
+  resetTimer();
+}
+
+function editEntry(entry) {
+  document.getElementById('edit-id').value=entry.id;
+  document.getElementById('entry-date').value=entry.entry_date;
+  document.getElementById('client-id').value=entry.client_id||'';
+  document.getElementById('task-type').value=entry.task_type;
+  document.getElementById('description').value=entry.description||'';
+  document.getElementById('hours').value=entry.hours;
+  document.getElementById('billable').checked=!!entry.billable;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function deleteEntry(id) {
+  if(!confirm('Delete this entry?'))return;
+  try { await apiFetch(`/timesheets/${id}`,{method:'DELETE'}); loadTodayEntries(); toast('Deleted'); } catch(e){toast(e.message,'error');}
+}
+
+async function submitAllDrafts() {
+  const entries = await apiFetch(`/timesheets?from=${today()}&to=${today()}&status=draft`);
+  const ids = entries.map(e=>e.id);
+  if(!ids.length){toast('No drafts to submit','info');return;}
+  await apiFetch('/timesheets/submit',{method:'POST',body:{entry_ids:ids}});
+  const msg = user.role==='partner' ? `${ids.length} entries approved!` : `${ids.length} entries submitted!`;
+  toast(msg,'success'); loadTodayEntries();
+}
+
+async function loadTodayEntries() {
+  const entries = await apiFetch(`/timesheets?from=${today()}&to=${today()}`);
+  const container = document.getElementById('today-entries');
+  const total = entries.reduce((s,e)=>s+parseFloat(e.hours),0);
+  document.getElementById('today-total').textContent=fmtHours(total);
+  if(!entries.length){container.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries today</div></div>';return;}
+  container.innerHTML = entries.map(e=>`
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13.5px;font-weight:600;">${e.task_type}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${e.client_name||'Internal'}</div>
+          ${e.description?`<div style="font-size:11.5px;color:var(--text-faint);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description}</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:15px;font-weight:800;color:var(--primary);">${fmtHours(e.hours)}</div>
+          ${statusBadge(e.status)}
+        </div>
+      </div>
+      ${e.status==='rejected'?`<div style="color:var(--danger);font-size:12px;margin-top:6px;background:var(--danger-bg);padding:6px 8px;border-radius:6px;">❌ ${e.rejection_reason}</div>`:''}
+      ${['draft','rejected'].includes(e.status)?`<div style="display:flex;gap:6px;margin-top:8px;"><button class="btn btn-ghost btn-sm" onclick='editEntry(${JSON.stringify(e)})'>✏️ Edit</button><button class="btn btn-danger btn-sm" onclick="deleteEntry(${e.id})">🗑️</button></div>`:''}
+    </div>`).join('');
+}
+
+// Mobile sidebar helpers
+function openSidebar() { document.getElementById('sidebar-el').classList.add('open'); document.getElementById('sb-overlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar-el').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); }
+
+loadTodayEntries();
+</script>
+</body>
+</html>

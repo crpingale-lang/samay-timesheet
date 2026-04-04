@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Approvals — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <div class="topbar-title">Approvals</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-success btn-sm" onclick="approveSelected()">✅ Approve</button>
+        <button class="btn btn-danger btn-sm" onclick="openRejectModal()">❌ Reject</button>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- ROLE CONTEXT BANNER -->
+      <div id="role-banner" style="margin-bottom:14px;"></div>
+
+      <!-- FILTERS -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">From</label><input class="form-control" type="date" id="filter-from"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">To</label><input class="form-control" type="date" id="filter-to"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+            <label class="form-label">Staff</label>
+            <select class="form-control" id="filter-staff"><option value="">All</option></select>
+          </div>
+          <button class="btn btn-primary" onclick="loadEntries()">🔍 Filter</button>
+          <button class="btn btn-ghost btn-sm" onclick="approveAll()">✅ Approve All</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Pending Review <span id="pending-count" style="color:var(--accent);"></span></div></div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"> Select All
+          </label>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th></th><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th class="hide-mobile">Bill.</th><th class="hide-mobile">Notes</th></tr></thead>
+            <tbody id="entries-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
+    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
+    <a class="bottom-nav-item active" href="/approvals.html"><span class="bn-icon">✅</span>Approve</a>
+  </div>
+</nav>
+
+<!-- REJECT MODAL -->
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">Reject Entries</div><button class="modal-close" onclick="closeModal('reject-modal')">✕</button></div>
+    <div class="form-group">
+      <label class="form-label">Rejection Reason *</label>
+      <textarea class="form-control" id="rejection-reason" rows="3" placeholder="Reason for rejection…"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="rejectSelected()">❌ Reject</button>
+      <button class="btn btn-ghost" onclick="closeModal('reject-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!isManagerOrAbove()) window.location.href = '/dashboard.html';
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+const user = getUser();
+const requiredStatus = user.role === 'manager' ? 'pending_manager' : 'pending_partner';
+const banners = {
+  manager: { cls:'alert-success', txt:'🔑 <strong>Manager Approvals:</strong> Review and approve Articles\' submitted timesheets. Approved entries go to Partner for final sign-off.' },
+  partner: { cls:'alert-info', txt:'👑 <strong>Partner Approvals:</strong> Final approval of Managers\' timesheets (already reviewed by managers).' }
+};
+const b = banners[user.role];
+if (b) document.getElementById('role-banner').innerHTML = `<div class="alert ${b.cls}">${b.txt}</div>`;
+
+const wb = weekBounds();
+document.getElementById('filter-from').value = wb.from;
+document.getElementById('filter-to').value = wb.to;
+
+async function loadStaff() {
+  try {
+    const staff = await apiFetch('/staff');
+    const sel = document.getElementById('filter-staff');
+    // Filter by relevant role for the approver
+    const relevant = user.role === 'manager'
+      ? staff.filter(s => s.role === 'article')
+      : staff.filter(s => s.role === 'manager');
+    relevant.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name}</option>`);
+  } catch(e) {}
+}
+loadStaff();
+
+async function loadEntries() {
+  const from = document.getElementById('filter-from').value;
+  const to = document.getElementById('filter-to').value;
+  const uid = document.getElementById('filter-staff').value;
+  let url = `/timesheets?status=${requiredStatus}&from=${from}&to=${to}`;
+  if (uid) url += `&user_id=${uid}`;
+  const entries = await apiFetch(url);
+  document.getElementById('pending-count').textContent = entries.length ? `(${entries.length} pending)` : '(none)';
+  const tbody = document.getElementById('entries-tbody');
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎉</div><div class="empty-title">All clear! No pending approvals</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(e => `
+    <tr>
+      <td><input type="checkbox" class="entry-cb" value="${e.id}"></td>
+      <td>${fmtDate(e.entry_date)}</td>
+      <td><strong>${e.staff_name}</strong><div style="font-size:11px;">${roleBadge(e.staff_role||'article')}</div></td>
+      <td class="hide-mobile" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'Internal'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.task_type}</td>
+      <td><strong>${fmtHours(e.hours)}</strong></td>
+      <td class="hide-mobile"><span class="badge ${e.billable?'badge-billable':'badge-non-billable'}">${e.billable?'Yes':'No'}</span></td>
+      <td class="hide-mobile" style="max-width:140px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description||'—'}</td>
+    </tr>`).join('');
+}
+
+function toggleSelectAll(v) { document.querySelectorAll('.entry-cb').forEach(c=>c.checked=v); }
+function getSelected() { return [...document.querySelectorAll('.entry-cb:checked')].map(c=>parseInt(c.value)); }
+
+async function approveSelected() {
+  const ids = getSelected();
+  if (!ids.length) { toast('Select entries first','info'); return; }
+  await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'approve'}});
+  const nextStep = user.role==='manager' ? 'escalated to Partner' : 'approved!';
+  toast(`${ids.length} entries ${nextStep}`,'success'); loadEntries();
+}
+
+async function approveAll() {
+  const ids = [...document.querySelectorAll('.entry-cb')].map(c=>parseInt(c.value));
+  if (!ids.length) { toast('No entries to approve','info'); return; }
+  await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'approve'}});
+  toast(`All ${ids.length} entries processed!`,'success'); loadEntries();
+}
+
+function openRejectModal() {
+  if (!getSelected().length) { toast('Select entries to reject','info'); return; }
+  document.getElementById('rejection-reason').value='';
+  openModal('reject-modal');
+}
+
+async function rejectSelected() {
+  const ids = getSelected();
+  const reason = document.getElementById('rejection-reason').value.trim();
+  if (!reason) { toast('Provide a rejection reason','error'); return; }
+  await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'reject',rejection_reason:reason}});
+  closeModal('reject-modal'); toast(`${ids.length} entries rejected`,'info'); loadEntries();
+}
+
+function openSidebar() { document.getElementById('sidebar-el').classList.add('open'); document.getElementById('sb-overlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar-el').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); }
+
+loadEntries();
+</script>
+</body>
+</html>

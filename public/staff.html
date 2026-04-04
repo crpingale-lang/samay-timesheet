@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <div class="topbar-title">Staff</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Staff</button>
+    </header>
+    <div class="page-content">
+      <!-- HIERARCHY LEGEND -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+        <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Hierarchy:</span>
+        <span class="badge badge-partner">👑 Partner</span>
+        <span style="font-size:12px;color:var(--text-muted);">→</span>
+        <span class="badge badge-manager">🔑 Manager</span>
+        <span style="font-size:12px;color:var(--text-muted);">→</span>
+        <span class="badge badge-article">📋 Article</span>
+      </div>
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th class="hide-mobile">Designation</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="staff-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STAFF MODAL -->
+<div class="modal-overlay" id="staff-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="modal-title">Add Staff</div><button class="modal-close" onclick="closeModal('staff-modal')">✕</button></div>
+    <form id="staff-form">
+      <input type="hidden" id="edit-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" type="text" id="f-name" required placeholder="e.g. Priya Sharma"></div>
+        <div class="form-group"><label class="form-label">Username *</label><input class="form-control" type="text" id="f-username" required placeholder="e.g. priya.sharma"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Password *</label><input class="form-control" type="password" id="f-password" placeholder="Leave blank to keep current"></div>
+        <div class="form-group">
+          <label class="form-label">Role *</label>
+          <select class="form-control" id="f-role">
+            <option value="article">📋 Article</option>
+            <option value="manager">🔑 Manager</option>
+            <option value="partner">👑 Partner</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Designation</label><input class="form-control" type="text" id="f-designation" placeholder="e.g. Article Assistant"></div>
+        <div class="form-group"><label class="form-label">Department</label><input class="form-control" type="text" id="f-department" placeholder="e.g. Audit, Tax"></div>
+      </div>
+      <div class="form-group" id="active-group" style="display:none;">
+        <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="f-active" checked><span class="toggle-slider"></span></label></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">💾 Save</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('staff-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requirePartner();
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+async function loadStaff() {
+  const staff = await apiFetch('/staff');
+  const tbody = document.getElementById('staff-tbody');
+  if (!staff.length) { tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No staff yet</div></div></td></tr>`; return; }
+  tbody.innerHTML = staff.map(s=>`
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0;">${s.name.charAt(0).toUpperCase()}</div>
+          <strong>${s.name}</strong>
+        </div>
+      </td>
+      <td><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${s.username}</code></td>
+      <td class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${s.designation||'—'}</td>
+      <td>${roleBadge(s.role)}</td>
+      <td><span class="badge ${s.active?'badge-approved':'badge-draft'}">${s.active?'Active':'Inactive'}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick='editStaff(${JSON.stringify(s)})'>✏️</button></td>
+    </tr>`).join('');
+}
+
+function openAddModal() {
+  document.getElementById('edit-id').value=''; document.getElementById('modal-title').textContent='Add Staff';
+  document.getElementById('staff-form').reset(); document.getElementById('f-username').readOnly=false;
+  document.getElementById('active-group').style.display='none'; document.getElementById('f-password').required=true;
+  openModal('staff-modal');
+}
+function editStaff(s) {
+  document.getElementById('edit-id').value=s.id; document.getElementById('modal-title').textContent='Edit Staff';
+  document.getElementById('f-name').value=s.name; document.getElementById('f-username').value=s.username; document.getElementById('f-username').readOnly=true;
+  document.getElementById('f-role').value=s.role; document.getElementById('f-designation').value=s.designation||''; document.getElementById('f-department').value=s.department||'';
+  document.getElementById('f-active').checked=!!s.active; document.getElementById('f-password').value=''; document.getElementById('f-password').required=false;
+  document.getElementById('active-group').style.display=''; openModal('staff-modal');
+}
+document.getElementById('staff-form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const id = document.getElementById('edit-id').value;
+  const payload = { name:document.getElementById('f-name').value, username:document.getElementById('f-username').value, role:document.getElementById('f-role').value, designation:document.getElementById('f-designation').value, department:document.getElementById('f-department').value, active:document.getElementById('f-active').checked?1:0 };
+  const pwd = document.getElementById('f-password').value;
+  if (!id&&!pwd){toast('Password required for new staff','error');return;}
+  if (pwd) payload.password=pwd;
+  try {
+    if (id) await apiFetch(`/staff/${id}`,{method:'PUT',body:payload});
+    else await apiFetch('/staff',{method:'POST',body:payload});
+    closeModal('staff-modal'); toast('Staff saved!','success'); loadStaff();
+  } catch(err){toast(err.message,'error');}
+});
+function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+loadStaff();
+</script>
+</body>
+</html>

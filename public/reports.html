@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <div class="topbar-title">Reports</div>
+      </div>
+      <button class="btn btn-success btn-sm" onclick="exportCSV()">⬇️ Export CSV</button>
+    </header>
+    <div class="page-content">
+      <!-- FILTERS -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div class="form-group" style="margin:0;min-width:150px;">
+            <label class="form-label">Period</label>
+            <select class="form-control" id="period-select" onchange="applyPeriod()">
+              <option value="this-month">This Month</option>
+              <option value="last-month">Last Month</option>
+              <option value="this-quarter">This Quarter</option>
+              <option value="this-fy">This FY (Apr–Mar)</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;display:none;" id="c1"><label class="form-label">From</label><input class="form-control" type="date" id="filter-from"></div>
+          <div class="form-group" style="margin:0;display:none;" id="c2"><label class="form-label">To</label><input class="form-control" type="date" id="filter-to"></div>
+          <div class="form-group" style="margin:0;min-width:140px;">
+            <label class="form-label">Staff</label>
+            <select class="form-control" id="filter-staff"><option value="">All Staff</option></select>
+          </div>
+          <button class="btn btn-primary" onclick="loadAll()">🔍 Run</button>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('utilization',this)">👥 Utilization</button>
+        <button class="tab" onclick="switchTab('client',this)">🏢 By Client</button>
+        <button class="tab" onclick="switchTab('detail',this)">📋 Detail</button>
+      </div>
+
+      <!-- UTILIZATION -->
+      <div id="tab-utilization">
+        <div class="grid-2" style="margin-bottom:16px;">
+          <div class="card"><div class="card-title" style="margin-bottom:12px;">Hours by Staff</div><canvas id="staffChart" height="220"></canvas></div>
+          <div class="card"><div class="card-title" style="margin-bottom:12px;">Billable Split</div><canvas id="billChart" height="220"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Staff</th><th>Role</th><th>Total Hrs</th><th>Billable</th><th class="hide-mobile">Non-Bill.</th><th>Bill. %</th></tr></thead>
+              <tbody id="util-tbody"></tbody>
+              <tfoot id="util-tfoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIENT -->
+      <div id="tab-client" style="display:none;">
+        <div class="card" style="margin-bottom:16px;"><canvas id="clientChart" height="120"></canvas></div>
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Client</th><th>Total Hrs</th><th>Billable Hrs</th><th class="hide-mobile">Rate</th><th>Value</th></tr></thead>
+              <tbody id="client-tbody"></tbody>
+              <tfoot id="client-tfoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETAIL -->
+      <div id="tab-detail" style="display:none;">
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
+              <tbody id="detail-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
+    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
+    <a class="bottom-nav-item active" href="/reports.html"><span class="bn-icon">📈</span>Reports</a>
+  </div>
+</nav>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!isManagerOrAbove()) window.location.href = '/dashboard.html';
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+let staffChart=null, billChart=null, clientChart=null;
+
+function applyPeriod() {
+  const p=document.getElementById('period-select').value, now=new Date(), y=now.getFullYear(), m=now.getMonth();
+  let from,to;
+  if(p==='this-month'){from=`${y}-${String(m+1).padStart(2,'0')}-01`;to=today();}
+  else if(p==='last-month'){const lm=new Date(y,m,0);from=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-01`;to=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;}
+  else if(p==='this-quarter'){const q=Math.floor(m/3);from=`${y}-${String(q*3+1).padStart(2,'0')}-01`;to=today();}
+  else if(p==='this-fy'){const fs=m>=3?y:y-1;from=`${fs}-04-01`;to=today();}
+  const custom=p==='custom';
+  document.getElementById('c1').style.display=custom?'':'none';
+  document.getElementById('c2').style.display=custom?'':'none';
+  if(!custom){document.getElementById('filter-from').value=from;document.getElementById('filter-to').value=to;}
+}
+
+function switchTab(tab,btn){
+  ['utilization','client','detail'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'':'none');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+}
+
+async function loadFilters(){
+  try {
+    const staff=await apiFetch('/staff');
+    const sel=document.getElementById('filter-staff');
+    staff.forEach(s=>sel.innerHTML+=`<option value="${s.id}">${s.name} (${s.role})</option>`);
+  } catch(e){}
+}
+
+function getFilters(){return{from:document.getElementById('filter-from').value,to:document.getElementById('filter-to').value,staff:document.getElementById('filter-staff').value};}
+
+async function loadUtilization(f){
+  const data=await apiFetch(`/reports/utilization?from=${f.from}&to=${f.to}`);
+  const tbody=document.getElementById('util-tbody');
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No data</div></div></td></tr>`;return;}
+  const totalH=data.reduce((s,r)=>s+r.total_hours,0);
+  const billH=data.reduce((s,r)=>s+r.billable_hours,0);
+  tbody.innerHTML=data.map(r=>{
+    const pct=r.total_hours?((r.billable_hours/r.total_hours)*100).toFixed(0):0;
+    const color=pct>=80?'var(--success)':pct>=50?'var(--warning)':'var(--danger)';
+    return`<tr>
+      <td><strong>${r.name}</strong></td>
+      <td>${roleBadge(r.role||'article')}</td>
+      <td><strong>${fmtHours(r.total_hours)}</strong></td>
+      <td style="color:var(--accent);">${fmtHours(r.billable_hours)}</td>
+      <td class="hide-mobile" style="color:var(--text-muted);">${fmtHours(r.non_billable_hours)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px;"><div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${pct}%;background:${color};"></div></div><span style="font-size:12px;font-weight:600;">${pct}%</span></div></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('util-tfoot').innerHTML=`<tr><td colspan="2" style="font-weight:700;">Total</td><td><strong>${fmtHours(totalH)}</strong></td><td style="color:var(--accent);font-weight:700;">${fmtHours(billH)}</td><td colspan="2">${totalH?((billH/totalH)*100).toFixed(0):0}% billable</td></tr>`;
+  if(staffChart)staffChart.destroy();
+  if(billChart)billChart.destroy();
+  staffChart=new Chart(document.getElementById('staffChart').getContext('2d'),{type:'bar',data:{labels:data.map(r=>r.name),datasets:[{label:'Billable',data:data.map(r=>r.billable_hours),backgroundColor:'rgba(67,56,202,0.7)',borderRadius:4},{label:'Non-Billable',data:data.map(r=>r.non_billable_hours),backgroundColor:'rgba(217,119,6,0.4)',borderRadius:4}]},options:{responsive:true,plugins:{legend:{labels:{color:'#64748b'}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748b'}},y:{stacked:true,grid:{color:'#f1f5f9'},ticks:{color:'#64748b'},beginAtZero:true}}}});
+  billChart=new Chart(document.getElementById('billChart').getContext('2d'),{type:'doughnut',data:{labels:['Billable','Non-Billable'],datasets:[{data:[billH,totalH-billH],backgroundColor:['#4338ca','#f59e0b'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,plugins:{legend:{labels:{color:'#64748b'}}}}});
+}
+
+async function loadClientReport(f){
+  const data=await apiFetch(`/reports/by-client?from=${f.from}&to=${f.to}`);
+  const tbody=document.getElementById('client-tbody');
+  if(!data.length){tbody.innerHTML=`<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No data</div></div></td></tr>`;return;}
+  const totalH=data.reduce((s,r)=>s+r.total_hours,0);
+  const totalV=data.reduce((s,r)=>s+r.billable_value,0);
+  tbody.innerHTML=data.map(r=>`<tr>
+    <td><strong>${r.client_name}</strong><div style="font-size:11px;color:var(--primary);">${r.code}</div></td>
+    <td>${fmtHours(r.total_hours)}</td>
+    <td style="color:var(--accent);">${fmtHours(r.billable_hours)}</td>
+    <td class="hide-mobile">${r.billing_rate?fmtCurrency(r.billing_rate)+'/hr':'—'}</td>
+    <td style="color:var(--success);font-weight:700;">${r.billable_value?fmtCurrency(r.billable_value):'—'}</td>
+  </tr>`).join('');
+  document.getElementById('client-tfoot').innerHTML=`<tr><td>Grand Total</td><td><strong>${fmtHours(totalH)}</strong></td><td></td><td class="hide-mobile"></td><td style="color:var(--success);font-weight:700;">${fmtCurrency(totalV)}</td></tr>`;
+  if(clientChart)clientChart.destroy();
+  const top=data.filter(r=>r.total_hours>0).slice(0,8);
+  clientChart=new Chart(document.getElementById('clientChart').getContext('2d'),{type:'bar',data:{labels:top.map(r=>r.client_name),datasets:[{label:'Total Hours',data:top.map(r=>r.total_hours),backgroundColor:'rgba(67,56,202,0.6)',borderRadius:6}]},options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'},ticks:{color:'#64748b'}},y:{grid:{display:false},ticks:{color:'#64748b'}}}}});
+}
+
+async function loadDetailEntries(f){
+  let url=`/timesheets?from=${f.from}&to=${f.to}`;
+  if(f.staff)url+=`&user_id=${f.staff}`;
+  const entries=await apiFetch(url);
+  const tbody=document.getElementById('detail-tbody');
+  if(!entries.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries</div></div></td></tr>`;return;}
+  tbody.innerHTML=entries.map(e=>`<tr>
+    <td>${fmtDate(e.entry_date)}</td>
+    <td>${e.staff_name}</td>
+    <td class="hide-mobile" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'Internal'}</td>
+    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${e.task_type}</td>
+    <td><strong>${fmtHours(e.hours)}</strong></td>
+    <td>${statusBadge(e.status)}</td>
+  </tr>`).join('');
+}
+
+async function loadAll(){const f=getFilters();loadUtilization(f);loadClientReport(f);loadDetailEntries(f);}
+
+function exportCSV(){
+  const f=getFilters();
+  let url=`/api/reports/export?from=${f.from}&to=${f.to}&token=${getToken()}`;
+  if(f.staff)url+=`&user_id=${f.staff}`;
+  window.open(url,'_blank');
+}
+
+function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+
+applyPeriod();
+loadFilters().then(loadAll);
+</script>
+</body>
+</html>

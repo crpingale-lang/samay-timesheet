@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Timesheets — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <div class="topbar-title">My Timesheets</div>
+      </div>
+      <a href="/timesheet.html" class="btn btn-primary btn-sm">+ Log Time</a>
+    </header>
+    <div class="page-content">
+      <!-- FILTERS -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">From</label><input class="form-control" type="date" id="filter-from"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">To</label><input class="form-control" type="date" id="filter-to"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+            <label class="form-label">Status</label>
+            <select class="form-control" id="filter-status">
+              <option value="">All</option>
+              <option value="draft">Draft</option>
+              <option value="pending_manager">Pending Manager</option>
+              <option value="pending_partner">Pending Partner</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="loadEntries()">🔍 Filter</button>
+        </div>
+      </div>
+
+      <!-- SUMMARY -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+        <div class="stat-card indigo"><div class="stat-label">Total Hours</div><div class="stat-value" id="ms-total">—</div></div>
+        <div class="stat-card green"><div class="stat-label">Approved</div><div class="stat-value" id="ms-approved">—</div></div>
+        <div class="stat-card amber"><div class="stat-label">Pending</div><div class="stat-value" id="ms-pending">—</div></div>
+        <div class="stat-card red"><div class="stat-label">Rejected</div><div class="stat-value" id="ms-rejected">—</div></div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Entries</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+              <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"> Select All
+            </label>
+            <button class="btn btn-outline btn-sm" onclick="submitSelected()">📤 Submit Selected</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th></th><th>Date</th><th>Client</th><th>Task</th><th>Hrs</th><th>Bill.</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="entries-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
+    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
+    <a class="bottom-nav-item active" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
+    <a class="bottom-nav-item" href="/approvals.html" id="bn-approvals" style="display:none;"><span class="bn-icon">✅</span>Approve</a>
+  </div>
+</nav>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if (isManagerOrAbove()) document.getElementById('bn-approvals').style.display='';
+
+const wb = weekBounds();
+document.getElementById('filter-from').value = wb.from;
+document.getElementById('filter-to').value = wb.to;
+
+async function loadEntries() {
+  const from = document.getElementById('filter-from').value;
+  const to = document.getElementById('filter-to').value;
+  const status = document.getElementById('filter-status').value;
+  let url = `/timesheets?from=${from}&to=${to}`;
+  if (status) url += `&status=${status}`;
+  const entries = await apiFetch(url);
+  const tbody = document.getElementById('entries-tbody');
+
+  const total = entries.reduce((s,e)=>s+parseFloat(e.hours),0);
+  const approved = entries.filter(e=>e.status==='approved').reduce((s,e)=>s+parseFloat(e.hours),0);
+  const pending = entries.filter(e=>['pending_manager','pending_partner'].includes(e.status)).reduce((s,e)=>s+parseFloat(e.hours),0);
+  const rejected = entries.filter(e=>e.status==='rejected').reduce((s,e)=>s+parseFloat(e.hours),0);
+  document.getElementById('ms-total').textContent = fmtHours(total);
+  document.getElementById('ms-approved').textContent = fmtHours(approved);
+  document.getElementById('ms-pending').textContent = fmtHours(pending);
+  document.getElementById('ms-rejected').textContent = fmtHours(rejected);
+
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries found</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(e => `
+    <tr>
+      <td>${['draft','rejected'].includes(e.status)?`<input type="checkbox" class="entry-cb" value="${e.id}">`:''}</td>
+      <td>${fmtDate(e.entry_date)}</td>
+      <td class="hide-mobile" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'—'}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.task_type}</td>
+      <td><strong>${fmtHours(e.hours)}</strong></td>
+      <td class="hide-mobile"><span class="badge ${e.billable?'badge-billable':'badge-non-billable'}">${e.billable?'Yes':'No'}</span></td>
+      <td>${statusBadge(e.status)}${e.status==='rejected'?`<div style="font-size:11px;color:var(--danger);margin-top:3px;">${e.rejection_reason||''}</div>`:''}</td>
+      <td>
+        ${['draft','rejected'].includes(e.status)?`
+          <button class="btn btn-ghost btn-sm" onclick='editInPlace(${JSON.stringify(e)})'>✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEntry(${e.id})">🗑️</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+
+function toggleSelectAll(v) { document.querySelectorAll('.entry-cb').forEach(c=>c.checked=v); }
+
+async function submitSelected() {
+  const ids = [...document.querySelectorAll('.entry-cb:checked')].map(c=>parseInt(c.value));
+  if (!ids.length) { toast('Select entries to submit','info'); return; }
+  await apiFetch('/timesheets/submit',{method:'POST',body:{entry_ids:ids}});
+  const user = getUser();
+  toast(user.role==='partner'?`${ids.length} entries approved!`:`${ids.length} entries submitted!`,'success');
+  loadEntries();
+}
+
+async function deleteEntry(id) {
+  if(!confirm('Delete?'))return;
+  try { await apiFetch(`/timesheets/${id}`,{method:'DELETE'}); toast('Deleted'); loadEntries(); } catch(e){toast(e.message,'error');}
+}
+
+function editInPlace(e) { window.location='/timesheet.html'; }
+
+function openSidebar() { document.getElementById('sidebar-el').classList.add('open'); document.getElementById('sb-overlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar-el').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); }
+
+loadEntries();
+</script>
+</body>
+</html>

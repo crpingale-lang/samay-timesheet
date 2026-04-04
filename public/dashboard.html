@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-title" id="page-greeting">Dashboard</div>
+      <div class="topbar-actions">
+        <span id="current-date" style="font-size:12px;color:var(--text-muted);"></span>
+        <a href="/timesheet.html" class="btn btn-primary btn-sm">+ Log Time</a>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- Role-specific info bar -->
+      <div id="role-info-bar" style="margin-bottom:16px;"></div>
+
+      <div class="stats-grid">
+        <div class="stat-card indigo"><div class="stat-icon">⏱️</div><div class="stat-label">Today's Hours</div><div class="stat-value" id="stat-today">—</div><div class="stat-sub">Logged today</div></div>
+        <div class="stat-card green"><div class="stat-icon">📅</div><div class="stat-label">This Week</div><div class="stat-value" id="stat-week">—</div><div class="stat-sub">Current week total</div></div>
+        <div class="stat-card amber"><div class="stat-icon">🕐</div><div class="stat-label">Pending Approval</div><div class="stat-value" id="stat-pending">—</div><div class="stat-sub" id="stat-pending-sub">Items awaiting action</div></div>
+        <div class="stat-card blue"><div class="stat-icon">📝</div><div class="stat-label">My Drafts</div><div class="stat-value" id="stat-draft">—</div><div class="stat-sub">Not yet submitted</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Recent Entries</div><div class="card-subtitle">Last 10 timesheet entries</div></div>
+            <a href="/my-timesheets.html" class="btn btn-ghost btn-sm">View All</a>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Date</th><th>Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
+              <tbody id="recent-entries-body">
+                <tr><td colspan="5"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">This Week's Hours</div><div class="card-subtitle">Daily breakdown</div></div></div>
+          <canvas id="weekChart" height="210"></canvas>
+        </div>
+      </div>
+
+      <div class="card" id="utilization-card" style="margin-top:16px;display:none;">
+        <div class="card-header">
+          <div><div class="card-title">Team Utilization (This Month)</div><div class="card-subtitle">Approved hours per team member</div></div>
+          <a href="/reports.html" class="btn btn-ghost btn-sm">Full Report</a>
+        </div>
+        <div id="utilization-body"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+
+const user = getUser();
+document.getElementById('page-greeting').textContent = `Good ${new Date().getHours()<12?'Morning':'Afternoon'}, ${user.name.split(' ')[0]}!`;
+document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+// Role info bar
+const infoBar = document.getElementById('role-info-bar');
+const msgs = {
+  partner: { cls:'alert-info', txt:'👑 <strong>Partner View:</strong> Your timesheets are self-approved. You see all pending partner approvals.' },
+  manager: { cls:'alert-success', txt:'🔑 <strong>Manager View:</strong> Approve articles\' timesheets, then submit your own to the Partner.' },
+  article: { cls:'alert-warning', txt:'📋 <strong>Article View:</strong> Submit your timesheets to your Manager for approval.' }
+};
+const m = msgs[user.role];
+if (m) infoBar.innerHTML = `<div class="alert ${m.cls}">${m.txt}</div>`;
+
+async function loadStats() {
+  const s = await apiFetch('/timesheets/stats');
+  document.getElementById('stat-today').textContent = fmtHours(s.today_hours);
+  document.getElementById('stat-week').textContent = fmtHours(s.week_hours);
+  document.getElementById('stat-pending').textContent = s.pending_approvals;
+  document.getElementById('stat-draft').textContent = s.draft_count;
+  if (user.role === 'manager') document.getElementById('stat-pending-sub').textContent = 'Articles awaiting your review';
+  if (user.role === 'partner') document.getElementById('stat-pending-sub').textContent = 'Managers awaiting your approval';
+}
+
+async function loadRecentEntries() {
+  const { from } = weekBounds();
+  const entries = await apiFetch(`/timesheets?from=${from}`);
+  const tbody = document.getElementById('recent-entries-body');
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries this week</div></div></td></tr>`; return;
+  }
+  tbody.innerHTML = entries.slice(0,10).map(e => `
+    <tr>
+      <td>${fmtDate(e.entry_date)}</td>
+      <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'—'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${e.task_type}</td>
+      <td><strong>${fmtHours(e.hours)}</strong></td>
+      <td>${statusBadge(e.status)}</td>
+    </tr>`).join('');
+}
+
+async function loadWeekChart() {
+  const { from, to } = weekBounds();
+  const entries = await apiFetch(`/timesheets?from=${from}&to=${to}`);
+  const dayHours = Array(7).fill(0);
+  entries.forEach(e => { const idx = (new Date(e.entry_date+'T00:00:00').getDay()+6)%7; dayHours[idx] += parseFloat(e.hours)||0; });
+  new Chart(document.getElementById('weekChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label: 'Hours', data: dayHours, backgroundColor: 'rgba(67,56,202,0.15)', borderColor: '#4338ca', borderWidth: 2, borderRadius: 6 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#f1f5f9' }, beginAtZero: true } } }
+  });
+}
+
+async function loadUtilization() {
+  if (!isManagerOrAbove()) return;
+  document.getElementById('utilization-card').style.display = '';
+  const now = new Date();
+  const from = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const data = await apiFetch(`/reports/utilization?from=${from}&to=${today()}`);
+  const container = document.getElementById('utilization-body');
+  if (!data.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No approved hours yet</div></div>'; return; }
+  const maxH = Math.max(...data.map(d=>d.total_hours),1);
+  container.innerHTML = data.map(s => `
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:600;">${s.name}</span>${roleBadge(s.role)}</div>
+        <span style="font-size:12px;color:var(--text-muted);">${fmtHours(s.total_hours)} (${fmtHours(s.billable_hours)} billable)</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min((s.total_hours/maxH)*100,100)}%"></div></div>
+    </div>`).join('');
+}
+
+loadStats(); loadRecentEntries(); loadWeekChart(); loadUtilization();
+</script>
+</body>
+</html>

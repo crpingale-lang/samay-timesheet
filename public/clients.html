@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clients — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <div class="topbar-title">Clients</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()" title="Download CSV template">📄 Template</button>
+      <button class="btn btn-outline btn-sm" onclick="openModal('import-modal')">⬆️ Import CSV</button>
+      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Client</button>
+    </header>
+    <div class="page-content">
+      <div class="card">
+        <div class="card-header">
+          <div class="search-bar" style="flex:1;max-width:280px;position:relative;">
+            <input class="form-control" type="text" id="search" placeholder="Search clients…" oninput="filterClients()" style="padding-left:34px;">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;">🔍</span>
+          </div>
+          <span id="client-count" style="font-size:13px;color:var(--text-muted);"></span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Code</th><th>Client Name</th><th class="hide-mobile">Contact</th><th class="hide-mobile">Rate</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="clients-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="client-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Add Client</div>
+      <button class="modal-close" onclick="closeModal('client-modal')">✕</button>
+    </div>
+    <form id="client-form">
+      <input type="hidden" id="edit-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client Name *</label><input class="form-control" type="text" id="f-name" required placeholder="Full legal name"></div>
+        <div class="form-group"><label class="form-label">Client Code *</label><input class="form-control" type="text" id="f-code" required placeholder="e.g. CLI002" style="text-transform:uppercase;"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Contact Person</label><input class="form-control" type="text" id="f-contact" placeholder="Primary contact"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-control" type="tel" id="f-phone" placeholder="+91 98765 43210"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email</label><input class="form-control" type="email" id="f-email" placeholder="client@example.com"></div>
+        <div class="form-group"><label class="form-label">Billing Rate (₹/hr)</label><input class="form-control" type="number" id="f-rate" min="0" step="100" placeholder="2500"></div>
+      </div>
+      <div class="form-group" id="active-group" style="display:none;">
+        <div class="toggle-row"><label class="toggle-label">Active Client</label><label class="toggle"><input type="checkbox" id="f-active" checked><span class="toggle-slider"></span></label></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">💾 Save</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('client-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header"><div class="modal-title">⬆️ Import Clients from CSV</div><button class="modal-close" onclick="closeModal('import-modal');resetImport()">✕</button></div>
+
+    <!-- Step 1: Upload -->
+    <div id="import-step-1">
+      <div class="alert alert-info" style="margin-bottom:14px;">
+        ℹ️ CSV must have columns: <strong>Name, Code, Contact Person, Phone, Email, Billing Rate</strong>.
+        <a href="/api/clients/template" style="color:var(--primary);font-weight:600;margin-left:6px;" download>Download template ↓</a>
+      </div>
+      <div id="drop-zone" onclick="document.getElementById('csv-file').click()"
+        style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--bg);">
+        <div style="font-size:28px;margin-bottom:8px;">📁</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);">Click to select or drag & drop a CSV file</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Supported: .csv files</div>
+      </div>
+      <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none;" onchange="handleFileSelect(this.files[0])">
+      <div style="text-align:center;margin-top:12px;color:var(--text-muted);font-size:12px;">or paste CSV text below</div>
+      <textarea class="form-control" id="csv-paste" rows="4" placeholder="Name,Code,Contact Person,Phone,Email,Billing Rate&#10;ABC Traders,ABC001,Rajesh,9876543210,r@abc.com,2500" style="margin-top:8px;font-family:monospace;font-size:12px;"></textarea>
+      <button class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center;" onclick="parseAndPreview()">👁 Preview</button>
+    </div>
+
+    <!-- Step 2: Preview -->
+    <div id="import-step-2" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div><strong id="preview-count"></strong></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="update-existing"> Update existing clients (match by Code)
+        </label>
+      </div>
+      <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead><tr style="position:sticky;top:0;background:#f8fafc;"><th style="padding:8px 10px;">Name</th><th>Code</th><th>Contact</th><th>Phone</th><th>Rate</th><th>Status</th></tr></thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="doImport()">✅ Import</button>
+        <button class="btn btn-ghost" onclick="resetImport()">← Back</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Result -->
+    <div id="import-step-3" style="display:none;text-align:center;padding:16px 0;">
+      <div style="font-size:36px;margin-bottom:12px;">🎉</div>
+      <div id="import-result-summary" style="font-size:14px;color:var(--text);"></div>
+      <div id="import-errors" style="margin-top:10px;font-size:12px;color:var(--danger);text-align:left;background:var(--danger-bg);padding:10px;border-radius:8px;display:none;"></div>
+      <button class="btn btn-primary" style="margin-top:18px;" onclick="closeModal('import-modal');resetImport();loadClients()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requirePartner();
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+// Drag-and-drop on drop zone
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e=>{e.preventDefault();dropZone.style.borderColor='var(--primary)';dropZone.style.background='var(--primary-bg)';});
+dropZone.addEventListener('dragleave', ()=>{dropZone.style.borderColor='var(--border)';dropZone.style.background='var(--bg)';});
+dropZone.addEventListener('drop', e=>{e.preventDefault();dropZone.style.borderColor='var(--border)';dropZone.style.background='var(--bg)';if(e.dataTransfer.files[0])handleFileSelect(e.dataTransfer.files[0]);});
+
+let parsedRows = [];
+
+function handleFileSelect(file) {
+  if (!file||!file.name.endsWith('.csv')) { toast('Please select a .csv file','error'); return; }
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('csv-paste').value=e.target.result; };
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(l=>l.trim());
+  if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row');
+  const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+  const nameIdx   = headers.findIndex(h=>h.includes('name'));
+  const codeIdx   = headers.findIndex(h=>h.includes('code'));
+  const contactIdx= headers.findIndex(h=>h.includes('contact'));
+  const phoneIdx  = headers.findIndex(h=>h.includes('phone'));
+  const emailIdx  = headers.findIndex(h=>h.includes('email'));
+  const rateIdx   = headers.findIndex(h=>h.includes('rate')||h.includes('billing'));
+  if (nameIdx<0||codeIdx<0) throw new Error('CSV must contain "Name" and "Code" columns');
+  const rows = [];
+  for (let i=1;i<lines.length;i++) {
+    const cols = parseCSVLine(lines[i]);
+    const name=(cols[nameIdx]||'').trim();
+    const code=(cols[codeIdx]||'').trim().toUpperCase();
+    if(!name&&!code)continue;
+    rows.push({ name, code, contact_person:contactIdx>=0?(cols[contactIdx]||'').trim():'', phone:phoneIdx>=0?(cols[phoneIdx]||'').trim():'', email:emailIdx>=0?(cols[emailIdx]||'').trim():'', billing_rate:rateIdx>=0?parseFloat(cols[rateIdx])||0:0 });
+  }
+  return rows;
+}
+
+function parseCSVLine(line) {
+  const result=[]; let current='', inQuotes=false;
+  for(let i=0;i<line.length;i++){
+    if(line[i]==='"'){if(inQuotes&&line[i+1]==='"'){current+='"';i++;}else{inQuotes=!inQuotes;}}
+    else if(line[i]===','&&!inQuotes){result.push(current);current='';}
+    else{current+=line[i];}
+  }
+  result.push(current); return result;
+}
+
+async function parseAndPreview() {
+  const text = document.getElementById('csv-paste').value.trim();
+  if (!text) { toast('Paste CSV data or select a file','error'); return; }
+  try {
+    parsedRows = parseCSV(text);
+    if(!parsedRows.length){toast('No data rows found','error');return;}
+    // Check existing codes
+    const allClients = await apiFetch('/clients');
+    const existingCodes = new Set(allClients.map(c=>c.code));
+    const tbody = document.getElementById('preview-tbody');
+    tbody.innerHTML = parsedRows.map(r => {
+      const exists = existingCodes.has(r.code);
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 10px;">${r.name||'<span style="color:var(--danger);">MISSING</span>'}</td>
+        <td><code style="background:var(--primary-bg);padding:1px 6px;border-radius:4px;font-size:11px;color:var(--primary);">${r.code||'?'}</code></td>
+        <td style="color:var(--text-muted);">${r.contact_person||'—'}</td>
+        <td style="color:var(--text-muted);">${r.phone||'—'}</td>
+        <td>${r.billing_rate?fmtCurrency(r.billing_rate)+'/hr':'—'}</td>
+        <td>${exists?'<span class="badge badge-pending_manager">Exists</span>':'<span class="badge badge-approved">New</span>'}</td>
+      </tr>`;
+    }).join('');
+    const newCount = parsedRows.filter(r=>!existingCodes.has(r.code)).length;
+    const existCount = parsedRows.length - newCount;
+    document.getElementById('preview-count').innerHTML = `<span style="color:var(--success);">✅ ${newCount} new</span> &nbsp; <span style="color:var(--accent);">⚠️ ${existCount} existing</span> &nbsp; — ${parsedRows.length} total rows`;
+    document.getElementById('import-step-1').style.display='none';
+    document.getElementById('import-step-2').style.display='';
+  } catch(e){toast(e.message,'error');}
+}
+
+async function doImport() {
+  const update = document.getElementById('update-existing').checked;
+  try {
+    const result = await apiFetch('/clients/import',{method:'POST',body:{clients:parsedRows,update_existing:update}});
+    document.getElementById('import-step-2').style.display='none';
+    document.getElementById('import-step-3').style.display='';
+    document.getElementById('import-result-summary').innerHTML = `
+      <div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin:8px 0;">
+        <div><div style="font-size:24px;font-weight:800;color:var(--success);">${result.inserted}</div><div style="font-size:12px;color:var(--text-muted);">Inserted</div></div>
+        <div><div style="font-size:24px;font-weight:800;color:var(--accent);">${result.updated}</div><div style="font-size:12px;color:var(--text-muted);">Updated</div></div>
+        <div><div style="font-size:24px;font-weight:800;color:var(--text-faint);">${result.skipped}</div><div style="font-size:12px;color:var(--text-muted);">Skipped</div></div>
+      </div>`;
+    if(result.errors&&result.errors.length){
+      const errEl=document.getElementById('import-errors');
+      errEl.style.display='';errEl.innerHTML='<strong>Errors:</strong><br>'+result.errors.join('<br>');
+    }
+  } catch(e){toast(e.message,'error');}
+}
+
+function resetImport() {
+  parsedRows=[];
+  document.getElementById('csv-paste').value='';
+  document.getElementById('csv-file').value='';
+  document.getElementById('import-step-1').style.display='';
+  document.getElementById('import-step-2').style.display='none';
+  document.getElementById('import-step-3').style.display='none';
+  document.getElementById('import-errors').style.display='none';
+}
+
+function downloadTemplate() { window.open('/api/clients/template','_blank'); }
+
+let allClients = [];
+async function loadClients() {
+  allClients = await apiFetch('/clients');
+  document.getElementById('client-count').textContent = `${allClients.length} clients`;
+  renderClients(allClients);
+}
+function filterClients() {
+  const q = document.getElementById('search').value.toLowerCase();
+  renderClients(allClients.filter(c=>c.name.toLowerCase().includes(q)||c.code.toLowerCase().includes(q)));
+}
+function renderClients(clients) {
+  const tbody = document.getElementById('clients-tbody');
+  if (!clients.length) { tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🏢</div><div class="empty-title">No clients found</div></div></td></tr>`; return; }
+  tbody.innerHTML = clients.map(c=>`
+    <tr>
+      <td><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${c.code}</code></td>
+      <td><strong>${c.name}</strong></td>
+      <td class="hide-mobile">${c.contact_person||'—'}</td>
+      <td class="hide-mobile">${c.billing_rate?fmtCurrency(c.billing_rate)+'/hr':'—'}</td>
+      <td><span class="badge ${c.active?'badge-approved':'badge-draft'}">${c.active?'Active':'Archived'}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick='editClient(${JSON.stringify(c)})'>✏️</button></td>
+    </tr>`).join('');
+}
+function openAddModal() {
+  document.getElementById('edit-id').value='';
+  document.getElementById('modal-title').textContent='Add Client';
+  document.getElementById('client-form').reset();
+  document.getElementById('active-group').style.display='none';
+  document.getElementById('f-code').readOnly=false;
+  openModal('client-modal');
+}
+function editClient(c) {
+  document.getElementById('edit-id').value=c.id;
+  document.getElementById('modal-title').textContent='Edit Client';
+  document.getElementById('f-name').value=c.name;
+  document.getElementById('f-code').value=c.code;
+  document.getElementById('f-contact').value=c.contact_person||'';
+  document.getElementById('f-phone').value=c.phone||'';
+  document.getElementById('f-email').value=c.email||'';
+  document.getElementById('f-rate').value=c.billing_rate||'';
+  document.getElementById('f-active').checked=!!c.active;
+  document.getElementById('active-group').style.display='';
+  document.getElementById('f-code').readOnly=true;
+  openModal('client-modal');
+}
+document.getElementById('client-form').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const id = document.getElementById('edit-id').value;
+  const payload = { name:document.getElementById('f-name').value, code:document.getElementById('f-code').value.toUpperCase(), contact_person:document.getElementById('f-contact').value, phone:document.getElementById('f-phone').value, email:document.getElementById('f-email').value, billing_rate:parseFloat(document.getElementById('f-rate').value)||0, active:document.getElementById('f-active').checked?1:0 };
+  try {
+    if (id) await apiFetch(`/clients/${id}`,{method:'PUT',body:payload});
+    else await apiFetch('/clients',{method:'POST',body:payload});
+    closeModal('client-modal'); toast('Client saved!','success'); loadClients();
+  } catch(err){toast(err.message,'error');}
+});
+function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+loadClients();
+</script>
+</body>
+</html>
