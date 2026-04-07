@@ -1,8 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Log Time — Samay</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log Time - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
@@ -13,304 +14,1186 @@
   <aside class="sidebar" id="sidebar-el"></aside>
   <div class="main-content">
     <header class="topbar">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button class="hamburger" onclick="openSidebar()" aria-label="Menu">☰</button>
-        <div class="topbar-title">Log Time</div>
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
+        <div>
+          <div><div class="topbar-title">Log Time</div><div style="font-size:12px;color:var(--text-muted);">Daily capture feeding weekly summary</div></div>
+        </div>
       </div>
-      <div class="topbar-actions">
-        <button class="btn btn-ghost btn-sm" onclick="loadTodayEntries()">🔄</button>
-      </div>
+      <a href="/my-timesheets.html" class="btn btn-ghost btn-sm"><span class="btn-symbol" aria-hidden="true">&#8592;</span><span class="btn-label">Current</span></a>
     </header>
 
-    <div class="page-content">
-      <div class="grid-2" style="align-items:start;">
-        <!-- ENTRY FORM -->
-        <div class="card">
-          <div class="card-header">
-            <div><div class="card-title">New Time Entry</div><div class="card-subtitle" id="submit-label">Log your work</div></div>
+    <div class="page-content proto-page">
+      <div class="proto-caption" style="display:none;">Architected dual-view timesheet system with daily entries feeding weekly aggregation</div>
+
+      <div class="proto-tabs" style="margin-bottom:18px;">
+        <button class="proto-tab active" id="tab-daily" onclick="switchView('daily')">Daily Timesheet</button>
+        <button class="proto-tab" id="tab-weekly" onclick="switchView('weekly')">Weekly Summary</button>
+      </div>
+
+      <section id="daily-view">
+        <div class="card proto-panel" style="margin-bottom:18px;">
+          <div class="proto-toolbar">
+            <div class="proto-date-group">
+              <div class="form-group proto-date-field" style="margin:0;min-width:180px;">
+                <label class="form-label">Date</label>
+                <input class="form-control" type="date" id="selected-date-input" onchange="handleDateInput(this.value)">
+              </div>
+              <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(-1)">&larr; Prev</button>
+              <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(1)">Next &rarr;</button>
+              <div class="proto-date-readable" id="selected-date-readable"></div>
+            </div>
+            <div class="proto-toolbar-actions">
+              <button class="btn btn-primary" type="button" onclick="openAddModal()">+ Add Entry</button>
+              <button class="btn btn-outline" type="button" onclick="saveDayState()">Save Day</button>
+            </div>
           </div>
-          <form id="entry-form">
-            <input type="hidden" id="edit-id">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Date *</label>
-                <input class="form-control" type="date" id="entry-date" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Client</label>
-                <input class="form-control" type="text" id="client-search" list="client-datalist" placeholder="Search client name/code..." autocomplete="off">
-                <datalist id="client-datalist"></datalist>
-                <input type="hidden" id="client-id">
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Task Type *</label>
-              <select class="form-control" id="task-type" required><option value="">— Select Task —</option></select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Description</label>
-              <textarea class="form-control" id="description" rows="2" placeholder="Brief description of work done…"></textarea>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Start Time <i>(optional)</i></label>
-                <input class="form-control" type="time" id="start-time" oninput="calcTime()">
-              </div>
-              <div class="form-group">
-                <label class="form-label" style="display:flex;justify-content:space-between;">
-                  <span>End Time</span>
-                  <span style="font-size:11px;color:var(--primary);cursor:pointer;" onclick="calcEndTime()">Auto-calc ↶</span>
-                </label>
-                <input class="form-control" type="time" id="end-time" oninput="calcTime()">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Hours *</label>
-                <input class="form-control" type="number" id="hours" min="0.25" max="24" step="0.25" placeholder="e.g. 2.5" required oninput="calcEndTimeIfStartExists()">
-              </div>
-              <div class="form-group" style="align-self:end;padding-bottom:4px;">
-                <div class="toggle-row" style="border:none;padding:0;">
-                  <label class="toggle-label">💰 Billable</label>
-                  <label class="toggle"><input type="checkbox" id="billable" checked><span class="toggle-slider"></span></label>
-                </div>
-              </div>
-            </div>
 
-            <!-- TIMER -->
-            <div style="background:var(--primary-bg);border:1px solid var(--border-hover);border-radius:10px;padding:12px;margin-bottom:14px;">
-              <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">⏱ Timer — auto-fill hours</div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <div class="timer-display" id="timer-disp" style="font-size:22px;">00:00:00</div>
-                <button type="button" class="btn btn-success btn-sm" id="timer-start" onclick="startTimer()">▶ Start</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="timer-stop" onclick="stopTimer()" style="display:none;">⏹ Stop</button>
-                <button type="button" class="btn btn-ghost btn-sm" id="timer-reset" onclick="resetTimer()" style="display:none;">↺</button>
-              </div>
+          <div class="proto-weekbar" style="display:none;">
+            <div class="proto-weekbar-copy">
+              <div class="proto-section-title">Week Context</div>
+              <div class="proto-section-sub">Selected day stays central while the week stays visible.</div>
             </div>
-
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button type="submit" class="btn btn-primary" id="save-btn" style="flex:1;justify-content:center;">💾 Save Draft</button>
-              <button type="button" class="btn btn-accent" id="save-submit-btn" onclick="saveAndSubmit()" style="flex:1;justify-content:center;" id="submit-btn-label">📤 Submit</button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="resetForm()">✕</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="shiftWeek(-7)">Previous Week</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="jumpToToday()">Today</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="shiftWeek(7)">Next Week</button>
             </div>
-            <div id="submit-hint" style="font-size:11.5px;color:var(--text-muted);margin-top:8px;text-align:center;"></div>
-          </form>
+          </div>
+
+          <div class="proto-daystrip" id="day-strip" style="display:none;"></div>
+
+          <div class="day-timeline-shell">
+            <div class="day-timeline-head">
+              <div class="proto-section-title">Day Timeline</div>
+              <div class="proto-section-sub">Each entry is shown as a single bar. In the add-entry view, tap the track to create 30 minutes and drag both ends in 15-minute steps.</div>
+            </div>
+            <div id="selected-day-timeline"></div>
+          </div>
+
+          <div class="table-wrapper proto-table-wrap">
+            <table class="proto-table">
+              <thead>
+                <tr>
+                  <th>Client / Matter</th>
+                  <th>Work Category</th>
+                  <th>Class</th>
+                  <th>Description</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Hours</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="daily-rows"></tbody>
+            </table>
+          </div>
+
+          <div class="proto-actions">
+            <button class="btn btn-outline" type="button" onclick="submitSelectedDayDrafts()">Submit Day Drafts</button>
+            <span class="proto-sync" id="day-sync-state">All changes saved</span>
+          </div>
         </div>
 
-        <!-- TODAY'S ENTRIES -->
-        <div class="card">
+        <div class="card proto-panel" style="margin-bottom:18px;">
           <div class="card-header">
             <div>
-              <div class="card-title">Today's Entries</div>
-              <div class="card-subtitle">Total: <strong id="today-total" style="color:var(--primary);">0.0 hrs</strong></div>
+              <div class="card-title">Collaboration Requests</div>
+              <div class="card-subtitle">Entries shared with you from Worked With</div>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="submitAllDrafts()">📤 Submit All</button>
+            <div class="proto-sync" id="collaboration-request-count">0 pending</div>
           </div>
-          <div id="today-entries"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries yet</div></div></div>
+          <div id="collaboration-requests-list"></div>
         </div>
-      </div>
+
+        <div class="proto-metrics">
+          <div class="proto-metric">
+            <div class="proto-metric-label">Today's Hours</div>
+            <div class="proto-metric-value" id="metric-day-total">0.0</div>
+            <div class="proto-metric-sub">total logged</div>
+          </div>
+          <div class="proto-metric">
+            <div class="proto-metric-label">Client Work</div>
+            <div class="proto-metric-value" id="metric-client-work">0.0</div>
+            <div class="proto-metric-sub">client-facing work</div>
+          </div>
+          <div class="proto-metric">
+            <div class="proto-metric-label">Other Work</div>
+            <div class="proto-metric-value" id="metric-other-work">0.0</div>
+            <div class="proto-metric-sub">internal / admin / learning</div>
+          </div>
+          <div class="proto-metric">
+            <div class="proto-metric-label">Entries</div>
+            <div class="proto-metric-value" id="metric-count">0</div>
+            <div class="proto-metric-sub">tasks logged</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="weekly-view" style="display:none;">
+        <div class="card proto-panel" style="margin-bottom:18px;">
+          <div class="card-header" style="margin-bottom:18px;">
+            <div>
+              <div class="card-title">Weekly Summary</div>
+              <div class="card-subtitle">A supervisory rollup of the same daily entries</div>
+            </div>
+            <div class="proto-sync" id="week-range-label"></div>
+          </div>
+
+          <div class="proto-weekly-cards" id="weekly-summary-grid"></div>
+        </div>
+
+        <div class="card proto-panel">
+          <div class="card-header">
+            <div class="card-title">Weekly Rollup</div>
+          </div>
+          <div class="table-wrapper">
+            <table class="proto-table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Total</th>
+                  <th>Client Work</th>
+                  <th>Entries</th>
+                  <th>Drafts</th>
+                  <th>Pending</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="weekly-rollup-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
 
-<!-- Mobile bottom nav -->
+<div class="modal-overlay" id="entry-modal">
+  <div class="modal entry-modal-dialog">
+    <div class="modal-header">
+      <div class="modal-title" id="entry-modal-title">Add Entry</div>
+      <button class="modal-close" onclick="closeModal('entry-modal')">&times;</button>
+    </div>
+    <input type="hidden" id="modal-entry-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" id="modal-date" onchange="renderModalTimeline()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hours</label>
+        <input class="form-control" type="number" id="modal-hours" min="0.25" max="24" step="0.25">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">From</label>
+        <input class="form-control" type="time" id="modal-start-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
+      </div>
+      <div class="form-group">
+        <label class="form-label">To</label>
+        <input class="form-control" type="time" id="modal-end-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:4px;">
+      <div id="modal-day-timeline"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Client / Matter</label>
+      <input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client">
+      <datalist id="client-list"></datalist>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Work Category</label>
+      <select class="form-control" id="modal-task-type"><option value="">Select task</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-control" id="modal-description" rows="3" placeholder="What was done?"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Worked With</label>
+      <div style="max-width:420px;">
+        <select class="form-control" id="worked-with-select" onchange="addWorkedWithSelection(this.value)">
+          <option value="">Select collaborator</option>
+        </select>
+      </div>
+      <div class="table-wrapper" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;max-width:520px;">
+        <table>
+          <thead>
+            <tr><th>Name</th><th style="width:52px;">Action</th></tr>
+          </thead>
+          <tbody id="worked-with-table-body"></tbody>
+        </table>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">People selected here will receive a collaboration request in their own timesheet.</div>
+    </div>
+    <div class="form-group" style="margin-top:12px;">
+      <label class="form-label">Work Classification</label>
+      <select class="form-control" id="modal-work-classification"></select>
+    </div>
+    <div class="form-group" style="margin-top:12px;">
+      <label class="form-label">Status</label>
+      <div id="modal-status" class="entry-readonly"></div>
+    </div>
+    <div id="modal-collaboration-warning" class="row-rejection" style="display:none;"></div>
+    <div id="modal-rejection" class="row-rejection" style="display:none;"></div>
+      <div class="modal-actions" style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="saveModalEntry()">Save Entry</button>
+        <button class="btn btn-outline" type="button" onclick="submitModalEntry()">Submit</button>
+        <button class="btn btn-danger" type="button" onclick="deleteModalEntry()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <nav class="bottom-nav">
   <div class="bottom-nav-items">
-    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
-    <a class="bottom-nav-item active" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
-    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
-    <a class="bottom-nav-item" href="/approvals.html" id="bn-approvals" style="display:none;"><span class="bn-icon">✅</span>Approve</a>
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon" aria-hidden="true">&#8962;</span>Home</a>
+    <a class="bottom-nav-item active" href="/timesheet.html"><span class="bn-icon" aria-hidden="true">&#9716;</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon" aria-hidden="true">&#9636;</span>Mine</a>
+    <a class="bottom-nav-item" href="/approvals.html" id="bn-approvals" style="display:none;"><span class="bn-icon" aria-hidden="true">&#10003;</span>Approve</a>
   </div>
 </nav>
 
 <script src="/js/app.js"></script>
 <script>
 requireAuth();
+if (!hasPermission('timesheets.view_own')) window.location.href = '/dashboard.html';
 document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
-
-// Register service worker
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) document.getElementById('bn-approvals').style.display = '';
 
 const user = getUser();
-// Set submit label based on role
-const hints = { article: 'Submits to Manager for approval', manager: 'Submits to Partner for approval', partner: 'Self-approved instantly ✓' };
-document.getElementById('submit-hint').textContent = hints[user.role] || '';
-if (user.role === 'partner') document.getElementById('save-submit-btn').textContent = '✅ Submit & Approve';
+const todayStr = today();
+let selectedDate = todayStr;
+let weekAnchor = todayStr;
+let allClientsStore = [];
+let currentEntries = [];
+let collaboratorOptions = [];
+let collaborationRequests = [];
+let selectedWorkedWith = [];
 
-// Show approvals in bottom nav for managers+
-if (isManagerOrAbove()) document.getElementById('bn-approvals').style.display = '';
+document.getElementById('selected-date-input').value = selectedDate;
+document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
-document.getElementById('entry-date').value = today();
+function populateMasterDataSelects() {
+  const taskTypeSelect = document.getElementById('modal-task-type');
+  const workClassificationSelect = document.getElementById('modal-work-classification');
+  const workCategories = getWorkCategories();
+  const classificationOptions = getWorkClassifications();
+  taskTypeSelect.innerHTML = '<option value="">Select task</option>' +
+    (workCategories.length ? workCategories : getWorkCategories(true)).map(item => `<option value="${item.label}">${item.label}</option>`).join('');
+  workClassificationSelect.innerHTML = (classificationOptions.length ? classificationOptions : getWorkClassifications(true))
+    .map(item => `<option value="${item.key}">${item.label}</option>`)
+    .join('');
+  bootMobileListPickers(document.getElementById('entry-modal'));
+}
 
-// Populate task types
-TASK_TYPES.forEach(t => document.getElementById('task-type').innerHTML += `<option value="${t}">${t}</option>`);
+document.getElementById('modal-client-search').addEventListener('input', e => {
+  const match = allClientsStore.find(c => `${c.name} [${c.code}]` === e.target.value);
+  document.getElementById('modal-client-search').dataset.clientId = match ? match.id : '';
+  renderModalTimeline();
+});
+
+document.getElementById('modal-task-type').addEventListener('change', renderModalTimeline);
+document.getElementById('modal-work-classification').addEventListener('change', renderModalTimeline);
+
+function applyModalTimeInputLimits() {
+  const dateStr = document.getElementById('modal-date').value;
+  const startInput = document.getElementById('modal-start-time');
+  const endInput = document.getElementById('modal-end-time');
+  const current = currentLocalDateTimeParts();
+  const maxTime = `${String(Math.floor(current.minutes / 60)).padStart(2, '0')}:${String(current.minutes % 60).padStart(2, '0')}`;
+
+  if (dateStr === current.date) {
+    startInput.max = maxTime;
+    endInput.max = maxTime;
+  } else {
+    startInput.removeAttribute('max');
+    endInput.removeAttribute('max');
+  }
+}
+
+function toDateObj(dateStr) {
+  return new Date(`${dateStr}T00:00:00`);
+}
+
+function isoDate(d) {
+  return localISODate(d);
+}
+
+function fmtDayLabel(dateStr) {
+  return toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function timeStringToMinutes(value) {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function currentLocalDateTimeParts() {
+  const now = new Date();
+  return {
+    date: localISODate(now),
+    minutes: (now.getHours() * 60) + now.getMinutes()
+  };
+}
+
+function futureTimeError(dateStr, timeValue, label) {
+  if (!dateStr || !timeValue) return null;
+  const current = currentLocalDateTimeParts();
+  if (dateStr !== current.date) return null;
+  const minutes = timeStringToMinutes(timeValue);
+  if (minutes == null) return null;
+  if (minutes > current.minutes) return `${label} time cannot be after the current time`;
+  return null;
+}
+
+function weekRangeFromAnchor(anchor) {
+  const start = toDateObj(anchor);
+  const diff = start.getDay() === 0 ? -6 : 1 - start.getDay();
+  start.setDate(start.getDate() + diff);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    days.push(isoDate(d));
+  }
+  return days;
+}
+
+function switchView(view) {
+  document.getElementById('daily-view').style.display = view === 'daily' ? '' : 'none';
+  document.getElementById('weekly-view').style.display = view === 'weekly' ? '' : 'none';
+  document.getElementById('tab-daily').classList.toggle('active', view === 'daily');
+  document.getElementById('tab-weekly').classList.toggle('active', view === 'weekly');
+}
+
+function setSyncLabel(text, dirty = false) {
+  const el = document.getElementById('day-sync-state');
+  el.textContent = text;
+  el.classList.toggle('dirty', dirty);
+}
+
+function handleDateInput(value) {
+  if (!value) return;
+  selectedDate = value;
+  weekAnchor = value;
+  loadEntries();
+}
+
+function moveSelectedDay(offset) {
+  const next = toDateObj(selectedDate);
+  next.setDate(next.getDate() + offset);
+  selectedDate = isoDate(next);
+  weekAnchor = selectedDate;
+  loadEntries();
+}
+
+function shiftWeek(offsetDays) {
+  const next = toDateObj(weekAnchor);
+  next.setDate(next.getDate() + offsetDays);
+  weekAnchor = isoDate(next);
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  if (!weekDays.includes(selectedDate)) selectedDate = weekDays[0];
+  loadEntries();
+}
+
+function jumpToToday() {
+  selectedDate = todayStr;
+  weekAnchor = todayStr;
+  loadEntries();
+}
+
+function setSelectedDate(dateStr) {
+  selectedDate = dateStr;
+  renderAll();
+}
+
+function getSelectedDayEntries() {
+  return currentEntries
+    .filter(e => e.entry_date === selectedDate)
+    .sort((a, b) => ((a.start_time || '') > (b.start_time || '') ? 1 : -1));
+}
+
+function dayStats(entries) {
+  return {
+    total: entries.reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0),
+    clientWork: entries.filter(e => normalizeWorkClassification(e.work_classification, e.billable) === 'client_work').reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0),
+    otherWork: entries.filter(e => normalizeWorkClassification(e.work_classification, e.billable) !== 'client_work').reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0),
+    count: entries.length,
+    drafts: entries.filter(e => e.status === 'draft').length,
+    pending: entries.filter(e => ['pending_manager', 'pending_partner'].includes(e.status)).length,
+    approved: entries.filter(e => e.status === 'approved').length
+  };
+}
+
+function dayStatusLabel(stats) {
+  if (!stats.count) return 'Empty';
+  if (stats.drafts) return `${stats.drafts} Draft`;
+  if (stats.pending) return `${stats.pending} Pending`;
+  if (stats.approved === stats.count) return 'Approved';
+  return 'In Progress';
+}
+
+function renderDayStrip() {
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  document.getElementById('day-strip').innerHTML = weekDays.map(dateStr => {
+    const stats = dayStats(currentEntries.filter(e => e.entry_date === dateStr));
+    return `
+      <button class="proto-day ${dateStr === selectedDate ? 'active' : ''}" onclick="setSelectedDate('${dateStr}')">
+        <div class="proto-day-top">${toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+        <div class="proto-day-date">${toDateObj(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+        <div class="proto-day-hours">${stats.count ? fmtHours(stats.total) : 'No time'}</div>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderDailyRows() {
+  const tbody = document.getElementById('daily-rows');
+  const entries = getSelectedDayEntries();
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-title">No entries for ${fmtDayLabel(selectedDate)}</div><div class="empty-sub">Use + Add Entry to start the day.</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(entry => `
+    <tr onclick="openEntryModal('${entry.id}')">
+      <td data-label="Client / Matter"><div class="proto-cell-title">${entry.client_name || 'Internal / Admin'}</div><div class="proto-cell-sub">${compactStatusBadge(entry.status)}</div></td>
+      <td data-label="Work Category">${entry.task_type || '—'}</td>
+      <td data-label="Class">${workClassificationMeta(entry.work_classification, entry.billable).shortLabel}</td>
+      <td data-label="Description">${entry.description || 'No description'}</td>
+      <td data-label="From">${entry.start_time || '—'}</td>
+      <td data-label="To">${entry.end_time || '—'}</td>
+      <td data-label="Hours"><strong>${fmtHours(entry.hours)}</strong></td>
+      <td data-label="Action">${entry.status === 'approved' ? '<span style="color:var(--text-faint);">Locked</span>' : '<span style="color:var(--text-muted);">Edit</span>'}</td>
+    </tr>
+    ${entry.status === 'rejected' ? `<tr class="proto-rejection-row"><td colspan="8">Rejected: ${entry.rejection_reason || 'Needs changes'}</td></tr>` : ''}
+    ${entry.requires_time_confirmation ? `<tr class="proto-rejection-row"><td colspan="8">Shared entry needs time confirmation before it can be submitted.</td></tr>` : ''}
+  `).join('');
+}
+
+function renderDailyMetrics() {
+  const stats = dayStats(getSelectedDayEntries());
+  document.getElementById('metric-day-total').textContent = stats.total.toFixed(1);
+  document.getElementById('metric-client-work').textContent = stats.clientWork.toFixed(1);
+  document.getElementById('metric-other-work').textContent = stats.otherWork.toFixed(1);
+  document.getElementById('metric-count').textContent = stats.count;
+}
+
+function entryTimelineLabel(entry) {
+  const parts = [];
+  if (entry.task_type) parts.push(entry.task_type);
+  if (entry.client_name || entry.client_label) parts.push(entry.client_name || entry.client_label);
+  if (entry.description) parts.push(entry.description);
+  return parts.join(' • ') || 'Booked';
+}
+
+function timelineTone(entry = {}) {
+  if (entry.state === 'draft') return 'draft';
+  const classification = normalizeWorkClassification(entry.work_classification, entry.billable);
+  if (classification === 'client_work') return entry.client_id || entry.client_name || entry.client_label ? 'client' : 'client-generic';
+  if (classification === 'internal') return 'internal';
+  if (classification === 'admin') return 'admin';
+  if (classification === 'business_development') return 'business';
+  if (classification === 'learning') return 'learning';
+  return 'other';
+}
+
+function timelineSegmentsForDate(dateStr, draftEntry = null, excludedId = null) {
+  const entries = currentEntries
+    .filter(entry => entry.entry_date === dateStr)
+    .filter(entry => !excludedId || String(entry.id) !== String(excludedId))
+    .filter(entry => entry.start_time && entry.end_time)
+    .map(entry => ({
+      ...entry,
+      startMinutes: timeStringToMinutes(entry.start_time),
+      endMinutes: timeStringToMinutes(entry.end_time),
+      tooltip: entryTimelineLabel(entry),
+      state: 'booked',
+      tone: timelineTone(entry)
+    }))
+    .filter(entry => entry.startMinutes != null && entry.endMinutes != null && entry.endMinutes > entry.startMinutes);
+
+  if (draftEntry?.start_time && draftEntry?.end_time) {
+    const startMinutes = timeStringToMinutes(draftEntry.start_time);
+    const endMinutes = timeStringToMinutes(draftEntry.end_time);
+    if (startMinutes != null && endMinutes != null && endMinutes > startMinutes) {
+      entries.push({
+        startMinutes,
+        endMinutes,
+        tooltip: `Current draft • ${draftEntry.task_type || 'Entry'}${draftEntry.description ? ` • ${draftEntry.description}` : ''}`,
+        state: 'draft',
+        tone: timelineTone({ ...draftEntry, state: 'draft' })
+      });
+    }
+  }
+
+  return entries;
+}
+
+const TIMELINE_START = 9 * 60;
+const TIMELINE_END = 20 * 60;
+const TIMELINE_CREATE_STEP = 30;
+const TIMELINE_DRAG_STEP = 15;
+let timelineDragState = null;
+
+function minutesToTimeString(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+function clampTimelineMinutes(minutes) {
+  return Math.min(TIMELINE_END, Math.max(TIMELINE_START, minutes));
+}
+
+function snapTimelineMinutes(minutes, step = TIMELINE_DRAG_STEP, mode = 'nearest') {
+  const relative = (minutes - TIMELINE_START) / step;
+  const rounded = mode === 'floor'
+    ? Math.floor(relative)
+    : mode === 'ceil'
+      ? Math.ceil(relative)
+      : Math.round(relative);
+  return clampTimelineMinutes(TIMELINE_START + (rounded * step));
+}
+
+function formatTimelineRange(startMinutes, endMinutes) {
+  return `${minutesToTimeString(startMinutes)} - ${minutesToTimeString(endMinutes)}`;
+}
+
+function setModalTimelineRange(dateStr, startMinutes, endMinutes) {
+  if (document.getElementById('modal-start-time').disabled) return;
+  const safeStart = clampTimelineMinutes(startMinutes);
+  const safeEnd = clampTimelineMinutes(Math.max(endMinutes, safeStart + TIMELINE_DRAG_STEP));
+  document.getElementById('modal-date').value = dateStr;
+  document.getElementById('modal-start-time').value = minutesToTimeString(safeStart);
+  document.getElementById('modal-end-time').value = minutesToTimeString(safeEnd);
+  syncModalHoursFromTime();
+  renderModalTimeline();
+}
+
+function currentModalTimelineRange() {
+  const startMinutes = timeStringToMinutes(document.getElementById('modal-start-time').value);
+  const endMinutes = timeStringToMinutes(document.getElementById('modal-end-time').value);
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) return null;
+  return { startMinutes, endMinutes };
+}
+
+function timelineWidthPercent(startMinutes, endMinutes) {
+  return Math.max(((endMinutes - startMinutes) / (TIMELINE_END - TIMELINE_START)) * 100, 1.5);
+}
+
+function timelineLeftPercent(startMinutes) {
+  return ((startMinutes - TIMELINE_START) / (TIMELINE_END - TIMELINE_START)) * 100;
+}
+
+function layoutTimelineSegments(segments) {
+  const sorted = [...segments].sort((a, b) => {
+    if (a.startMinutes !== b.startMinutes) return a.startMinutes - b.startMinutes;
+    if (a.endMinutes !== b.endMinutes) return a.endMinutes - b.endMinutes;
+    return a.state === 'draft' ? 1 : -1;
+  });
+  const laneEnds = [];
+  return sorted.map(segment => {
+    let lane = laneEnds.findIndex(endMinutes => segment.startMinutes >= endMinutes);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = segment.endMinutes;
+    return { ...segment, lane };
+  });
+}
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function timelineBarInnerHtml(segment, isModalTimeline) {
+  const pieces = [
+    `<span class="timeline-entry-label">${escapeHtml(segment.task_type || segment.client_name || (segment.state === 'draft' ? 'Draft entry' : 'Entry'))}</span>`,
+    `<span class="timeline-entry-time">${formatTimelineRange(segment.startMinutes, segment.endMinutes)}</span>`
+  ];
+  if (isModalTimeline && segment.state === 'draft') {
+    pieces.push('<span class="timeline-handle start" data-action="resize-start" aria-label="Adjust start time"></span>');
+    pieces.push('<span class="timeline-handle end" data-action="resize-end" aria-label="Adjust end time"></span>');
+  }
+  return pieces.join('');
+}
+
+function beginTimelineDrag(event, mode, dateStr, trackEl) {
+  const range = currentModalTimelineRange();
+  if (!range) return;
+  event.preventDefault();
+  timelineDragState = {
+    mode,
+    dateStr,
+    trackLeft: trackEl.getBoundingClientRect().left,
+    trackWidth: trackEl.getBoundingClientRect().width,
+    originX: event.clientX,
+    originStart: range.startMinutes,
+    originEnd: range.endMinutes
+  };
+  document.body.style.userSelect = 'none';
+  window.addEventListener('pointermove', handleTimelinePointerMove);
+  window.addEventListener('pointerup', endTimelineDrag);
+  window.addEventListener('pointercancel', endTimelineDrag);
+}
+
+function handleTimelinePointerDown(event, containerId) {
+  if (containerId !== 'modal-day-timeline' || document.getElementById('modal-start-time').disabled) return;
+  const trackEl = event.currentTarget;
+  const dateStr = trackEl.dataset.date;
+  const actionTarget = event.target.closest('[data-action]');
+  if (actionTarget) {
+    beginTimelineDrag(event, actionTarget.dataset.action, dateStr, trackEl);
+    return;
+  }
+  if (event.target.closest('.timeline-entry-bar')) return;
+
+  const rect = trackEl.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  const rawMinutes = TIMELINE_START + ((TIMELINE_END - TIMELINE_START) * ratio);
+  const maxStart = TIMELINE_END - TIMELINE_CREATE_STEP;
+  const startMinutes = Math.min(snapTimelineMinutes(rawMinutes, TIMELINE_DRAG_STEP, 'floor'), maxStart);
+  const endMinutes = startMinutes + TIMELINE_CREATE_STEP;
+  setModalTimelineRange(dateStr, startMinutes, endMinutes);
+}
+
+function handleTimelinePointerMove(event) {
+  if (!timelineDragState) return;
+  const minuteDelta = snapTimelineMinutes(
+    timelineDragState.originStart + (((event.clientX - timelineDragState.originX) / timelineDragState.trackWidth) * (TIMELINE_END - TIMELINE_START)),
+    TIMELINE_DRAG_STEP
+  ) - timelineDragState.originStart;
+
+  let startMinutes = timelineDragState.originStart;
+  let endMinutes = timelineDragState.originEnd;
+  if (timelineDragState.mode === 'move-draft') {
+    const duration = endMinutes - startMinutes;
+    startMinutes = clampTimelineMinutes(timelineDragState.originStart + minuteDelta);
+    endMinutes = startMinutes + duration;
+    if (endMinutes > TIMELINE_END) {
+      endMinutes = TIMELINE_END;
+      startMinutes = endMinutes - duration;
+    }
+    if (startMinutes < TIMELINE_START) {
+      startMinutes = TIMELINE_START;
+      endMinutes = startMinutes + duration;
+    }
+  } else if (timelineDragState.mode === 'resize-start') {
+    startMinutes = snapTimelineMinutes(timelineDragState.originStart + minuteDelta, TIMELINE_DRAG_STEP);
+    startMinutes = Math.min(startMinutes, timelineDragState.originEnd - TIMELINE_DRAG_STEP);
+  } else if (timelineDragState.mode === 'resize-end') {
+    endMinutes = snapTimelineMinutes(timelineDragState.originEnd + minuteDelta, TIMELINE_DRAG_STEP);
+    endMinutes = Math.max(endMinutes, timelineDragState.originStart + TIMELINE_DRAG_STEP);
+  }
+  setModalTimelineRange(timelineDragState.dateStr, startMinutes, endMinutes);
+}
+
+function endTimelineDrag() {
+  timelineDragState = null;
+  document.body.style.userSelect = '';
+  window.removeEventListener('pointermove', handleTimelinePointerMove);
+  window.removeEventListener('pointerup', endTimelineDrag);
+  window.removeEventListener('pointercancel', endTimelineDrag);
+}
+
+function renderTimeline(containerId, dateStr, draftEntry = null, excludedId = null) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const segments = layoutTimelineSegments(timelineSegmentsForDate(dateStr, draftEntry, excludedId));
+  const labels = [
+    { minute: TIMELINE_START, label: '09:00' },
+    { minute: 12 * 60, label: '12:00' },
+    { minute: 15 * 60, label: '15:00' },
+    { minute: 18 * 60, label: '18:00' },
+    { minute: TIMELINE_END, label: '20:00' }
+  ];
+  const isModalTimeline = containerId === 'modal-day-timeline';
+  const laneCount = Math.max(segments.reduce((max, segment) => Math.max(max, segment.lane + 1), 0), 1);
+  const laneHeight = 18;
+  const laneGap = 6;
+  const barHtml = segments.map(segment => {
+    const top = segment.lane * (laneHeight + laneGap);
+    const left = timelineLeftPercent(segment.startMinutes);
+    const width = timelineWidthPercent(segment.startMinutes, segment.endMinutes);
+    const tooltip = `${formatTimelineRange(segment.startMinutes, segment.endMinutes)}\n${segment.tooltip}`;
+    const extraClass = segment.state === 'draft' ? 'is-draft' : 'is-booked';
+    const action = isModalTimeline && segment.state === 'draft' ? ' data-action="move-draft"' : '';
+    return `<div class="timeline-entry-bar tone-${segment.tone} ${extraClass}" style="top:${top}px;left:${left}%;width:${width}%;" data-tooltip="${escapeHtml(tooltip)}"${action} aria-label="${escapeHtml(tooltip)}">${timelineBarInnerHtml(segment, isModalTimeline)}</div>`;
+  }).join('');
+  const labelsHtml = labels.map(item => {
+    const offset = ((item.minute - TIMELINE_START) / (TIMELINE_END - TIMELINE_START)) * 100;
+    return `<span class="day-timeline-label" style="left:${offset}%;">${item.label}</span>`;
+  }).join('');
+  container.innerHTML = `
+    <div class="day-timeline-wrap">
+      <div class="day-timeline-labels">${labelsHtml}</div>
+      <div class="day-timeline" style="--timeline-lanes:${laneCount};">
+        <div class="day-timeline-track ${isModalTimeline ? 'is-modal' : ''}" data-date="${dateStr}" onpointerdown="handleTimelinePointerDown(event, '${containerId}')">${barHtml}</div>
+      </div>
+    </div>`;
+}
+
+function renderSelectedDayTimeline() {
+  renderTimeline('selected-day-timeline', selectedDate);
+}
+
+function renderModalTimeline() {
+  const entryId = document.getElementById('modal-entry-id').value;
+  const dateStr = document.getElementById('modal-date').value || selectedDate;
+  const clientText = document.getElementById('modal-client-search').value;
+  const matchedClient = allClientsStore.find(c => `${c.name} [${c.code}]` === clientText);
+  const entry = {
+    task_type: document.getElementById('modal-task-type').value,
+    description: document.getElementById('modal-description').value,
+    client_id: matchedClient?.id || null,
+    work_classification: document.getElementById('modal-work-classification').value,
+    start_time: document.getElementById('modal-start-time').value || null,
+    end_time: document.getElementById('modal-end-time').value || null
+  };
+  if (clientText) entry.client_label = clientText;
+  applyModalTimeInputLimits();
+  renderTimeline('modal-day-timeline', dateStr, entry, entryId || null);
+}
+
+function renderWeeklySummary() {
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  document.getElementById('week-range-label').textContent = `${fmtDayLabel(weekDays[0])} - ${fmtDayLabel(weekDays[6])}`;
+  document.getElementById('weekly-summary-grid').innerHTML = weekDays.map(dateStr => {
+    const stats = dayStats(currentEntries.filter(e => e.entry_date === dateStr));
+    return `
+      <button class="proto-week-card ${dateStr === selectedDate ? 'active' : ''}" onclick="setSelectedDate('${dateStr}'); switchView('daily');">
+        <div class="proto-week-card-top">${toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })}</div>
+        <div class="proto-week-card-date">${toDateObj(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
+        <div class="proto-week-card-value">${stats.total.toFixed(1)}h</div>
+        <div class="proto-week-card-sub">${stats.count} entries • ${dayStatusLabel(stats)}</div>
+      </button>
+    `;
+  }).join('');
+
+  document.getElementById('weekly-rollup-body').innerHTML = weekDays.map(dateStr => {
+    const stats = dayStats(currentEntries.filter(e => e.entry_date === dateStr));
+    return `
+      <tr>
+        <td><button class="linkish-btn" onclick="setSelectedDate('${dateStr}'); switchView('daily');">${fmtDayLabel(dateStr)}</button></td>
+        <td>${fmtHours(stats.total)}</td>
+        <td>${fmtHours(stats.clientWork)}</td>
+        <td>${stats.count}</td>
+        <td>${stats.drafts}</td>
+        <td>${stats.pending}</td>
+        <td>${dayStatusLabel(stats)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderAll() {
+  document.getElementById('selected-date-input').value = selectedDate;
+  document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  renderDayStrip();
+  renderSelectedDayTimeline();
+  renderDailyRows();
+  renderDailyMetrics();
+  renderWeeklySummary();
+}
+
+function clientDisplay(entry) {
+  if (!entry?.client_id) return '';
+  const client = allClientsStore.find(c => c.id == entry.client_id);
+  return client ? `${client.name} [${client.code}]` : '';
+}
+
+function renderWorkedWithOptions(selected = selectedWorkedWith) {
+  selectedWorkedWith = [...(selected || [])].map(String);
+  const select = document.getElementById('worked-with-select');
+  const tbody = document.getElementById('worked-with-table-body');
+  const selectedSet = new Set(selectedWorkedWith);
+
+  select.innerHTML = '<option value="">Select collaborator</option>' + collaboratorOptions
+    .filter(person => !selectedSet.has(String(person.id)))
+    .map(person => `<option value="${person.id}">${person.name} (${person.role})</option>`)
+    .join('');
+
+  const selectedPeople = selectedWorkedWith
+    .map(id => collaboratorOptions.find(person => String(person.id) === String(id)))
+    .filter(Boolean);
+
+  if (!selectedPeople.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="font-size:12px;color:var(--text-muted);">No collaborators added yet</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = selectedPeople.map(person => `
+    <tr>
+      <td><strong>${person.name}</strong></td>
+      <td style="text-align:center;"><button class="btn btn-ghost btn-sm" type="button" onclick="removeWorkedWithSelection('${person.id}')" title="Remove">X</button></td>
+    </tr>
+  `).join('');
+}
+
+function addWorkedWithSelection(value) {
+  if (!value) return;
+  if (!selectedWorkedWith.includes(String(value))) selectedWorkedWith.push(String(value));
+  renderWorkedWithOptions(selectedWorkedWith);
+}
+
+function removeWorkedWithSelection(userId) {
+  selectedWorkedWith = selectedWorkedWith.filter(id => String(id) !== String(userId));
+  renderWorkedWithOptions(selectedWorkedWith);
+}
+
+function renderCollaborationRequests() {
+  const container = document.getElementById('collaboration-requests-list');
+  document.getElementById('collaboration-request-count').textContent = `${collaborationRequests.length} pending`;
+  if (!collaborationRequests.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-title">No collaboration requests</div><div class="empty-sub">Shared work requests sent by others will appear here.</div></div>';
+    return;
+  }
+  container.innerHTML = collaborationRequests.map(request => `
+    <div style="display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--border);">
+      <div>
+        <div style="font-weight:700;">${request.task_type}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${fmtDate(request.entry_date)} • ${request.client_name || 'Internal / Admin'} • ${fmtHours(request.hours)}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Shared by ${request.source_user_name} (${request.source_user_role})</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${request.description || 'No description provided'}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-start;">
+        <button class="btn btn-outline btn-sm" type="button" onclick="acceptCollaborationRequest('${request.id}')">Accept</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="rejectCollaborationRequest('${request.id}')">Reject</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function prefillModal(entry = null) {
+  document.getElementById('entry-modal-title').textContent = entry ? 'Edit Entry' : 'Add Entry';
+  document.getElementById('modal-entry-id').value = entry?.id || '';
+  document.getElementById('modal-date').value = entry?.entry_date || selectedDate;
+  document.getElementById('modal-client-search').value = clientDisplay(entry);
+  document.getElementById('modal-task-type').value = entry?.task_type || '';
+  document.getElementById('modal-description').value = entry?.description || '';
+  document.getElementById('modal-start-time').value = entry?.start_time || '';
+  document.getElementById('modal-end-time').value = entry?.end_time || '';
+  document.getElementById('modal-hours').value = entry?.hours || '';
+  document.getElementById('modal-work-classification').value = normalizeWorkClassification(entry?.work_classification, entry?.billable);
+  document.getElementById('modal-status').innerHTML = statusBadge(entry?.status || 'draft');
+  renderWorkedWithOptions((entry?.worked_with_user_ids || []).map(String));
+  const rejection = document.getElementById('modal-rejection');
+  const collaborationWarning = document.getElementById('modal-collaboration-warning');
+  if (entry?.status === 'rejected') {
+    rejection.style.display = '';
+    rejection.textContent = `Rejected: ${entry.rejection_reason || 'Needs changes'}`;
+  } else {
+    rejection.style.display = 'none';
+  }
+  if (entry?.requires_time_confirmation) {
+    collaborationWarning.style.display = '';
+    collaborationWarning.textContent = 'This accepted shared entry overlaps your existing time. Update the time before saving or submitting it.';
+  } else {
+    collaborationWarning.style.display = 'none';
+  }
+  const locked = entry?.status === 'approved';
+  ['modal-date', 'modal-client-search', 'modal-task-type', 'modal-description', 'modal-start-time', 'modal-end-time', 'modal-hours', 'modal-work-classification'].forEach(id => {
+    document.getElementById(id).disabled = locked;
+  });
+  document.getElementById('worked-with-select').disabled = locked || !!entry?.collaboration_source_entry_id;
+  document.querySelectorAll('#worked-with-table-body button').forEach(el => {
+    el.disabled = locked || !!entry?.collaboration_source_entry_id;
+  });
+  applyModalTimeInputLimits();
+  renderModalTimeline();
+}
+
+function applyPendingEditFromSession() {
+  const raw = sessionStorage.getItem('ts_edit_entry');
+  const requestedAt = parseInt(sessionStorage.getItem('ts_edit_entry_requested_at') || '0', 10);
+  if (!raw) return;
+  sessionStorage.removeItem('ts_edit_entry');
+  sessionStorage.removeItem('ts_edit_entry_requested_at');
+  if (!requestedAt || (Date.now() - requestedAt) > 120000) return;
+  try {
+    const entry = JSON.parse(raw);
+    if (entry?.entry_date) {
+      selectedDate = entry.entry_date;
+      weekAnchor = entry.entry_date;
+    }
+    prefillModal(entry);
+    openModal('entry-modal');
+  } catch (_) {}
+}
+
+function openAddModal() {
+  if (!hasPermission('timesheets.create_own')) { toast('Create access required', 'error'); return; }
+  prefillModal();
+  openModal('entry-modal');
+}
+
+function openEntryModal(entryId) {
+  const entry = currentEntries.find(item => item.id === entryId);
+  if (!entry) return;
+  prefillModal(entry);
+  openModal('entry-modal');
+}
+
+function syncModalHoursFromTime() {
+  const from = document.getElementById('modal-start-time').value;
+  const to = document.getElementById('modal-end-time').value;
+  if (!from || !to) return;
+  const start = new Date(`2000-01-01T${from}`);
+  const end = new Date(`2000-01-01T${to}`);
+  const diff = (end - start) / 3600000;
+  if (diff <= 0) {
+    document.getElementById('modal-hours').value = '';
+    return;
+  }
+  document.getElementById('modal-hours').value = diff.toFixed(2).replace(/\.00$/, '');
+}
+
+function validateModalTimeline(payload, currentId = '') {
+  if ((payload.start_time && !payload.end_time) || (!payload.start_time && payload.end_time)) {
+    return 'Both start time and end time are required together';
+  }
+
+  const startFutureError = futureTimeError(payload.entry_date, payload.start_time, 'From');
+  if (startFutureError) return startFutureError;
+  const endFutureError = futureTimeError(payload.entry_date, payload.end_time, 'To');
+  if (endFutureError) return endFutureError;
+
+  if (payload.start_time && payload.end_time) {
+    const start = new Date(`2000-01-01T${payload.start_time}`);
+    const end = new Date(`2000-01-01T${payload.end_time}`);
+    if (end <= start) return 'End time must be after start time';
+
+    const overlaps = currentEntries.some(entry => {
+      if (String(entry.id) === String(currentId)) return false;
+      if (entry.entry_date !== payload.entry_date) return false;
+      if (!entry.start_time || !entry.end_time) return false;
+      const existingStart = new Date(`2000-01-01T${entry.start_time}`);
+      const existingEnd = new Date(`2000-01-01T${entry.end_time}`);
+      return start < existingEnd && existingStart < end;
+    });
+    if (overlaps) return 'This time overlaps another entry for the day';
+
+    payload.hours = ((end - start) / 3600000).toFixed(2).replace(/\.00$/, '');
+  }
+
+  return null;
+}
+
+function modalPayload() {
+  const clientText = document.getElementById('modal-client-search').value;
+  const matchedClient = allClientsStore.find(c => `${c.name} [${c.code}]` === clientText);
+  return {
+    entry_date: document.getElementById('modal-date').value,
+    client_id: matchedClient ? matchedClient.id : null,
+    task_type: document.getElementById('modal-task-type').value,
+    description: document.getElementById('modal-description').value,
+    start_time: document.getElementById('modal-start-time').value || null,
+    end_time: document.getElementById('modal-end-time').value || null,
+    hours: document.getElementById('modal-hours').value,
+    work_classification: document.getElementById('modal-work-classification').value,
+    worked_with_user_ids: [...selectedWorkedWith]
+  };
+}
+
+async function saveModalEntry() {
+  const entryIdForSave = document.getElementById('modal-entry-id').value;
+  const requiredPermission = entryIdForSave ? 'timesheets.edit_own' : 'timesheets.create_own';
+  if (!hasPermission(requiredPermission)) { toast('Access required to save entry', 'error'); return; }
+  const id = document.getElementById('modal-entry-id').value;
+  const payload = modalPayload();
+  if (!payload.entry_date || !payload.task_type || !payload.hours) {
+    toast('Date, work category, and hours are required', 'error');
+    return;
+  }
+  const timelineError = validateModalTimeline(payload, id);
+  if (timelineError) {
+    toast(timelineError, 'error');
+    return;
+  }
+  try {
+    if (id) await apiFetch(`/timesheets/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/timesheets', { method: 'POST', body: payload });
+    selectedDate = payload.entry_date;
+    weekAnchor = payload.entry_date;
+    closeModal('entry-modal');
+    setSyncLabel('Day updated', true);
+    toast('Entry saved', 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function submitModalEntry() {
+  if (!hasPermission('timesheets.submit_own')) { toast('Submit access required', 'error'); return; }
+  const id = document.getElementById('modal-entry-id').value;
+  if (!id) {
+    toast('Save the entry first before submitting', 'info');
+    return;
+  }
+  try {
+    await apiFetch('/timesheets/submit', { method: 'POST', body: { entry_ids: [id] } });
+    closeModal('entry-modal');
+    setSyncLabel('All changes saved');
+    toast(user.role === 'partner' ? 'Entry approved!' : 'Entry submitted!', 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteModalEntry() {
+  if (!hasPermission('timesheets.delete_own')) { toast('Delete access required', 'error'); return; }
+  const id = document.getElementById('modal-entry-id').value;
+  if (!id) {
+    closeModal('entry-modal');
+    return;
+  }
+  if (!confirm('Delete this entry?')) return;
+  try {
+    await apiFetch(`/timesheets/${id}`, { method: 'DELETE' });
+    closeModal('entry-modal');
+    setSyncLabel('Day updated', true);
+    toast('Deleted', 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function submitSelectedDayDrafts() {
+  if (!hasPermission('timesheets.submit_own')) { toast('Submit access required', 'error'); return; }
+  const ids = getSelectedDayEntries().filter(e => ['draft', 'rejected'].includes(e.status)).map(e => e.id);
+  if (!ids.length) {
+    toast('No draft entries for this day', 'info');
+    return;
+  }
+  try {
+    await apiFetch('/timesheets/submit', { method: 'POST', body: { entry_ids: ids } });
+    setSyncLabel('All changes saved');
+    toast(user.role === 'partner' ? `${ids.length} entries approved!` : `${ids.length} entries submitted!`, 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function saveDayState() {
+  setSyncLabel(`Saved ${fmtDayLabel(selectedDate)}`);
+  toast(`Day saved for ${fmtDayLabel(selectedDate)}`, 'success');
+}
 
 async function loadClients() {
-  const clients = await apiFetch('/clients');
-  window.allClientsStore = clients.filter(c=>c.active);
-  const dl = document.getElementById('client-datalist');
-  dl.innerHTML = window.allClientsStore.map(c=>`<option value="${c.name} [${c.code}]">`).join('');
-}
-document.getElementById('client-search').addEventListener('input', e => {
-  const val = e.target.value;
-  const match = window.allClientsStore.find(c => `${c.name} [${c.code}]` === val);
-  document.getElementById('client-id').value = match ? match.id : '';
-});
-loadClients();
-
-function calcTime() {
-  const s = document.getElementById('start-time').value;
-  const e = document.getElementById('end-time').value;
-  if (s && e) {
-    const d1 = new Date(`2000-01-01T${s}`);
-    const d2 = new Date(`2000-01-01T${e}`);
-    let diff = (d2 - d1) / 3600000;
-    if (diff < 0) diff += 24;
-    document.getElementById('hours').value = diff.toFixed(2);
-  }
-}
-function calcEndTime() {
-  const s = document.getElementById('start-time').value;
-  const h = parseFloat(document.getElementById('hours').value);
-  if (s && h > 0) {
-    const d1 = new Date(`2000-01-01T${s}`);
-    d1.setMinutes(d1.getMinutes() + h * 60);
-    document.getElementById('end-time').value = d1.toTimeString().substr(0,5);
-  }
-}
-function calcEndTimeIfStartExists() {
-  if (document.getElementById('start-time').value && parseFloat(document.getElementById('hours').value) > 0) {
-    calcEndTime();
-  }
-}
-
-// Timer
-let timerInterval=null, timerSeconds=0;
-function startTimer() {
-  document.getElementById('timer-start').style.display='none';
-  document.getElementById('timer-stop').style.display='';
-  document.getElementById('timer-reset').style.display='';
-  timerInterval = setInterval(()=>{ timerSeconds++; document.getElementById('timer-disp').textContent=new Date(timerSeconds*1000).toISOString().substr(11,8); },1000);
-}
-function stopTimer() {
-  clearInterval(timerInterval);
-  document.getElementById('hours').value=(timerSeconds/3600).toFixed(2);
-  document.getElementById('timer-start').style.display='';
-  document.getElementById('timer-stop').style.display='none';
-  toast(`Timer: ${fmtHours(timerSeconds/3600)} logged`,'success');
-}
-function resetTimer() {
-  clearInterval(timerInterval); timerSeconds=0;
-  document.getElementById('timer-disp').textContent='00:00:00';
-  document.getElementById('timer-start').style.display='';
-  document.getElementById('timer-stop').style.display='none';
-  document.getElementById('timer-reset').style.display='none';
-}
-
-async function saveEntry(andSubmit=false) {
-  const editId = document.getElementById('edit-id').value;
-  const payload = {
-    entry_date: document.getElementById('entry-date').value,
-    client_id: document.getElementById('client-id').value||null,
-    task_type: document.getElementById('task-type').value,
-    description: document.getElementById('description').value,
-    hours: document.getElementById('hours').value,
-    start_time: document.getElementById('start-time').value||null,
-    end_time: document.getElementById('end-time').value||null,
-    billable: document.getElementById('billable').checked
-  };
-  if (!payload.task_type||!payload.hours) { toast('Fill required fields','error'); return null; }
   try {
-    let id;
-    if (editId) { await apiFetch(`/timesheets/${editId}`,{method:'PUT',body:payload}); id=editId; }
-    else { const r=await apiFetch('/timesheets',{method:'POST',body:payload}); id=r.id; }
-    if (andSubmit) await apiFetch('/timesheets/submit',{method:'POST',body:{entry_ids:[parseInt(id)]}});
-    resetForm(); loadTodayEntries();
-    const msg = andSubmit ? (user.role==='partner'?'Entry approved!':'Entry submitted for approval!') : 'Draft saved';
-    toast(msg,'success');
-  } catch(e) { toast(e.message,'error'); }
-}
-document.getElementById('entry-form').addEventListener('submit', e=>{e.preventDefault();saveEntry(false);});
-function saveAndSubmit() { saveEntry(true); }
-
-function resetForm() {
-  document.getElementById('edit-id').value='';
-  document.getElementById('entry-date').value=today();
-  document.getElementById('client-search').value='';
-  document.getElementById('client-id').value='';
-  document.getElementById('task-type').value='';
-  document.getElementById('description').value='';
-  document.getElementById('hours').value='';
-  document.getElementById('start-time').value='';
-  document.getElementById('end-time').value='';
-  document.getElementById('billable').checked=true;
-  resetTimer();
-}
-
-function editEntry(entry) {
-  document.getElementById('edit-id').value=entry.id;
-  document.getElementById('entry-date').value=entry.entry_date;
-  if(entry.client_id) {
-    const c = window.allClientsStore?.find(x=>x.id==entry.client_id);
-    document.getElementById('client-search').value = c ? `${c.name} [${c.code}]` : '';
-    document.getElementById('client-id').value = entry.client_id;
-  } else {
-    document.getElementById('client-search').value = '';
-    document.getElementById('client-id').value = '';
+    const clients = await apiFetch('/clients');
+    allClientsStore = clients.filter(c => c.active);
+    document.getElementById('client-list').innerHTML = allClientsStore.map(c => `<option value="${c.name} [${c.code}]">`).join('');
+  } catch (e) {
+    allClientsStore = [];
+    document.getElementById('client-list').innerHTML = '';
+    console.warn('Client list unavailable on Log Time', e);
   }
-  document.getElementById('task-type').value=entry.task_type;
-  document.getElementById('description').value=entry.description||'';
-  document.getElementById('hours').value=entry.hours;
-  document.getElementById('start-time').value=entry.start_time||'';
-  document.getElementById('end-time').value=entry.end_time||'';
-  document.getElementById('billable').checked=!!entry.billable;
-  window.scrollTo({top:0,behavior:'smooth'});
 }
 
-async function deleteEntry(id) {
-  if(!confirm('Delete this entry?'))return;
-  try { await apiFetch(`/timesheets/${id}`,{method:'DELETE'}); loadTodayEntries(); toast('Deleted'); } catch(e){toast(e.message,'error');}
+async function loadCollaborators() {
+  try {
+    collaboratorOptions = await apiFetch('/timesheets/collaborators');
+  } catch (e) {
+    collaboratorOptions = [];
+    console.warn('Collaborator list unavailable on Log Time', e);
+  }
+  renderWorkedWithOptions();
 }
 
-async function submitAllDrafts() {
-  const entries = await apiFetch(`/timesheets?from=${today()}&to=${today()}&status=draft`);
-  const ids = entries.map(e=>e.id);
-  if(!ids.length){toast('No drafts to submit','info');return;}
-  await apiFetch('/timesheets/submit',{method:'POST',body:{entry_ids:ids}});
-  const msg = user.role==='partner' ? `${ids.length} entries approved!` : `${ids.length} entries submitted!`;
-  toast(msg,'success'); loadTodayEntries();
+async function loadCollaborationRequests() {
+  try {
+    collaborationRequests = await apiFetch('/timesheets/collaboration-requests');
+  } catch (e) {
+    collaborationRequests = [];
+    console.warn('Collaboration requests unavailable on Log Time', e);
+  }
+  renderCollaborationRequests();
 }
 
-async function loadTodayEntries() {
-  const entries = await apiFetch(`/timesheets?from=${today()}&to=${today()}`);
-  const container = document.getElementById('today-entries');
-  const total = entries.reduce((s,e)=>s+parseFloat(e.hours),0);
-  document.getElementById('today-total').textContent=fmtHours(total);
-  if(!entries.length){container.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries today</div></div>';return;}
-  container.innerHTML = entries.map(e=>`
-    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13.5px;font-weight:600;">${e.task_type} ${e.start_time ? `<span style="font-weight:normal;font-size:11.5px;color:var(--text-muted);margin-left:6px;">(${e.start_time}${e.end_time?' - '+e.end_time:''})</span>` : ''}</div>
-          <div style="font-size:12px;color:var(--text-muted);">${e.client_name||'Internal'}</div>
-          ${e.description?`<div style="font-size:11.5px;color:var(--text-faint);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description}</div>`:''}
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:15px;font-weight:800;color:var(--primary);">${fmtHours(e.hours)}</div>
-          ${statusBadge(e.status)}
-        </div>
-      </div>
-      ${e.status==='rejected'?`<div style="color:var(--danger);font-size:12px;margin-top:6px;background:var(--danger-bg);padding:6px 8px;border-radius:6px;">❌ ${e.rejection_reason}</div>`:''}
-      ${['draft','rejected'].includes(e.status)?`<div style="display:flex;gap:6px;margin-top:8px;"><button class="btn btn-ghost btn-sm" onclick='editEntry(${JSON.stringify(e)})'>✏️ Edit</button><button class="btn btn-danger btn-sm" onclick="deleteEntry(${e.id})">🗑️</button></div>`:''}
-    </div>`).join('');
+async function loadEntries() {
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  const from = weekDays[0];
+  const to = weekDays[6];
+  try {
+    currentEntries = await apiFetch(`/timesheets?from=${from}&to=${to}&user_id=${user.id}`);
+    if (!weekDays.includes(selectedDate)) selectedDate = weekDays[0];
+    renderAll();
+  } catch (e) {
+    currentEntries = [];
+    renderAll();
+    toast(e.message || 'Unable to load timesheets', 'error');
+  }
 }
 
-// Mobile sidebar helpers
-function openSidebar() { document.getElementById('sidebar-el').classList.add('open'); document.getElementById('sb-overlay').classList.add('open'); }
-function closeSidebar() { document.getElementById('sidebar-el').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); }
+async function acceptCollaborationRequest(requestId) {
+  try {
+    const result = await apiFetch(`/timesheets/collaboration-requests/${requestId}/accept`, { method: 'POST' });
+    if (result.overlap_warning) toast(result.overlap_warning, 'info');
+    await loadCollaborationRequests();
+    await loadEntries();
+    if (result.entry?.entry_date) {
+      selectedDate = result.entry.entry_date;
+      weekAnchor = result.entry.entry_date;
+      prefillModal(result.entry);
+      openModal('entry-modal');
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
 
-loadTodayEntries();
+async function rejectCollaborationRequest(requestId) {
+  try {
+    await apiFetch(`/timesheets/collaboration-requests/${requestId}/reject`, { method: 'POST' });
+    toast('Collaboration request rejected', 'info');
+    loadCollaborationRequests();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function openSidebar() {
+  document.getElementById('sidebar-el').classList.add('open');
+  document.getElementById('sb-overlay').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar-el').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('open');
+}
+
+async function initPage() {
+  try {
+    await ensureMasterDataLoaded();
+  } catch (e) {
+    console.warn('Master data unavailable, using cached labels if present', e);
+    toast('Master data could not be refreshed', 'info');
+  }
+  populateMasterDataSelects();
+  renderAll();
+  applyPendingEditFromSession();
+  await loadEntries();
+  loadClients();
+  loadCollaborators();
+  loadCollaborationRequests();
+}
+
+initPage();
 </script>
 </body>
 </html>
+
+
+
+

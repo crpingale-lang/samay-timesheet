@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Approvals — Samay</title>
+  <title>Approvals - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
@@ -14,12 +14,8 @@
   <div class="main-content">
     <header class="topbar">
       <div style="display:flex;align-items:center;gap:10px;">
-        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div class="topbar-title">Approvals</div>
-      </div>
-      <div class="topbar-actions">
-        <button class="btn btn-success btn-sm" onclick="approveSelected()">✅ Approve</button>
-        <button class="btn btn-danger btn-sm" onclick="openRejectModal()">❌ Reject</button>
       </div>
     </header>
     <div class="page-content">
@@ -29,15 +25,17 @@
 
       <!-- FILTERS -->
       <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
-          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">From</label><input class="form-control" type="date" id="filter-from"></div>
-          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">To</label><input class="form-control" type="date" id="filter-to"></div>
-          <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+        <div class="filter-toolbar">
+          <div class="form-group filter-field"><label class="form-label">From</label><input class="form-control" type="date" id="filter-from"></div>
+          <div class="form-group filter-field"><label class="form-label">To</label><input class="form-control" type="date" id="filter-to"></div>
+          <div class="form-group filter-field">
             <label class="form-label">Staff</label>
             <select class="form-control" id="filter-staff"><option value="">All</option></select>
           </div>
-          <button class="btn btn-primary" onclick="loadEntries()">🔍 Filter</button>
-          <button class="btn btn-ghost btn-sm" onclick="approveAll()">✅ Approve All</button>
+          <div class="filter-toolbar-actions">
+            <button class="btn btn-primary" onclick="loadEntries()">Filter</button>
+            <button class="btn btn-ghost btn-sm" onclick="approveAll()">Approve All</button>
+          </div>
         </div>
       </div>
 
@@ -48,9 +46,13 @@
             <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"> Select All
           </label>
         </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin:-4px 0 14px;">
+          <button class="btn btn-success btn-sm" id="btn-approve-selected" onclick="approveSelected()" disabled>Approve</button>
+          <button class="btn btn-danger btn-sm" id="btn-reject-selected" onclick="openRejectModal()" disabled>Reject</button>
+        </div>
         <div class="table-wrapper">
-          <table>
-            <thead><tr><th></th><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th class="hide-mobile">Bill.</th><th class="hide-mobile">Notes</th></tr></thead>
+            <table class="mobile-stack-table">
+            <thead><tr><th></th><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th class="hide-mobile">Classification</th><th class="hide-mobile">Notes</th></tr></thead>
             <tbody id="entries-tbody"></tbody>
           </table>
         </div>
@@ -61,23 +63,23 @@
 
 <nav class="bottom-nav">
   <div class="bottom-nav-items">
-    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
-    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
-    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
-    <a class="bottom-nav-item active" href="/approvals.html"><span class="bn-icon">✅</span>Approve</a>
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon" aria-hidden="true">&#8962;</span>Home</a>
+    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon" aria-hidden="true">&#9716;</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon" aria-hidden="true">&#9636;</span>Mine</a>
+    <a class="bottom-nav-item active" href="/approvals.html"><span class="bn-icon" aria-hidden="true">&#10003;</span>Approve</a>
   </div>
 </nav>
 
 <!-- REJECT MODAL -->
 <div class="modal-overlay" id="reject-modal">
   <div class="modal">
-    <div class="modal-header"><div class="modal-title">Reject Entries</div><button class="modal-close" onclick="closeModal('reject-modal')">✕</button></div>
+    <div class="modal-header"><div class="modal-title">Reject Entries</div><button class="modal-close" onclick="closeModal('reject-modal')">&times;</button></div>
     <div class="form-group">
       <label class="form-label">Rejection Reason *</label>
-      <textarea class="form-control" id="rejection-reason" rows="3" placeholder="Reason for rejection…"></textarea>
+      <textarea class="form-control" id="rejection-reason" rows="3" placeholder="Reason for rejection..."></textarea>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="rejectSelected()">❌ Reject</button>
+      <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="rejectSelected()">Reject</button>
       <button class="btn btn-ghost" onclick="closeModal('reject-modal')">Cancel</button>
     </div>
   </div>
@@ -86,18 +88,20 @@
 <script src="/js/app.js"></script>
 <script>
 requireAuth();
-if (!isManagerOrAbove()) window.location.href = '/dashboard.html';
+if (!hasPermission('approvals.view_manager_queue') && !hasPermission('approvals.view_partner_queue')) window.location.href = '/dashboard.html';
 document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
 const user = getUser();
-const requiredStatus = user.role === 'manager' ? 'pending_manager' : 'pending_partner';
+const normalizeRole = role => String(role || '').trim().toLowerCase();
+const canViewManagerQueue = hasPermission('approvals.view_manager_queue');
+const activeApprovalStage = canViewManagerQueue ? 'manager' : null;
+const requiredStatus = 'pending_approval';
 const banners = {
-  manager: { cls:'alert-success', txt:'🔑 <strong>Manager Approvals:</strong> Review and approve Articles\' submitted timesheets. Approved entries go to Partner for final sign-off.' },
-  partner: { cls:'alert-info', txt:'👑 <strong>Partner Approvals:</strong> Final approval of Managers\' timesheets (already reviewed by managers).' }
+  manager: { cls:'alert-success', txt:'<strong>Approvals:</strong> Review article timesheets. Once approved here, they are fully approved.' }
 };
-const b = banners[user.role];
+const b = banners[activeApprovalStage];
 if (b) document.getElementById('role-banner').innerHTML = `<div class="alert ${b.cls}">${b.txt}</div>`;
 
 const wb = weekBounds();
@@ -108,10 +112,7 @@ async function loadStaff() {
   try {
     const staff = await apiFetch('/staff');
     const sel = document.getElementById('filter-staff');
-    // Filter by relevant role for the approver
-    const relevant = user.role === 'manager'
-      ? staff.filter(s => s.role === 'article')
-      : staff.filter(s => s.role === 'manager');
+    const relevant = staff.filter(s => normalizeRole(s.role) === 'article');
     relevant.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name}</option>`);
   } catch(e) {}
 }
@@ -127,35 +128,48 @@ async function loadEntries() {
   document.getElementById('pending-count').textContent = entries.length ? `(${entries.length} pending)` : '(none)';
   const tbody = document.getElementById('entries-tbody');
   if (!entries.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎉</div><div class="empty-title">All clear! No pending approvals</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">All clear! No pending approvals</div></div></td></tr>`;
+    document.getElementById('select-all').checked = false;
+    updateSelectionActions();
     return;
   }
   tbody.innerHTML = entries.map(e => `
     <tr>
-      <td><input type="checkbox" class="entry-cb" value="${e.id}"></td>
-      <td>${fmtDate(e.entry_date)}</td>
-      <td><strong>${e.staff_name}</strong><div style="font-size:11px;">${roleBadge(e.staff_role||'article')}</div></td>
-      <td class="hide-mobile" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'Internal'}</td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.task_type}</td>
-      <td><strong>${fmtHours(e.hours)}</strong></td>
-      <td class="hide-mobile"><span class="badge ${e.billable?'badge-billable':'badge-non-billable'}">${e.billable?'Yes':'No'}</span></td>
-      <td class="hide-mobile" style="max-width:140px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description||'—'}</td>
+      <td><input type="checkbox" class="entry-cb" value="${e.id}" onchange="updateSelectionActions()"></td>
+      <td data-label="Date">${fmtDate(e.entry_date)}</td>
+      <td data-label="Staff"><strong>${e.staff_name}</strong><div style="font-size:11px;">${roleBadge(e.staff_role||'article')}</div></td>
+      <td data-label="Client" class="hide-mobile" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'Internal'}</td>
+      <td data-label="Task" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.task_type}</td>
+      <td data-label="Hours"><strong>${fmtHours(e.hours)}</strong></td>
+      <td data-label="Classification" class="hide-mobile">${workClassificationBadge(e.work_classification, e.billable)}</td>
+      <td data-label="Notes" class="hide-mobile" style="max-width:140px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description||'-'}</td>
     </tr>`).join('');
+  document.getElementById('select-all').checked = false;
+  updateSelectionActions();
 }
 
-function toggleSelectAll(v) { document.querySelectorAll('.entry-cb').forEach(c=>c.checked=v); }
-function getSelected() { return [...document.querySelectorAll('.entry-cb:checked')].map(c=>parseInt(c.value)); }
+function getSelected() { return [...document.querySelectorAll('.entry-cb:checked')].map(c=>c.value); }
+
+function updateSelectionActions() {
+  const hasSelection = getSelected().length > 0;
+  document.getElementById('btn-approve-selected').disabled = !hasSelection;
+  document.getElementById('btn-reject-selected').disabled = !hasSelection;
+}
+
+function toggleSelectAll(v) {
+  document.querySelectorAll('.entry-cb').forEach(c => c.checked = v);
+  updateSelectionActions();
+}
 
 async function approveSelected() {
   const ids = getSelected();
   if (!ids.length) { toast('Select entries first','info'); return; }
   await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'approve'}});
-  const nextStep = user.role==='manager' ? 'escalated to Partner' : 'approved!';
-  toast(`${ids.length} entries ${nextStep}`,'success'); loadEntries();
+  toast(`${ids.length} entries approved!`,'success'); loadEntries();
 }
 
 async function approveAll() {
-  const ids = [...document.querySelectorAll('.entry-cb')].map(c=>parseInt(c.value));
+  const ids = [...document.querySelectorAll('.entry-cb')].map(c=>c.value);
   if (!ids.length) { toast('No entries to approve','info'); return; }
   await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'approve'}});
   toast(`All ${ids.length} entries processed!`,'success'); loadEntries();
@@ -178,7 +192,9 @@ async function rejectSelected() {
 function openSidebar() { document.getElementById('sidebar-el').classList.add('open'); document.getElementById('sb-overlay').classList.add('open'); }
 function closeSidebar() { document.getElementById('sidebar-el').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); }
 
-loadEntries();
+ensureMasterDataLoaded().catch(() => {}).finally(loadEntries);
 </script>
 </body>
 </html>
+
+

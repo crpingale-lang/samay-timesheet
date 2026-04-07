@@ -421,9 +421,22 @@ function toast(message, type = 'success') {
 }
 
 // Modal helpers
-function openModal(id) { document.getElementById(id)?.classList.add('open'); }
-function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
-function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open')); }
+function syncGlobalOverlayState() {
+  const hasOpenOverlay = document.querySelector('.modal-overlay.open');
+  document.body.classList.toggle('modal-open', !!hasOpenOverlay);
+}
+function openModal(id) {
+  document.getElementById(id)?.classList.add('open');
+  syncGlobalOverlayState();
+}
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+  syncGlobalOverlayState();
+}
+function closeAllModals() {
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  syncGlobalOverlayState();
+}
 document.addEventListener('keydown', e => { if (e.key==='Escape') closeAllModals(); });
 
 let mobileListPickerState = null;
@@ -440,6 +453,7 @@ function ensureMobileListPickerShell() {
       <div class="mobile-list-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-list-picker-title">
         <div class="mobile-list-picker-header">
           <div class="mobile-list-picker-title" id="mobile-list-picker-title">Select</div>
+          <button class="modal-close mobile-list-picker-close" type="button" id="mobile-list-picker-close" aria-label="Close selection">&times;</button>
         </div>
         <div class="mobile-list-picker-search-wrap">
           <label class="mobile-list-picker-search-label" for="mobile-list-picker-search">Search</label>
@@ -456,10 +470,12 @@ function ensureMobileListPickerShell() {
   const overlay = document.getElementById('mobile-list-picker');
   const search = document.getElementById('mobile-list-picker-search');
   const done = document.getElementById('mobile-list-picker-done');
+  const close = document.getElementById('mobile-list-picker-close');
   overlay.addEventListener('click', e => {
     if (e.target === overlay) closeMobileListPicker();
   });
   search.addEventListener('input', () => renderMobileListPickerOptions(search.value));
+  close.addEventListener('click', () => closeMobileListPicker());
   done.addEventListener('click', () => {
     commitMobileListPickerSelection();
     closeMobileListPicker();
@@ -479,7 +495,7 @@ function mobileListPickerOptionsForElement(element) {
   if (!element) return [];
   if (element.matches('select')) {
     return [...element.options]
-      .filter(option => option.value !== '' || option.textContent.trim())
+      .filter(option => option.value !== '' && option.textContent.trim())
       .map(option => ({
         value: option.value,
         label: option.textContent.trim(),
@@ -519,9 +535,9 @@ function openMobileListPicker(element) {
   document.getElementById('mobile-list-picker-title').textContent =
     element.dataset.mobilePickerTitle || element.getAttribute('aria-label') || element.closest('.form-group')?.querySelector('.form-label')?.textContent || 'Select';
   const search = document.getElementById('mobile-list-picker-search');
-  search.value = selected?.label || selected?.value || '';
+  search.value = selected ? (selected.label || selected.value || '') : '';
   renderMobileListPickerOptions(search.value);
-  document.getElementById('mobile-list-picker').classList.add('open');
+  openModal('mobile-list-picker');
   document.body.classList.add('mobile-list-picker-open');
   window.setTimeout(() => search.focus(), 20);
   return true;
@@ -568,7 +584,7 @@ function commitMobileListPickerSelection() {
 }
 
 function closeMobileListPicker() {
-  document.getElementById('mobile-list-picker')?.classList.remove('open');
+  closeModal('mobile-list-picker');
   document.body.classList.remove('mobile-list-picker-open');
   mobileListPickerState = null;
 }
