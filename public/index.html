@@ -35,7 +35,10 @@
 </div>
 <script src="/js/app.js"></script>
 <script>
-  if (getToken() && getUser()) window.location.href = '/dashboard.html';
+  const existingUser = getUser();
+  const existingTarget = getDefaultLandingPage();
+  if (!hasUsableSession() && (getToken() || existingUser)) clearSession();
+  if (hasUsableSession() && existingTarget !== '/') window.location.replace(existingTarget);
   document.getElementById('login-form').addEventListener('submit', async e => {
     e.preventDefault();
     const btn = document.getElementById('login-btn');
@@ -47,7 +50,7 @@
         body: { username: document.getElementById('username').value.trim(), password: document.getElementById('password').value }
       });
       setSession(data.token, data.user);
-      window.location.href = '/dashboard.html';
+      window.location.replace(getDefaultLandingPage());
     } catch (err) {
       errEl.textContent = err.message; errEl.style.display = 'block';
       btn.textContent = 'Sign In →'; btn.disabled = false;
