@@ -39,8 +39,12 @@
                 <label class="form-label">Date</label>
                 <input class="form-control" type="date" id="selected-date-input" onchange="handleDateInput(this.value)">
               </div>
-              <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(-1)">&larr; Prev</button>
-              <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(1)">Next &rarr;</button>
+              <div class="proto-date-nav-slot">
+                <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(-1)">&larr; Prev</button>
+              </div>
+              <div class="proto-date-nav-slot">
+                <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(1)">Next &rarr;</button>
+              </div>
               <div class="proto-date-readable" id="selected-date-readable"></div>
             </div>
             <div class="proto-toolbar-actions">
@@ -275,6 +279,18 @@ let collaboratorOptions = [];
 let collaborationRequests = [];
 let selectedWorkedWith = [];
 
+const FALLBACK_WORK_CATEGORIES = [
+  'Audit',
+  'Tax',
+  'GST',
+  'ROC Filing',
+  'Bookkeeping',
+  'Payroll',
+  'Client Meeting',
+  'Review',
+  'Admin'
+];
+
 document.getElementById('selected-date-input').value = selectedDate;
 document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -283,11 +299,17 @@ function populateMasterDataSelects() {
   const workClassificationSelect = document.getElementById('modal-work-classification');
   const workCategories = getWorkCategories();
   const classificationOptions = getWorkClassifications();
+  const derivedCategories = [...new Set([
+    ...workCategories.map(item => item.label).filter(Boolean),
+    ...currentEntries.map(entry => entry.task_type).filter(Boolean),
+    ...FALLBACK_WORK_CATEGORIES
+  ])];
   taskTypeSelect.innerHTML = '<option value="">Select task</option>' +
-    (workCategories.length ? workCategories : getWorkCategories(true)).map(item => `<option value="${item.label}">${item.label}</option>`).join('');
+    (derivedCategories.length ? derivedCategories : FALLBACK_WORK_CATEGORIES).map(label => `<option value="${label}">${label}</option>`).join('');
   workClassificationSelect.innerHTML = (classificationOptions.length ? classificationOptions : getWorkClassifications(true))
     .map(item => `<option value="${item.key}">${item.label}</option>`)
     .join('');
+  taskTypeSelect.dataset.mobilePickerTitle = 'Type of Work';
   bootMobileListPickers(document.getElementById('entry-modal'));
 }
 
@@ -612,11 +634,21 @@ function escapeHtml(value = '') {
     .replace(/"/g, '&quot;');
 }
 
-function timelineBarInnerHtml(segment, isModalTimeline) {
-  const pieces = [
-    `<span class="timeline-entry-label">${escapeHtml(segment.task_type || segment.client_name || (segment.state === 'draft' ? 'Draft entry' : 'Entry'))}</span>`,
-    `<span class="timeline-entry-time">${formatTimelineRange(segment.startMinutes, segment.endMinutes)}</span>`
-  ];
+function timelineBarDensity(widthPercent) {
+  if (widthPercent <= 8) return 'tight';
+  if (widthPercent <= 14) return 'compact';
+  return 'full';
+}
+
+function timelineBarInnerHtml(segment, isModalTimeline, density = 'full') {
+  const pieces = [];
+  const label = `<span class="timeline-entry-label">${escapeHtml(segment.task_type || segment.client_name || (segment.state === 'draft' ? 'Draft entry' : 'Entry'))}</span>`;
+  const timeText = density === 'tight'
+    ? minutesToTimeString(segment.startMinutes)
+    : formatTimelineRange(segment.startMinutes, segment.endMinutes);
+
+  if (density === 'full') pieces.push(label);
+  pieces.push(`<span class="timeline-entry-time">${timeText}</span>`);
   if (isModalTimeline && segment.state === 'draft') {
     pieces.push('<span class="timeline-handle start" data-action="resize-start" aria-label="Adjust start time"></span>');
     pieces.push('<span class="timeline-handle end" data-action="resize-end" aria-label="Adjust end time"></span>');
@@ -715,16 +747,18 @@ function renderTimeline(containerId, dateStr, draftEntry = null, excludedId = nu
   ];
   const isModalTimeline = containerId === 'modal-day-timeline';
   const laneCount = Math.max(segments.reduce((max, segment) => Math.max(max, segment.lane + 1), 0), 1);
-  const laneHeight = 18;
-  const laneGap = 6;
+  const isMobileTimeline = window.matchMedia('(max-width: 768px)').matches;
+  const laneHeight = isMobileTimeline ? 22 : 18;
+  const laneGap = isMobileTimeline ? 8 : 6;
   const barHtml = segments.map(segment => {
     const top = segment.lane * (laneHeight + laneGap);
     const left = timelineLeftPercent(segment.startMinutes);
     const width = timelineWidthPercent(segment.startMinutes, segment.endMinutes);
+    const density = timelineBarDensity(width);
     const tooltip = `${formatTimelineRange(segment.startMinutes, segment.endMinutes)}\n${segment.tooltip}`;
-    const extraClass = segment.state === 'draft' ? 'is-draft' : 'is-booked';
+    const extraClass = `${segment.state === 'draft' ? 'is-draft' : 'is-booked'} density-${density}`;
     const action = isModalTimeline && segment.state === 'draft' ? ' data-action="move-draft"' : '';
-    return `<div class="timeline-entry-bar tone-${segment.tone} ${extraClass}" style="top:${top}px;left:${left}%;width:${width}%;" data-tooltip="${escapeHtml(tooltip)}"${action} aria-label="${escapeHtml(tooltip)}">${timelineBarInnerHtml(segment, isModalTimeline)}</div>`;
+    return `<div class="timeline-entry-bar tone-${segment.tone} ${extraClass}" style="top:${top}px;left:${left}%;width:${width}%;" data-tooltip="${escapeHtml(tooltip)}"${action} aria-label="${escapeHtml(tooltip)}">${timelineBarInnerHtml(segment, isModalTimeline, density)}</div>`;
   }).join('');
   const labelsHtml = labels.map(item => {
     const offset = ((item.minute - TIMELINE_START) / (TIMELINE_END - TIMELINE_START)) * 100;
@@ -733,7 +767,7 @@ function renderTimeline(containerId, dateStr, draftEntry = null, excludedId = nu
   container.innerHTML = `
     <div class="day-timeline-wrap">
       <div class="day-timeline-labels">${labelsHtml}</div>
-      <div class="day-timeline" style="--timeline-lanes:${laneCount};">
+      <div class="day-timeline" style="--timeline-lanes:${laneCount};--timeline-lane-height:${laneHeight}px;--timeline-lane-gap:${laneGap}px;">
         <div class="day-timeline-track ${isModalTimeline ? 'is-modal' : ''}" data-date="${dateStr}" onpointerdown="handleTimelinePointerDown(event, '${containerId}')">${barHtml}</div>
       </div>
     </div>`;
@@ -1128,9 +1162,11 @@ async function loadEntries() {
   try {
     currentEntries = await apiFetch(`/timesheets?from=${from}&to=${to}&user_id=${user.id}`);
     if (!weekDays.includes(selectedDate)) selectedDate = weekDays[0];
+    populateMasterDataSelects();
     renderAll();
   } catch (e) {
     currentEntries = [];
+    populateMasterDataSelects();
     renderAll();
     toast(e.message || 'Unable to load timesheets', 'error');
   }
