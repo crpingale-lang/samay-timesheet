@@ -42,7 +42,7 @@
         </div>
       </div>
 
-      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+      <div class="stats-grid" style="margin-bottom:16px;">
         <div class="stat-card indigo"><div class="stat-label">Total Hours</div><div class="stat-value" id="ms-total">-</div></div>
         <div class="stat-card green"><div class="stat-label">Approved</div><div class="stat-value" id="ms-approved">-</div></div>
         <div class="stat-card amber"><div class="stat-label">Pending</div><div class="stat-value" id="ms-pending">-</div></div>
@@ -53,11 +53,14 @@
         <div class="card-header">
           <div class="card-title">Entries</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+            <label class="mobile-selection-toggle" style="font-size:12px;color:var(--text-muted);cursor:pointer;">
               <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"> Select All
             </label>
             <button class="btn btn-outline btn-sm" id="submit-selected-btn" onclick="submitSelected()">Submit Selected</button>
           </div>
+        </div>
+        <div class="mobile-sticky-actions" style="display:none;" id="my-timesheets-sticky-actions">
+          <button class="btn btn-outline btn-sm" onclick="submitSelected()">Submit Selected</button>
         </div>
         <div class="table-wrapper">
           <table class="mobile-stack-table">
@@ -90,8 +93,20 @@ if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.vi
 document.getElementById('log-time-btn').style.display = hasPermission('timesheets.create_own') ? '' : 'none';
 document.getElementById('submit-selected-btn').style.display = hasPermission('timesheets.submit_own') ? '' : 'none';
 
-document.getElementById('filter-from').value = '';
-document.getElementById('filter-to').value = '';
+const MY_TIMESHEETS_VIEW_STATE_KEY = 'my-timesheets';
+const myTimesheetsInitialState = readViewState(MY_TIMESHEETS_VIEW_STATE_KEY) || {};
+
+document.getElementById('filter-from').value = myTimesheetsInitialState.from || '';
+document.getElementById('filter-to').value = myTimesheetsInitialState.to || '';
+document.getElementById('filter-status').value = myTimesheetsInitialState.status || '';
+
+function persistViewState() {
+  writeViewState(MY_TIMESHEETS_VIEW_STATE_KEY, {
+    from: document.getElementById('filter-from').value,
+    to: document.getElementById('filter-to').value,
+    status: document.getElementById('filter-status').value
+  });
+}
 
 function renderActionButtons(entry) {
   if (entry.status === 'approved') return '';
@@ -105,26 +120,30 @@ async function loadEntries() {
   const from = document.getElementById('filter-from').value;
   const to = document.getElementById('filter-to').value;
   const status = document.getElementById('filter-status').value;
+  persistViewState();
   const user = getUser();
   let url = `/timesheets?from=${from}&to=${to}&user_id=${user.id}`;
   if (status) url += `&status=${status}`;
-  const entries = await apiFetch(url);
   const tbody = document.getElementById('entries-tbody');
+  tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '⏳', title: 'Loading entries', subtitle: 'Fetching your timesheet list.' })}</td></tr>`;
+  try {
+    const entries = await apiFetch(url);
 
-  const total = entries.reduce((s,e)=>s+parseFloat(e.hours||0),0);
-  const approved = entries.filter(e=>e.status==='approved').reduce((s,e)=>s+parseFloat(e.hours||0),0);
-  const pending = entries.filter(e=>['pending_manager','pending_partner'].includes(e.status)).reduce((s,e)=>s+parseFloat(e.hours||0),0);
-  const rejected = entries.filter(e=>e.status==='rejected').reduce((s,e)=>s+parseFloat(e.hours||0),0);
-  document.getElementById('ms-total').textContent = fmtHours(total);
-  document.getElementById('ms-approved').textContent = fmtHours(approved);
-  document.getElementById('ms-pending').textContent = fmtHours(pending);
-  document.getElementById('ms-rejected').textContent = fmtHours(rejected);
+    const total = entries.reduce((s,e)=>s+parseFloat(e.hours||0),0);
+    const approved = entries.filter(e=>e.status==='approved').reduce((s,e)=>s+parseFloat(e.hours||0),0);
+    const pending = entries.filter(e=>['pending_manager','pending_partner'].includes(e.status)).reduce((s,e)=>s+parseFloat(e.hours||0),0);
+    const rejected = entries.filter(e=>e.status==='rejected').reduce((s,e)=>s+parseFloat(e.hours||0),0);
+    document.getElementById('ms-total').textContent = fmtHours(total);
+    document.getElementById('ms-approved').textContent = fmtHours(approved);
+    document.getElementById('ms-pending').textContent = fmtHours(pending);
+    document.getElementById('ms-rejected').textContent = fmtHours(rejected);
 
-  if (!entries.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">Inbox</div><div class="empty-title">No entries found</div></div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = entries.map(e => `
+    if (!entries.length) {
+      tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '🗂', title: 'No entries found', subtitle: 'Try widening the date range or clearing the status filter.', actionLabel: 'Clear Filters', action: 'clearFilters()' })}</td></tr>`;
+      syncStickySubmitAction();
+      return;
+    }
+    tbody.innerHTML = entries.map(e => `
     <tr>
       <td data-label="">${['draft','rejected'].includes(e.status) && hasPermission('timesheets.submit_own') ? `<input type="checkbox" class="entry-cb" value="${e.id}">` : ''}</td>
       <td data-label="Date">${fmtDate(e.entry_date)}</td>
@@ -135,14 +154,32 @@ async function loadEntries() {
       <td data-label="Status">${statusBadge(e.status)}${e.status==='rejected' ? `<div style="font-size:11px;color:var(--danger);margin-top:3px;">${e.rejection_reason||''}</div>` : ''}</td>
       <td data-label="Action">${renderActionButtons(e)}</td>
     </tr>`).join('');
+    syncStickySubmitAction();
+  } catch (e) {
+    document.getElementById('ms-total').textContent = fmtHours(0);
+    document.getElementById('ms-approved').textContent = fmtHours(0);
+    document.getElementById('ms-pending').textContent = fmtHours(0);
+    document.getElementById('ms-rejected').textContent = fmtHours(0);
+    tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '⚠', title: 'Entries could not load', subtitle: 'Please try again. If the issue continues, refresh the page.', actionLabel: 'Retry', action: 'loadEntries()' })}</td></tr>`;
+    syncStickySubmitAction();
+    toast(e.message,'error');
+  }
 }
 
-function toggleSelectAll(v) { document.querySelectorAll('.entry-cb').forEach(c=>c.checked=v); }
+function toggleSelectAll(v) { document.querySelectorAll('.entry-cb').forEach(c=>c.checked=v); syncStickySubmitAction(); }
+
+function syncStickySubmitAction() {
+  const sticky = document.getElementById('my-timesheets-sticky-actions');
+  if (!sticky) return;
+  const selected = document.querySelectorAll('.entry-cb:checked').length;
+  sticky.style.display = selected ? '' : 'none';
+}
 
 function clearFilters() {
   document.getElementById('filter-from').value = '';
   document.getElementById('filter-to').value = '';
   document.getElementById('filter-status').value = '';
+  clearViewState(MY_TIMESHEETS_VIEW_STATE_KEY);
   loadEntries();
 }
 
@@ -176,6 +213,10 @@ function openSidebar() { document.getElementById('sidebar-el').classList.add('op
 function closeSidebar() { document.getElementById('sidebar-el').classList.remove('open'); document.getElementById('sb-overlay').classList.remove('open'); }
 
 ensureMasterDataLoaded().catch(() => {}).finally(loadEntries);
+document.addEventListener('change', e => {
+  if (e.target.matches('.entry-cb, #select-all')) syncStickySubmitAction();
+  if (e.target.matches('#filter-from, #filter-to, #filter-status')) persistViewState();
+});
 </script>
 </body>
 </html>

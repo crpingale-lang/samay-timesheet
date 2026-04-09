@@ -2,24 +2,42 @@ const admin = require('firebase-admin');
 admin.initializeApp();
 const db = admin.firestore();
 
-// Helper to seed default admin if none exists
+function fullAdminPermissions() {
+  return [
+    'clients.view','clients.create','clients.edit','clients.delete','clients.import',
+    'staff.view','staff.create','staff.edit','staff.delete','access.manage',
+    'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
+    'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
+    'reports.view','reports.export','dashboard.view_self','dashboard.view_team','dashboard.view_firm'
+  ];
+}
+
 async function seedDefaultAdmin() {
   const usersRef = db.collection('users');
-  const snapshot = await usersRef.where('role', 'in', ['partner', 'admin']).limit(1).get();
-  if (snapshot.empty) {
-    const bcrypt = require('bcryptjs');
-    const hash = await bcrypt.hash('admin123', 10);
-    await usersRef.add({
-      name: 'Default Partner',
-      username: 'partner',
-      password: hash,
-      role: 'partner',
-      designation: 'Managing Partner',
-      active: true,
-      created_at: admin.firestore.FieldValue.serverTimestamp()
-    });
-    console.log('✅ Default partner created: partner / admin123');
+  const bcrypt = require('bcryptjs');
+  const hash = await bcrypt.hash('admin123', 10);
+  const adminSnapshot = await usersRef.where('username', '==', 'admin').limit(1).get();
+  const payload = {
+    name: 'Administrator',
+    username: 'admin',
+    password: hash,
+    role: 'partner',
+    permissions: fullAdminPermissions(),
+    email: '',
+    mobile_number: '',
+    designation: 'System Administrator',
+    department: 'Administration',
+    active: true,
+    created_at: admin.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (adminSnapshot.empty) {
+    await usersRef.add(payload);
+    console.log('Default firebase admin created: admin / admin123');
+    return;
   }
+
+  await adminSnapshot.docs[0].ref.set(payload, { merge: true });
 }
 
 module.exports = { db, admin, seedDefaultAdmin };

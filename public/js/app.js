@@ -270,12 +270,13 @@ function ensureContactCatchupModal() {
     <div class="modal-overlay contact-catchup-overlay" id="contact-catchup-modal">
       <div class="modal contact-catchup-modal">
         <div class="modal-header">
-          <div>
+          <div class="modal-header-copy">
+            <div class="modal-kicker">Profile Check</div>
             <div class="modal-title">Complete Your Contact Details</div>
-            <div class="contact-catchup-subtitle">We need your mobile number and email ID for password reset and login authentication.</div>
+            <div class="modal-subtitle contact-catchup-subtitle">We need your mobile number and email ID for password reset and login authentication.</div>
           </div>
         </div>
-        <form id="contact-catchup-form">
+        <form id="contact-catchup-form" class="modal-body">
           <div class="alert alert-info contact-catchup-alert">
             Update these once now so your account can support recovery and future sign-in checks.
           </div>
@@ -406,24 +407,102 @@ function clearLocalCache(key) {
   } catch {}
 }
 
+function readViewState(key) {
+  try {
+    return JSON.parse(sessionStorage.getItem(`ts_view:${key}`) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function writeViewState(key, value) {
+  try {
+    sessionStorage.setItem(`ts_view:${key}`, JSON.stringify(value));
+  } catch {}
+}
+
+function clearViewState(key) {
+  try {
+    sessionStorage.removeItem(`ts_view:${key}`);
+  } catch {}
+}
+
+function renderEmptyState({ icon = 'ℹ', title = 'Nothing here yet', subtitle = '', actionLabel = '', action = '' } = {}) {
+  const actionHtml = actionLabel && action
+    ? `<div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" type="button" onclick="${action}">${actionLabel}</button></div>`
+    : '';
+  const subtitleHtml = subtitle ? `<div class="empty-sub">${subtitle}</div>` : '';
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><div class="empty-title">${title}</div>${subtitleHtml}${actionHtml}</div>`;
+}
+
 // Toast
 function toast(message, type = 'success') {
   const container = document.getElementById('toast-container') || (() => {
-    const el = document.createElement('div'); el.id = 'toast-container'; el.className = 'toast-container';
+    const el = document.createElement('div'); el.id = 'toast-container'; el.className = 'toast-container'; el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-atomic', 'true');
     document.body.appendChild(el); return el;
   })();
   const icons = { success: '✓', error: '!', info: 'i' };
   const t = document.createElement('div');
   t.className = `toast ${type}`;
+  t.setAttribute('role', 'status');
   t.innerHTML = `<span>${icons[type]||'i'}</span><span>${message}</span>`;
   container.appendChild(t);
   setTimeout(() => { t.style.opacity='0'; t.style.transition='0.3s'; setTimeout(()=>t.remove(),300); }, 3500);
 }
 
 // Modal helpers
+function viewportHeightPx() {
+  if (window.visualViewport?.height) return `${window.visualViewport.height}px`;
+  return `${window.innerHeight}px`;
+}
+
+function syncMobileViewportState() {
+  const root = document.documentElement;
+  const viewportHeight = window.visualViewport?.height || window.innerHeight;
+  const layoutHeight = window.innerHeight || viewportHeight;
+  const keyboardOffset = Math.max(layoutHeight - viewportHeight, 0);
+  const keyboardOpen = keyboardOffset > 120;
+  root.style.setProperty('--app-vh', `${viewportHeight}px`);
+  root.style.setProperty('--keyboard-offset', `${keyboardOffset}px`);
+  document.body.classList.toggle('keyboard-open', keyboardOpen);
+}
+
+function scrollFieldIntoView(target) {
+  if (!target || !isMobileListPickerViewport()) return;
+  window.setTimeout(() => {
+    try {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } catch (_) {}
+  }, 180);
+}
+
+function bootMobileKeyboardSupport() {
+  if (window.__tsMobileKeyboardBooted) return;
+  window.__tsMobileKeyboardBooted = true;
+  syncMobileViewportState();
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncMobileViewportState);
+    window.visualViewport.addEventListener('scroll', syncMobileViewportState);
+  }
+  window.addEventListener('resize', syncMobileViewportState);
+  window.addEventListener('orientationchange', syncMobileViewportState);
+  document.addEventListener('focusin', event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.matches('input, textarea, select')) return;
+    if (!target.closest('.modal, .mobile-list-picker-sheet, .contact-catchup-modal')) return;
+    scrollFieldIntoView(target);
+  });
+  document.addEventListener('focusout', () => {
+    window.setTimeout(syncMobileViewportState, 120);
+  });
+}
+
 function syncGlobalOverlayState() {
   const hasOpenOverlay = document.querySelector('.modal-overlay.open');
   document.body.classList.toggle('modal-open', !!hasOpenOverlay);
+  syncMobileViewportState();
 }
 function openModal(id) {
   document.getElementById(id)?.classList.add('open');
@@ -517,6 +596,16 @@ function mobileListPickerOptionsForElement(element) {
   return [];
 }
 
+function shouldUseMobileListPicker(element) {
+  if (!isMobileListPickerViewport() || !element || element.disabled) return false;
+  return mobileListPickerOptionsForElement(element).some(option => !option.disabled);
+}
+
+function syncMobileListPickerState(element) {
+  if (!element || !element.matches('input[list]')) return;
+  element.readOnly = shouldUseMobileListPicker(element);
+}
+
 function openMobileListPicker(element) {
   if (!isMobileListPickerViewport()) return false;
   ensureMobileListPickerShell();
@@ -535,11 +624,16 @@ function openMobileListPicker(element) {
   document.getElementById('mobile-list-picker-title').textContent =
     element.dataset.mobilePickerTitle || element.getAttribute('aria-label') || element.closest('.form-group')?.querySelector('.form-label')?.textContent || 'Select';
   const search = document.getElementById('mobile-list-picker-search');
-  search.value = selected ? (selected.label || selected.value || '') : '';
+  search.value = '';
   renderMobileListPickerOptions(search.value);
   openModal('mobile-list-picker');
   document.body.classList.add('mobile-list-picker-open');
-  window.setTimeout(() => search.focus(), 20);
+  window.setTimeout(() => {
+    const selected = document.querySelector('.mobile-list-picker-option.selected');
+    try {
+      selected?.scrollIntoView({ block: 'nearest' });
+    } catch (_) {}
+  }, 20);
   return true;
 }
 
@@ -594,23 +688,29 @@ function bindMobileListPicker(element) {
   element.dataset.mobilePickerBound = 'true';
 
   const openHandler = event => {
-    if (!isMobileListPickerViewport()) return;
+    if (!shouldUseMobileListPicker(element)) {
+      syncMobileListPickerState(element);
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     openMobileListPicker(element);
   };
 
   if (element.matches('input[list]')) {
-    element.readOnly = isMobileListPickerViewport();
+    syncMobileListPickerState(element);
     window.addEventListener('resize', () => {
-      element.readOnly = isMobileListPickerViewport();
+      syncMobileListPickerState(element);
     });
   }
 
   element.addEventListener('mousedown', openHandler);
   element.addEventListener('touchstart', openHandler, { passive: false });
   element.addEventListener('focus', event => {
-    if (!isMobileListPickerViewport()) return;
+    if (!shouldUseMobileListPicker(element)) {
+      syncMobileListPickerState(element);
+      return;
+    }
     event.preventDefault();
     openMobileListPicker(element);
     element.blur();
@@ -619,6 +719,7 @@ function bindMobileListPicker(element) {
 
 function bootMobileListPickers(root = document) {
   root.querySelectorAll('select.form-control:not([multiple]), input.form-control[list]').forEach(bindMobileListPicker);
+  root.querySelectorAll('input.form-control[list]').forEach(syncMobileListPickerState);
 }
 
 // Format helpers
@@ -820,11 +921,13 @@ function getTaskTypes(includeInactive = false) {
 if (typeof window !== 'undefined' && window.location.pathname !== '/') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+      bootMobileKeyboardSupport();
       bootSessionKeepAlive();
       bootContactCatchupGate();
       bootMobileListPickers();
     }, { once: true });
   } else {
+    bootMobileKeyboardSupport();
     bootSessionKeepAlive();
     bootContactCatchupGate();
     bootMobileListPickers();

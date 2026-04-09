@@ -4,9 +4,7 @@ const { db, seedDefaultAdmin } = require('../db');
 const { getUsersMap, invalidateCache } = require('../data-cache');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = 'ca-timesheet-secret-2024';
-const SESSION_TTL = '30d';
+const { JWT_SECRET, SESSION_TTL } = require('../config');
 const ROLE_DEFAULT_PERMISSIONS = {
   partner: [
     'clients.view','clients.create','clients.edit','clients.delete','clients.import',

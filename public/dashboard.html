@@ -113,7 +113,7 @@ function applyDashboardSummary(summary = {}) {
 function renderRecentEntries(entries) {
   const tbody = document.getElementById('recent-entries-body');
   if (!entries.length) {
-    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No recent entries</div></div></td></tr>`; return;
+    tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '📭', title: 'No recent entries', subtitle: 'Your latest timesheet activity will appear here once you log time.' })}</td></tr>`; return;
   }
   tbody.innerHTML = entries.slice(0,10).map(e => `
     <tr>
@@ -138,7 +138,7 @@ function renderUtilization(data) {
   if (!hasPermission('dashboard.view_team') && !hasPermission('dashboard.view_firm')) return;
   document.getElementById('utilization-card').style.display = '';
   const container = document.getElementById('utilization-body');
-  if (!data.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No approved hours yet</div></div>'; return; }
+  if (!data.length) { container.innerHTML = renderEmptyState({ icon: '👥', title: 'No approved hours yet', subtitle: 'Team utilization will appear after approved work starts coming in for this month.' }); return; }
   const maxH = Math.max(...data.map(d=>d.total_hours),1);
   container.innerHTML = data.map(s => `
     <div style="margin-bottom:12px;">
@@ -153,6 +153,7 @@ function renderUtilization(data) {
 async function loadStats() {
   const cacheKey = dashboardCacheKey();
   const cached = readLocalCache(cacheKey);
+  document.getElementById('recent-entries-body').innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⏳', title: 'Loading dashboard', subtitle: 'Pulling your latest timesheet summary now.' })}</td></tr>`;
   if (cached?.value) {
     applyDashboardSummary(cached.value);
   }
@@ -167,8 +168,10 @@ async function loadStats() {
       document.getElementById('stat-week').textContent = fmtHours(0);
       document.getElementById('stat-pending').textContent = '0';
       document.getElementById('stat-draft').textContent = '0';
-      renderRecentEntries([]);
+      document.getElementById('recent-entries-body').innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⚠', title: 'Dashboard data could not load', subtitle: 'Check your connection or try again in a moment.', actionLabel: 'Retry', action: 'loadStats()' })}</td></tr>`;
       renderWeekChart(Array(7).fill(0));
+      document.getElementById('utilization-card').style.display = '';
+      document.getElementById('utilization-body').innerHTML = renderEmptyState({ icon: '↻', title: 'Unable to refresh utilization', subtitle: 'The summary is unavailable right now.', actionLabel: 'Retry', action: 'loadStats()' });
       clearLocalCache(cacheKey);
       toast(err.message || 'Unable to load dashboard stats', 'error');
     } else {

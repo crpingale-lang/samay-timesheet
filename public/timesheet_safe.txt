@@ -1,0 +1,658 @@
+﻿[!DOCTYPE html]
+[html lang="en"]
+[head]
+  [meta charset="UTF-8"]
+  [meta name="viewport" content="width=device-width, initial-scale=1.0"]
+  [title]Log Time - Samay[/title]
+  [link rel="stylesheet" href="/css/style.css"]
+  [link rel="manifest" href="/manifest.json"]
+  [meta name="theme-color" content="#4338ca"]
+[/head]
+[body]
+[div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"][/div]
+[div class="app-shell"]
+  [aside class="sidebar" id="sidebar-el"][/aside]
+  [div class="main-content"]
+    [header class="topbar"]
+      [div style="display:flex;align-items:center;gap:10px;"]
+        [button class="hamburger" onclick="openSidebar()"]&#9776;[/button]
+        [div]
+          [div][div class="topbar-title"]Log Time[/div][div style="font-size:12px;color:var(--text-muted);"]Daily capture feeding weekly summary[/div][/div]
+        [/div]
+      [/div]
+      [a href="/my-timesheets.html" class="btn btn-ghost btn-sm"]Back To Current[/a]
+    [/header]
+
+    [div class="page-content proto-page"]
+      [div class="proto-caption" style="display:none;"]Architected dual-view timesheet system with daily entries feeding weekly aggregation[/div]
+
+      [div class="proto-tabs" style="margin-bottom:18px;"]
+        [button class="proto-tab active" id="tab-daily" onclick="switchView('daily')"]Daily Timesheet[/button]
+        [button class="proto-tab" id="tab-weekly" onclick="switchView('weekly')"]Weekly Summary[/button]
+      [/div]
+
+      [section id="daily-view"]
+        [div class="card proto-panel" style="margin-bottom:18px;"]
+          [div class="proto-toolbar"]
+            [div class="proto-date-group"]
+              [div class="form-group" style="margin:0;min-width:180px;"]
+                [label class="form-label"]Date[/label]
+                [input class="form-control" type="date" id="selected-date-input" onchange="handleDateInput(this.value)"]
+              [/div]
+              [button class="btn btn-ghost" type="button" onclick="moveSelectedDay(-1)"]&larr; Prev[/button]
+              [button class="btn btn-ghost" type="button" onclick="moveSelectedDay(1)"]Next &rarr;[/button]
+              [div class="proto-date-readable" id="selected-date-readable"][/div]
+            [/div]
+            [button class="btn btn-primary" type="button" onclick="saveDayState()"]Save Day[/button]
+          [/div]
+
+          [div class="proto-weekbar" style="display:none;"]
+            [div class="proto-weekbar-copy"]
+              [div class="proto-section-title"]Week Context[/div]
+              [div class="proto-section-sub"]Selected day stays central while the week stays visible.[/div]
+            [/div]
+            [div style="display:flex;gap:8px;flex-wrap:wrap;"]
+              [button class="btn btn-ghost btn-sm" type="button" onclick="shiftWeek(-7)"]Previous Week[/button]
+              [button class="btn btn-ghost btn-sm" type="button" onclick="jumpToToday()"]Today[/button]
+              [button class="btn btn-ghost btn-sm" type="button" onclick="shiftWeek(7)"]Next Week[/button]
+            [/div]
+          [/div]
+
+          [div class="proto-daystrip" id="day-strip" style="display:none;"][/div]
+
+          [div class="table-wrapper proto-table-wrap"]
+            [table class="proto-table"]
+              [thead]
+                [tr]
+                  [th]Client / Matter[/th]
+                  [th]Work Category[/th]
+                  [th]Class[/th]
+                  [th]Description[/th]
+                  [th]From[/th]
+                  [th]To[/th]
+                  [th]Hours[/th]
+                  [th][/th]
+                [/tr]
+              [/thead]
+              [tbody id="daily-rows"][/tbody]
+            [/table]
+          [/div]
+
+          [div class="proto-actions"]
+            [button class="btn btn-ghost" type="button" onclick="openAddModal()"]+ Add Entry[/button]
+            [button class="btn btn-outline" type="button" onclick="submitSelectedDayDrafts()"]Submit Day Drafts[/button]
+            [span class="proto-sync" id="day-sync-state"]All changes saved[/span]
+          [/div]
+        [/div]
+
+        [div class="proto-metrics"]
+          [div class="proto-metric"]
+            [div class="proto-metric-label"]Today's Hours[/div]
+            [div class="proto-metric-value" id="metric-day-total"]0.0[/div]
+            [div class="proto-metric-sub"]total logged[/div]
+          [/div]
+          [div class="proto-metric"]
+            [div class="proto-metric-label"]Client Work[/div]
+            [div class="proto-metric-value" id="metric-client-work"]0.0[/div]
+            [div class="proto-metric-sub"]client-facing work[/div]
+          [/div]
+          [div class="proto-metric"]
+            [div class="proto-metric-label"]Other Work[/div]
+            [div class="proto-metric-value" id="metric-other-work"]0.0[/div]
+            [div class="proto-metric-sub"]internal / admin / learning[/div]
+          [/div]
+          [div class="proto-metric"]
+            [div class="proto-metric-label"]Entries[/div]
+            [div class="proto-metric-value" id="metric-count"]0[/div]
+            [div class="proto-metric-sub"]tasks logged[/div]
+          [/div]
+        [/div]
+      [/section]
+
+      [section id="weekly-view" style="display:none;"]
+        [div class="card proto-panel" style="margin-bottom:18px;"]
+          [div class="card-header" style="margin-bottom:18px;"]
+            [div]
+              [div class="card-title"]Weekly Summary[/div]
+              [div class="card-subtitle"]A supervisory rollup of the same daily entries[/div]
+            [/div]
+            [div class="proto-sync" id="week-range-label"][/div]
+          [/div]
+
+          [div class="proto-weekly-cards" id="weekly-summary-grid"][/div]
+        [/div]
+
+        [div class="card proto-panel"]
+          [div class="card-header"]
+            [div class="card-title"]Weekly Rollup[/div]
+          [/div]
+          [div class="table-wrapper"]
+            [table class="proto-table"]
+              [thead]
+                [tr]
+                  [th]Day[/th]
+                  [th]Total[/th]
+                  [th]Client Work[/th]
+                  [th]Entries[/th]
+                  [th]Drafts[/th]
+                  [th]Pending[/th]
+                  [th]Status[/th]
+                [/tr]
+              [/thead]
+              [tbody id="weekly-rollup-body"][/tbody]
+            [/table]
+          [/div]
+        [/div]
+      [/section]
+    [/div]
+  [/div]
+[/div]
+
+[div class="modal-overlay" id="entry-modal"]
+  [div class="modal"]
+    [div class="modal-header"]
+      [div class="modal-title" id="entry-modal-title"]Add Entry[/div]
+      [button class="modal-close" onclick="closeModal('entry-modal')"]&times;[/button]
+    [/div]
+    [input type="hidden" id="modal-entry-id"]
+    [div class="form-row"]
+      [div class="form-group"]
+        [label class="form-label"]Date[/label]
+        [input class="form-control" type="date" id="modal-date"]
+      [/div]
+      [div class="form-group"]
+        [label class="form-label"]Hours[/label]
+        [input class="form-control" type="number" id="modal-hours" min="0.25" max="24" step="0.25"]
+      [/div]
+    [/div]
+    [div class="form-group"]
+      [label class="form-label"]Client / Matter[/label]
+      [input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client"]
+      [datalist id="client-list"][/datalist]
+    [/div]
+    [div class="form-group"]
+      [label class="form-label"]Work Category[/label]
+      [select class="form-control" id="modal-task-type"][option value=""]Select task[/option][/select]
+    [/div]
+    [div class="form-group"]
+      [label class="form-label"]Description[/label]
+      [textarea class="form-control" id="modal-description" rows="3" placeholder="What was done?"][/textarea]
+    [/div]
+    [div class="form-row"]
+      [div class="form-group"]
+        [label class="form-label"]From[/label]
+        [input class="form-control" type="time" id="modal-start-time" oninput="syncModalHoursFromTime()"]
+      [/div]
+      [div class="form-group"]
+        [label class="form-label"]To[/label]
+        [input class="form-control" type="time" id="modal-end-time" oninput="syncModalHoursFromTime()"]
+      [/div]
+    [/div]
+    [div class="form-group" style="margin-top:12px;"]
+      [label class="form-label"]Work Classification[/label]
+      [select class="form-control" id="modal-work-classification"][/select]
+    [/div]
+    [div class="form-group" style="margin-top:12px;"]
+      [label class="form-label"]Status[/label]
+      [div id="modal-status" class="entry-readonly"][/div]
+    [/div]
+    [div id="modal-rejection" class="row-rejection" style="display:none;"][/div]
+    [div style="display:flex;gap:8px;margin-top:16px;"]
+      [button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="saveModalEntry()"]Save Entry[/button]
+      [button class="btn btn-outline" type="button" onclick="submitModalEntry()"]Submit[/button]
+      [button class="btn btn-danger" type="button" onclick="deleteModalEntry()"]Delete[/button]
+    [/div]
+  [/div]
+[/div]
+
+[nav class="bottom-nav"]
+  [div class="bottom-nav-items"]
+    [a class="bottom-nav-item" href="/dashboard.html"][span class="bn-icon"]D[/span]Home[/a]
+    [a class="bottom-nav-item" href="/timesheet.html"][span class="bn-icon"]L[/span]Log[/a]
+    [a class="bottom-nav-item active" href="/timesheet.html"][span class="bn-icon"]P[/span]Proto[/a]
+    [a class="bottom-nav-item" href="/approvals.html" id="bn-approvals" style="display:none;"][span class="bn-icon"]A[/span]Approve[/a]
+  [/div]
+[/nav]
+
+[script src="/js/app.js"][/script]
+[script]
+requireAuth();
+if (!hasPermission('timesheets.view_own')) window.location.href = '/dashboard.html';
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() =] {});
+if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) document.getElementById('bn-approvals').style.display = '';
+
+const user = getUser();
+const todayStr = today();
+let selectedDate = todayStr;
+let weekAnchor = todayStr;
+let allClientsStore = [];
+let currentEntries = [];
+
+document.getElementById('selected-date-input').value = selectedDate;
+document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+
+TASK_TYPES.forEach(t =] {
+  document.getElementById('modal-task-type').innerHTML += `[option value="${t}"]${t}[/option]`;
+});
+WORK_CLASSIFICATIONS.forEach(c =] {
+  document.getElementById('modal-work-classification').innerHTML += `[option value="${c.value}"]${c.label}[/option]`;
+});
+
+document.getElementById('modal-client-search').addEventListener('input', e =] {
+  const match = allClientsStore.find(c =] `${c.name} [${c.code}]` === e.target.value);
+  document.getElementById('modal-client-search').dataset.clientId = match ? match.id : '';
+});
+
+function toDateObj(dateStr) {
+  return new Date(`${dateStr}T00:00:00`);
+}
+
+function isoDate(d) {
+  return localISODate(d);
+}
+
+function fmtDayLabel(dateStr) {
+  return toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function weekRangeFromAnchor(anchor) {
+  const start = toDateObj(anchor);
+  const diff = start.getDay() === 0 ? -6 : 1 - start.getDay();
+  start.setDate(start.getDate() + diff);
+  const days = [];
+  for (let i = 0; i [ 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    days.push(isoDate(d));
+  }
+  return days;
+}
+
+function switchView(view) {
+  document.getElementById('daily-view').style.display = view === 'daily' ? '' : 'none';
+  document.getElementById('weekly-view').style.display = view === 'weekly' ? '' : 'none';
+  document.getElementById('tab-daily').classList.toggle('active', view === 'daily');
+  document.getElementById('tab-weekly').classList.toggle('active', view === 'weekly');
+}
+
+function setSyncLabel(text, dirty = false) {
+  const el = document.getElementById('day-sync-state');
+  el.textContent = text;
+  el.classList.toggle('dirty', dirty);
+}
+
+function handleDateInput(value) {
+  if (!value) return;
+  selectedDate = value;
+  weekAnchor = value;
+  loadEntries();
+}
+
+function moveSelectedDay(offset) {
+  const next = toDateObj(selectedDate);
+  next.setDate(next.getDate() + offset);
+  selectedDate = isoDate(next);
+  weekAnchor = selectedDate;
+  loadEntries();
+}
+
+function shiftWeek(offsetDays) {
+  const next = toDateObj(weekAnchor);
+  next.setDate(next.getDate() + offsetDays);
+  weekAnchor = isoDate(next);
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  if (!weekDays.includes(selectedDate)) selectedDate = weekDays[0];
+  loadEntries();
+}
+
+function jumpToToday() {
+  selectedDate = todayStr;
+  weekAnchor = todayStr;
+  loadEntries();
+}
+
+function setSelectedDate(dateStr) {
+  selectedDate = dateStr;
+  renderAll();
+}
+
+function getSelectedDayEntries() {
+  return currentEntries
+    .filter(e =] e.entry_date === selectedDate)
+    .sort((a, b) =] ((a.start_time || '') ] (b.start_time || '') ? 1 : -1));
+}
+
+function dayStats(entries) {
+  return {
+    total: entries.reduce((sum, entry) =] sum + (parseFloat(entry.hours) || 0), 0),
+    clientWork: entries.filter(e =] normalizeWorkClassification(e.work_classification, e.billable) === 'client_work').reduce((sum, entry) =] sum + (parseFloat(entry.hours) || 0), 0),
+    otherWork: entries.filter(e =] normalizeWorkClassification(e.work_classification, e.billable) !== 'client_work').reduce((sum, entry) =] sum + (parseFloat(entry.hours) || 0), 0),
+    count: entries.length,
+    drafts: entries.filter(e =] e.status === 'draft').length,
+    pending: entries.filter(e =] ['pending_manager', 'pending_partner'].includes(e.status)).length,
+    approved: entries.filter(e =] e.status === 'approved').length
+  };
+}
+
+function dayStatusLabel(stats) {
+  if (!stats.count) return 'Empty';
+  if (stats.drafts) return `${stats.drafts} Draft`;
+  if (stats.pending) return `${stats.pending} Pending`;
+  if (stats.approved === stats.count) return 'Approved';
+  return 'In Progress';
+}
+
+function renderDayStrip() {
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  document.getElementById('day-strip').innerHTML = weekDays.map(dateStr =] {
+    const stats = dayStats(currentEntries.filter(e =] e.entry_date === dateStr));
+    return `
+      [button class="proto-day ${dateStr === selectedDate ? 'active' : ''}" onclick="setSelectedDate('${dateStr}')"]
+        [div class="proto-day-top"]${toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })}[/div]
+        [div class="proto-day-date"]${toDateObj(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}[/div]
+        [div class="proto-day-hours"]${stats.count ? fmtHours(stats.total) : 'No time'}[/div]
+      [/button]
+    `;
+  }).join('');
+}
+
+function renderDailyRows() {
+  const tbody = document.getElementById('daily-rows');
+  const entries = getSelectedDayEntries();
+  if (!entries.length) {
+    tbody.innerHTML = `[tr][td colspan="8"][div class="empty-state"][div class="empty-title"]No entries for ${fmtDayLabel(selectedDate)}[/div][div class="empty-sub"]Use + Add Entry to start the day.[/div][/div][/td][/tr]`;
+    return;
+  }
+  tbody.innerHTML = entries.map(entry =] `
+    [tr onclick="openEntryModal('${entry.id}')"]
+      [td][div class="proto-cell-title"]${entry.client_name || 'Internal / Admin'}[/div][div class="proto-cell-sub"]${statusBadge(entry.status)}[/div][/td]
+      [td]${entry.task_type || '—'}[/td]
+      [td]${workClassificationMeta(entry.work_classification, entry.billable).shortLabel}[/td]
+      [td]${entry.description || 'No description'}[/td]
+      [td]${entry.start_time || '—'}[/td]
+      [td]${entry.end_time || '—'}[/td]
+      [td][strong]${fmtHours(entry.hours)}[/strong][/td]
+      [td]${entry.status === 'approved' ? 'Locked' : 'Edit'}[/td]
+    [/tr]
+    ${entry.status === 'rejected' ? `[tr class="proto-rejection-row"][td colspan="8"]Rejected: ${entry.rejection_reason || 'Needs changes'}[/td][/tr]` : ''}
+  `).join('');
+}
+
+function renderDailyMetrics() {
+  const stats = dayStats(getSelectedDayEntries());
+  document.getElementById('metric-day-total').textContent = stats.total.toFixed(1);
+  document.getElementById('metric-client-work').textContent = stats.clientWork.toFixed(1);
+  document.getElementById('metric-other-work').textContent = stats.otherWork.toFixed(1);
+  document.getElementById('metric-count').textContent = stats.count;
+}
+
+function renderWeeklySummary() {
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  document.getElementById('week-range-label').textContent = `${fmtDayLabel(weekDays[0])} - ${fmtDayLabel(weekDays[6])}`;
+  document.getElementById('weekly-summary-grid').innerHTML = weekDays.map(dateStr =] {
+    const stats = dayStats(currentEntries.filter(e =] e.entry_date === dateStr));
+    return `
+      [button class="proto-week-card ${dateStr === selectedDate ? 'active' : ''}" onclick="setSelectedDate('${dateStr}'); switchView('daily');"]
+        [div class="proto-week-card-top"]${toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })}[/div]
+        [div class="proto-week-card-date"]${toDateObj(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}[/div]
+        [div class="proto-week-card-value"]${stats.total.toFixed(1)}h[/div]
+        [div class="proto-week-card-sub"]${stats.count} entries • ${dayStatusLabel(stats)}[/div]
+      [/button]
+    `;
+  }).join('');
+
+  document.getElementById('weekly-rollup-body').innerHTML = weekDays.map(dateStr =] {
+    const stats = dayStats(currentEntries.filter(e =] e.entry_date === dateStr));
+    return `
+      [tr]
+        [td][button class="linkish-btn" onclick="setSelectedDate('${dateStr}'); switchView('daily');"]${fmtDayLabel(dateStr)}[/button][/td]
+        [td]${fmtHours(stats.total)}[/td]
+        [td]${fmtHours(stats.clientWork)}[/td]
+        [td]${stats.count}[/td]
+        [td]${stats.drafts}[/td]
+        [td]${stats.pending}[/td]
+        [td]${dayStatusLabel(stats)}[/td]
+      [/tr]
+    `;
+  }).join('');
+}
+
+function renderAll() {
+  document.getElementById('selected-date-input').value = selectedDate;
+  document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  renderDayStrip();
+  renderDailyRows();
+  renderDailyMetrics();
+  renderWeeklySummary();
+}
+
+function clientDisplay(entry) {
+  if (!entry?.client_id) return '';
+  const client = allClientsStore.find(c =] c.id == entry.client_id);
+  return client ? `${client.name} [${client.code}]` : '';
+}
+
+function prefillModal(entry = null) {
+  document.getElementById('entry-modal-title').textContent = entry ? 'Edit Entry' : 'Add Entry';
+  document.getElementById('modal-entry-id').value = entry?.id || '';
+  document.getElementById('modal-date').value = entry?.entry_date || selectedDate;
+  document.getElementById('modal-client-search').value = clientDisplay(entry);
+  document.getElementById('modal-task-type').value = entry?.task_type || '';
+  document.getElementById('modal-description').value = entry?.description || '';
+  document.getElementById('modal-start-time').value = entry?.start_time || '';
+  document.getElementById('modal-end-time').value = entry?.end_time || '';
+  document.getElementById('modal-hours').value = entry?.hours || '';
+  document.getElementById('modal-work-classification').value = normalizeWorkClassification(entry?.work_classification, entry?.billable);
+  document.getElementById('modal-status').innerHTML = statusBadge(entry?.status || 'draft');
+  const rejection = document.getElementById('modal-rejection');
+  if (entry?.status === 'rejected') {
+    rejection.style.display = '';
+    rejection.textContent = `Rejected: ${entry.rejection_reason || 'Needs changes'}`;
+  } else {
+    rejection.style.display = 'none';
+  }
+  const locked = entry?.status === 'approved';
+  ['modal-date', 'modal-client-search', 'modal-task-type', 'modal-description', 'modal-start-time', 'modal-end-time', 'modal-hours', 'modal-work-classification'].forEach(id =] {
+    document.getElementById(id).disabled = locked;
+  });
+}
+
+function applyPendingEditFromSession() {
+  const raw = sessionStorage.getItem('ts_edit_entry');
+  const requestedAt = parseInt(sessionStorage.getItem('ts_edit_entry_requested_at') || '0', 10);
+  if (!raw) return;
+  sessionStorage.removeItem('ts_edit_entry');
+  sessionStorage.removeItem('ts_edit_entry_requested_at');
+  if (!requestedAt || (Date.now() - requestedAt) ] 120000) return;
+  try {
+    const entry = JSON.parse(raw);
+    if (entry?.entry_date) {
+      selectedDate = entry.entry_date;
+      weekAnchor = entry.entry_date;
+    }
+    prefillModal(entry);
+    openModal('entry-modal');
+  } catch (_) {}
+}
+
+function openAddModal() {
+  if (!hasPermission('timesheets.create_own')) { toast('Create access required', 'error'); return; }
+  prefillModal();
+  openModal('entry-modal');
+}
+
+function openEntryModal(entryId) {
+  const entry = currentEntries.find(item =] item.id === entryId);
+  if (!entry) return;
+  prefillModal(entry);
+  openModal('entry-modal');
+}
+
+function syncModalHoursFromTime() {
+  const from = document.getElementById('modal-start-time').value;
+  const to = document.getElementById('modal-end-time').value;
+  if (!from || !to) return;
+  const start = new Date(`2000-01-01T${from}`);
+  const end = new Date(`2000-01-01T${to}`);
+  let diff = (end - start) / 3600000;
+  if (diff [ 0) diff += 24;
+  document.getElementById('modal-hours').value = diff.toFixed(2).replace(/\.00$/, '');
+}
+
+function modalPayload() {
+  const clientText = document.getElementById('modal-client-search').value;
+  const matchedClient = allClientsStore.find(c =] `${c.name} [${c.code}]` === clientText);
+  return {
+    entry_date: document.getElementById('modal-date').value,
+    client_id: matchedClient ? matchedClient.id : null,
+    task_type: document.getElementById('modal-task-type').value,
+    description: document.getElementById('modal-description').value,
+    start_time: document.getElementById('modal-start-time').value || null,
+    end_time: document.getElementById('modal-end-time').value || null,
+    hours: document.getElementById('modal-hours').value,
+    work_classification: document.getElementById('modal-work-classification').value
+  };
+}
+
+async function saveModalEntry() {
+  const entryIdForSave = document.getElementById('modal-entry-id').value;
+  const requiredPermission = entryIdForSave ? 'timesheets.edit_own' : 'timesheets.create_own';
+  if (!hasPermission(requiredPermission)) { toast('Access required to save entry', 'error'); return; }
+  const id = document.getElementById('modal-entry-id').value;
+  const payload = modalPayload();
+  if (!payload.entry_date || !payload.task_type || !payload.hours) {
+    toast('Date, work category, and hours are required', 'error');
+    return;
+  }
+  const timelineError = validateModalTimeline(payload, id);
+  if (timelineError) {
+    toast(timelineError, 'error');
+    return;
+  }
+  try {
+    if (id) await apiFetch(`/timesheets/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/timesheets', { method: 'POST', body: payload });
+    selectedDate = payload.entry_date;
+    weekAnchor = payload.entry_date;
+    closeModal('entry-modal');
+    setSyncLabel('Day updated', true);
+    toast('Entry saved', 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function submitModalEntry() {
+  if (!hasPermission('timesheets.submit_own')) { toast('Submit access required', 'error'); return; }
+  const id = document.getElementById('modal-entry-id').value;
+  if (!id) {
+    toast('Save the entry first before submitting', 'info');
+    return;
+  }
+  try {
+    await apiFetch('/timesheets/submit', { method: 'POST', body: { entry_ids: [id] } });
+    closeModal('entry-modal');
+    setSyncLabel('All changes saved');
+    toast(user.role === 'partner' ? 'Entry approved!' : 'Entry submitted!', 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteModalEntry() {
+  if (!hasPermission('timesheets.delete_own')) { toast('Delete access required', 'error'); return; }
+  const id = document.getElementById('modal-entry-id').value;
+  if (!id) {
+    closeModal('entry-modal');
+    return;
+  }
+  if (!confirm('Delete this entry?')) return;
+  try {
+    await apiFetch(`/timesheets/${id}`, { method: 'DELETE' });
+    closeModal('entry-modal');
+    setSyncLabel('Day updated', true);
+    toast('Deleted', 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function submitSelectedDayDrafts() {
+  if (!hasPermission('timesheets.submit_own')) { toast('Submit access required', 'error'); return; }
+  const ids = getSelectedDayEntries().filter(e =] ['draft', 'rejected'].includes(e.status)).map(e =] e.id);
+  if (!ids.length) {
+    toast('No draft entries for this day', 'info');
+    return;
+  }
+  try {
+    await apiFetch('/timesheets/submit', { method: 'POST', body: { entry_ids: ids } });
+    setSyncLabel('All changes saved');
+    toast(user.role === 'partner' ? `${ids.length} entries approved!` : `${ids.length} entries submitted!`, 'success');
+    loadEntries();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function saveDayState() {
+  setSyncLabel(`Saved ${fmtDayLabel(selectedDate)}`);
+  toast(`Day saved for ${fmtDayLabel(selectedDate)}`, 'success');
+}
+
+async function loadClients() {
+  try {
+    const clients = await apiFetch('/clients');
+    allClientsStore = clients.filter(c =] c.active);
+    document.getElementById('client-list').innerHTML = allClientsStore.map(c =] `[option value="${c.name} [${c.code}]"]`).join('');
+  } catch (e) {
+    allClientsStore = [];
+    document.getElementById('client-list').innerHTML = '';
+    console.warn('Client list unavailable on Log Time', e);
+  }
+}
+
+async function loadEntries() {
+  const weekDays = weekRangeFromAnchor(weekAnchor);
+  const from = weekDays[0];
+  const to = weekDays[6];
+  try {
+    currentEntries = await apiFetch(`/timesheets?from=${from}&to=${to}&user_id=${user.id}`);
+    if (!weekDays.includes(selectedDate)) selectedDate = weekDays[0];
+    renderAll();
+  } catch (e) {
+    currentEntries = [];
+    renderAll();
+    toast(e.message || 'Unable to load timesheets', 'error');
+  }
+}
+
+function openSidebar() {
+  document.getElementById('sidebar-el').classList.add('open');
+  document.getElementById('sb-overlay').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar-el').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('open');
+}
+
+async function initPage() {
+  renderAll();
+  applyPendingEditFromSession();
+  await loadEntries();
+  loadClients();
+}
+
+initPage();
+[/script]
+[/body]
+[/html]
+
+
+
+

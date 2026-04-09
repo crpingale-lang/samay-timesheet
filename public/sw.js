@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-timesheet-v1';
+const CACHE_NAME = 'ca-timesheet-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -32,7 +32,17 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for static
+function networkFirst(request, fallbackPath = '/index.html') {
+  return fetch(request).then(response => {
+    if (response && response.status === 200) {
+      const clone = response.clone();
+      caches.open(CACHE_NAME).then(c => c.put(request, clone));
+    }
+    return response;
+  }).catch(() => caches.match(request).then(cached => cached || caches.match(fallbackPath)));
+}
+
+// Fetch: network-first for API, HTML, CSS, and JS so deployments stay visually consistent.
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
@@ -45,6 +55,22 @@ self.addEventListener('fetch', event => {
         })
       )
     );
+    return;
+  }
+
+  // Use network-first for document navigations so deployed HTML updates are picked up.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  // Keep CSS and JS fresh too, otherwise newly deployed pages can render against old assets
+  // until the user manually refreshes.
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith('/css/') || url.pathname.startsWith('/js/') || url.pathname.endsWith('.html'))
+  ) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 

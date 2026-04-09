@@ -1,48 +1,284 @@
 const express = require('express');
 const router = express.Router();
 const { db, admin } = require('../db');
+const { getUsersMap, invalidateCache } = require('../data-cache');
 const bcrypt = require('bcryptjs');
 
+const APP_PERMISSION_GROUPS = [
+  {
+    key: 'clients',
+    label: 'Client Master',
+    permissions: [
+      { key: 'clients.view', label: 'View' },
+      { key: 'clients.create', label: 'Add' },
+      { key: 'clients.edit', label: 'Edit' },
+      { key: 'clients.delete', label: 'Delete' },
+      { key: 'clients.import', label: 'Import' }
+    ]
+  },
+  {
+    key: 'staff',
+    label: 'Staff Master',
+    permissions: [
+      { key: 'staff.view', label: 'View' },
+      { key: 'staff.create', label: 'Add' },
+      { key: 'staff.edit', label: 'Edit' },
+      { key: 'staff.delete', label: 'Delete' },
+      { key: 'access.manage', label: 'Access' }
+    ]
+  },
+  {
+    key: 'timesheets',
+    label: 'Timesheets',
+    permissions: [
+      { key: 'timesheets.view_own', label: 'View Own' },
+      { key: 'timesheets.create_own', label: 'Add Own' },
+      { key: 'timesheets.edit_own', label: 'Edit Own' },
+      { key: 'timesheets.delete_own', label: 'Delete Own' },
+      { key: 'timesheets.submit_own', label: 'Submit Own' },
+      { key: 'timesheets.view_all', label: 'View All' }
+    ]
+  },
+  {
+    key: 'approvals',
+    label: 'Approvals',
+    permissions: [
+      { key: 'approvals.view_manager_queue', label: 'Manager Queue' },
+      { key: 'approvals.approve_manager', label: 'Manager Approve' },
+      { key: 'approvals.view_partner_queue', label: 'Partner Queue' },
+      { key: 'approvals.approve_partner', label: 'Partner Approve' }
+    ]
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    permissions: [
+      { key: 'reports.view', label: 'View Reports' },
+      { key: 'reports.export', label: 'Export' }
+    ]
+  },
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    permissions: [
+      { key: 'dashboard.view_self', label: 'Self View' },
+      { key: 'dashboard.view_team', label: 'Team View' },
+      { key: 'dashboard.view_firm', label: 'Firm View' }
+    ]
+  }
+];
+
+function managerOrAbove(req) {
+  return ['manager', 'partner'].includes(req.user.role);
+}
+
+function hasPermission(req, permission) {
+  return Array.isArray(req.user.permissions) && req.user.permissions.includes(permission);
+}
+
+function normalizeRole(role) {
+  return String(role || '').trim().toLowerCase();
+}
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeMobileNumber(value) {
+  return String(value || '').trim();
+}
+
+function ensurePermissions(role, permissions) {
+  const normalizedRole = normalizeRole(role);
+  if (Array.isArray(permissions) && permissions.length) return permissions;
+  const fallback = {
+    partner: [
+      'clients.view','clients.create','clients.edit','clients.delete','clients.import',
+      'staff.view','staff.create','staff.edit','staff.delete','access.manage',
+      'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
+      'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
+      'reports.view','reports.export','dashboard.view_self','dashboard.view_team','dashboard.view_firm'
+    ],
+    manager: [
+      'clients.view','staff.view',
+      'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
+      'approvals.view_manager_queue','approvals.approve_manager',
+      'reports.view','reports.export','dashboard.view_self','dashboard.view_team'
+    ],
+    article: [
+      'clients.view',
+      'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','dashboard.view_self'
+    ]
+  };
+  return fallback[normalizedRole] || [];
+}
+
+function isValidEmail(value) {
+  return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidMobileNumber(value) {
+  if (!value) return true;
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+async function usernameExistsInsensitive(username, excludeId = null) {
+  const lowered = String(username || '').trim().toLowerCase();
+  const users = await getUsersMap();
+  for (const [id, data] of users.entries()) {
+    if (excludeId && id === excludeId) continue;
+    if (String(data.username || '').trim().toLowerCase() === lowered) return true;
+  }
+  return false;
+}
+
+async function emailExistsInsensitive(email, excludeId = null) {
+  const lowered = normalizeEmail(email);
+  if (!lowered) return false;
+  const users = await getUsersMap();
+  for (const [id, data] of users.entries()) {
+    if (excludeId && id === excludeId) continue;
+    if (normalizeEmail(data.email) === lowered) return true;
+  }
+  return false;
+}
+
+async function mobileNumberExists(mobileNumber, excludeId = null) {
+  const normalized = normalizeMobileNumber(mobileNumber);
+  if (!normalized) return false;
+  const users = await getUsersMap();
+  for (const [id, data] of users.entries()) {
+    if (excludeId && id === excludeId) continue;
+    if (normalizeMobileNumber(data.mobile_number) === normalized) return true;
+  }
+  return false;
+}
+
+router.get('/access-catalog', async (req, res) => {
+  if (!(req.user.permissions || []).includes('access.manage')) {
+    return res.status(403).json({ error: 'Access management permission required' });
+  }
+  res.json({ groups: APP_PERMISSION_GROUPS });
+});
+
 router.get('/', async (req, res) => {
+  if (!managerOrAbove(req)) return res.status(403).json({ error: 'Manager or Partner access required' });
   try {
-    const snapshot = await db.collection('users').get();
+    const query = String(req.query.q || '').trim().toLowerCase();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 50, 1), 200);
+    const wantsPagedResponse = !!(req.query.page || req.query.page_size || req.query.q);
+    const snapshot = await getUsersMap();
     const users = [];
-    snapshot.forEach(doc => {
-      const u = doc.data();
+    snapshot.forEach((value, id) => {
+      const u = { ...value };
       delete u.password;
-      users.push({ id: doc.id, ...u });
+      users.push({
+        id,
+        ...u,
+        role: normalizeRole(u.role),
+        permissions: ensurePermissions(u.role, u.permissions),
+        email: normalizeEmail(u.email),
+        mobile_number: normalizeMobileNumber(u.mobile_number)
+      });
     });
     users.sort((a,b) => a.name.localeCompare(b.name));
-    res.json(users);
+    const filtered = query
+      ? users.filter(user => [user.name, user.username, user.role, user.designation, user.department, user.email, user.mobile_number].join(' ').toLowerCase().includes(query))
+      : users;
+
+    if (!wantsPagedResponse) {
+      return res.json(filtered);
+    }
+
+    const start = (page - 1) * pageSize;
+    const items = filtered.slice(start, start + pageSize);
+    res.json({
+      items,
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+      has_more: start + items.length < filtered.length
+    });
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
 router.post('/', async (req, res) => {
-  const { name, username, password, role, designation, department, active } = req.body;
+  if (!hasPermission(req, 'staff.create')) return res.status(403).json({ error: 'Permission required: staff.create' });
+  const { name, username, password, role, designation, department, active, permissions } = req.body;
+  const email = normalizeEmail(req.body?.email);
+  const mobileNumber = normalizeMobileNumber(req.body?.mobile_number);
   if (!name || !username || !password) return res.status(400).json({ error: 'Missing fields' });
+  if (permissions && !hasPermission(req, 'access.manage')) {
+    return res.status(403).json({ error: 'Permission required: access.manage' });
+  }
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email ID' });
+  if (!isValidMobileNumber(mobileNumber)) return res.status(400).json({ error: 'Enter a valid mobile number' });
   try {
-    const exists = await db.collection('users').where('username','==',username).limit(1).get();
-    if (!exists.empty) return res.status(400).json({ error: 'Username taken' });
+    const normalizedUsername = username.trim();
+    if (await usernameExistsInsensitive(normalizedUsername)) {
+      return res.status(400).json({ error: 'Username taken' });
+    }
+    if (await emailExistsInsensitive(email)) {
+      return res.status(400).json({ error: 'Email ID is already used by another user' });
+    }
+    if (await mobileNumberExists(mobileNumber)) {
+      return res.status(400).json({ error: 'Mobile number is already used by another user' });
+    }
 
     const hash = await bcrypt.hash(password, 10);
     const docRef = await db.collection('users').add({
-      name, username, password: hash,
-      role: role || 'article',
+      name, username: normalizedUsername, password: hash,
+      role: normalizeRole(role || 'article'),
+      permissions: ensurePermissions(role || 'article', permissions),
+      email,
+      mobile_number: mobileNumber,
       designation: designation || '',
       department: department || '',
       active: active !== undefined ? active : true,
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
+    invalidateCache('users:all');
     res.json({ id: docRef.id });
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, username, password, role, designation, department, active } = req.body;
-  const updates = { name, username, role, designation: designation||'', department: department||'', active: active!==undefined?active:true };
+  if (!hasPermission(req, 'staff.edit')) return res.status(403).json({ error: 'Permission required: staff.edit' });
+  const { name, username, password, role, designation, department, active, permissions } = req.body;
+  const email = normalizeEmail(req.body?.email);
+  const mobileNumber = normalizeMobileNumber(req.body?.mobile_number);
+  if (permissions && !hasPermission(req, 'access.manage')) {
+    return res.status(403).json({ error: 'Permission required: access.manage' });
+  }
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email ID' });
+  if (!isValidMobileNumber(mobileNumber)) return res.status(400).json({ error: 'Enter a valid mobile number' });
+  const updates = {
+    name,
+    username: (username || '').trim(),
+    role: normalizeRole(role),
+    permissions: ensurePermissions(role, permissions),
+    email,
+    mobile_number: mobileNumber,
+    designation: designation||'',
+    department: department||'',
+    active: active!==undefined?active:true
+  };
   try {
+    if (!updates.username) return res.status(400).json({ error: 'Username is required' });
+    if (await usernameExistsInsensitive(updates.username, req.params.id)) {
+      return res.status(400).json({ error: 'Username taken' });
+    }
+    if (await emailExistsInsensitive(email, req.params.id)) {
+      return res.status(400).json({ error: 'Email ID is already used by another user' });
+    }
+    if (await mobileNumberExists(mobileNumber, req.params.id)) {
+      return res.status(400).json({ error: 'Mobile number is already used by another user' });
+    }
     if (password) updates.password = await bcrypt.hash(password, 10);
     await db.collection('users').doc(req.params.id).update(updates);
+    invalidateCache('users:all');
     res.json({ success: true });
   } catch(e) { res.status(500).json({error:e.message}); }
 });

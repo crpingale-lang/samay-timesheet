@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Staff — Samay</title>
+  <title>Staff - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
@@ -14,37 +14,49 @@
   <div class="main-content">
     <header class="topbar">
       <div style="display:flex;align-items:center;gap:10px;">
-        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div class="topbar-title">Staff</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Staff</button>
+      <button class="btn btn-primary btn-sm" id="add-staff-btn" onclick="openAddModal()">+ Add Staff</button>
     </header>
     <div class="page-content">
-      <!-- HIERARCHY LEGEND -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+      <div class="badge-flow" style="margin-bottom:14px;">
         <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Hierarchy:</span>
-        <span class="badge badge-partner">👑 Partner</span>
-        <span style="font-size:12px;color:var(--text-muted);">→</span>
-        <span class="badge badge-manager">🔑 Manager</span>
-        <span style="font-size:12px;color:var(--text-muted);">→</span>
-        <span class="badge badge-article">📋 Article</span>
+        <span class="badge badge-partner">Partner</span>
+        <span style="font-size:12px;color:var(--text-muted);">-></span>
+        <span class="badge badge-manager">Manager</span>
+        <span style="font-size:12px;color:var(--text-muted);">-></span>
+        <span class="badge badge-article">Article</span>
       </div>
       <div class="card">
+        <div class="card-header">
+          <div class="search-bar list-search">
+            <input class="form-control" type="text" id="staff-search" placeholder="Search staff..." oninput="queueStaffSearch()" style="padding-left:34px;">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;">Search</span>
+          </div>
+          <span id="staff-count" class="list-count"></span>
+        </div>
         <div class="table-wrapper">
-          <table>
+          <table class="mobile-stack-table">
             <thead><tr><th>Name</th><th>Username</th><th class="hide-mobile">Designation</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
             <tbody id="staff-tbody"></tbody>
           </table>
+        </div>
+        <div class="list-pagination">
+          <span id="staff-page-meta" class="list-page-meta"></span>
+          <div class="list-pagination-actions">
+            <button class="btn btn-ghost btn-sm" id="staff-prev-btn" onclick="changeStaffPage(-1)">Previous</button>
+            <button class="btn btn-ghost btn-sm" id="staff-next-btn" onclick="changeStaffPage(1)">Next</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- STAFF MODAL -->
 <div class="modal-overlay" id="staff-modal">
-  <div class="modal">
-    <div class="modal-header"><div class="modal-title" id="modal-title">Add Staff</div><button class="modal-close" onclick="closeModal('staff-modal')">✕</button></div>
+  <div class="modal" style="max-width:860px;">
+    <div class="modal-header"><div class="modal-title" id="modal-title">Add Staff</div><button class="modal-close" onclick="closeModal('staff-modal')" aria-label="Close staff modal">&times;</button></div>
     <form id="staff-form">
       <input type="hidden" id="edit-id">
       <div class="form-row">
@@ -56,9 +68,9 @@
         <div class="form-group">
           <label class="form-label">Role *</label>
           <select class="form-control" id="f-role">
-            <option value="article">📋 Article</option>
-            <option value="manager">🔑 Manager</option>
-            <option value="partner">👑 Partner</option>
+            <option value="article">Article</option>
+            <option value="manager">Manager</option>
+            <option value="partner">Partner</option>
           </select>
         </div>
       </div>
@@ -66,11 +78,25 @@
         <div class="form-group"><label class="form-label">Designation</label><input class="form-control" type="text" id="f-designation" placeholder="e.g. Article Assistant"></div>
         <div class="form-group"><label class="form-label">Department</label><input class="form-control" type="text" id="f-department" placeholder="e.g. Audit, Tax"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email ID</label><input class="form-control" type="email" id="f-email" placeholder="e.g. priya@firm.com"></div>
+        <div class="form-group"><label class="form-label">Mobile Number</label><input class="form-control" type="tel" id="f-mobile-number" placeholder="e.g. 9876543210"></div>
+      </div>
       <div class="form-group" id="active-group" style="display:none;">
         <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="f-active" checked><span class="toggle-slider"></span></label></div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">💾 Save</button>
+      <div class="form-group" id="access-group" style="display:none;">
+        <label class="form-label">Application Access</label>
+        <div class="table-wrapper" style="border:1px solid var(--border);border-radius:10px;">
+          <table>
+            <thead><tr><th style="width:180px;">Module</th><th>Access Rights</th></tr></thead>
+            <tbody id="access-matrix-body"></tbody>
+          </table>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Administrator can grant per-user access across masters, timesheets, approvals, reports, and dashboard.</div>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Save</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('staff-modal')">Cancel</button>
       </div>
     </form>
@@ -79,60 +105,187 @@
 
 <script src="/js/app.js"></script>
 <script>
-requirePartner();
+requirePermission('staff.view');
 document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-async function loadStaff() {
-  const staff = await apiFetch('/staff');
+const canCreateStaff = hasPermission('staff.create');
+const canEditStaff = hasPermission('staff.edit');
+const canManageAccess = hasPermission('access.manage');
+let accessCatalog = [];
+const STAFF_PAGE_SIZE = 50;
+let staffPage = 1;
+let staffTotal = 0;
+let staffHasMore = false;
+let staffSearchTimer;
+const STAFF_VIEW_STATE_KEY = 'staff';
+const staffInitialState = readViewState(STAFF_VIEW_STATE_KEY) || {};
+document.getElementById('staff-search').value = staffInitialState.q || '';
+document.getElementById('add-staff-btn').style.display = canCreateStaff ? '' : 'none';
+
+function persistStaffViewState(page = staffPage) {
+  writeViewState(STAFF_VIEW_STATE_KEY, {
+    q: document.getElementById('staff-search').value.trim(),
+    page
+  });
+}
+
+function accessCell(permissionKey) {
+  return `<label style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;margin:4px 6px 4px 0;font-size:12px;cursor:pointer;"><input type="checkbox" data-permission="${permissionKey}"><span>${permissionKey.split('.').slice(1).join(' ')}</span></label>`;
+}
+
+function renderAccessMatrix(selected = []) {
+  const tbody = document.getElementById('access-matrix-body');
+  tbody.innerHTML = accessCatalog.map(group => {
+    return `
+      <tr>
+        <td><strong>${group.label}</strong></td>
+        <td>${group.permissions.map(permission => accessCell(permission.key)).join('')}</td>
+      </tr>`;
+  }).join('');
+
+  selected.forEach(permission => {
+    const input = tbody.querySelector(`[data-permission="${permission}"]`);
+    if (input) input.checked = true;
+  });
+}
+
+function collectSelectedPermissions() {
+  return [...document.querySelectorAll('#access-matrix-body [data-permission]:checked')].map(el => el.dataset.permission);
+}
+
+async function loadAccessCatalog() {
+  if (!canManageAccess) return;
+  const result = await apiFetch('/staff/access-catalog');
+  accessCatalog = result.groups || [];
+  document.getElementById('access-group').style.display = '';
+  renderAccessMatrix();
+}
+
+function queueStaffSearch() {
+  clearTimeout(staffSearchTimer);
+  staffSearchTimer = setTimeout(() => loadStaff(1), 180);
+}
+
+function updateStaffPager() {
+  const start = staffTotal ? ((staffPage - 1) * STAFF_PAGE_SIZE) + 1 : 0;
+  const end = staffTotal ? Math.min(staffPage * STAFF_PAGE_SIZE, staffTotal) : 0;
+  document.getElementById('staff-count').textContent = `${staffTotal} staff`;
+  document.getElementById('staff-page-meta').textContent = staffTotal ? `Showing ${start}-${end} of ${staffTotal}` : 'No staff found';
+  document.getElementById('staff-prev-btn').disabled = staffPage <= 1;
+  document.getElementById('staff-next-btn').disabled = !staffHasMore;
+}
+
+function changeStaffPage(delta) {
+  const nextPage = staffPage + delta;
+  if (nextPage < 1) return;
+  if (delta > 0 && !staffHasMore) return;
+  loadStaff(nextPage);
+}
+
+async function loadStaff(page = 1) {
+  const q = document.getElementById('staff-search').value.trim();
+  persistStaffViewState(page);
+  const params = new URLSearchParams({ page: String(page), page_size: String(STAFF_PAGE_SIZE) });
+  if (q) params.set('q', q);
   const tbody = document.getElementById('staff-tbody');
-  if (!staff.length) { tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No staff yet</div></div></td></tr>`; return; }
-  tbody.innerHTML = staff.map(s=>`
+  tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '⏳', title: 'Loading staff', subtitle: 'Refreshing the staff directory now.' })}</td></tr>`;
+  try {
+    const result = await apiFetch(`/staff?${params.toString()}`);
+    const staff = result.items || [];
+    staffPage = result.page || page;
+    staffTotal = result.total || staff.length;
+    staffHasMore = !!result.has_more;
+    updateStaffPager();
+    if (!staff.length) {
+      tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '👤', title: 'No staff found', subtitle: q ? 'Try a different search term.' : 'Add your first team member to start assigning access and tracking time.', actionLabel: canCreateStaff ? 'Add Staff' : '', action: canCreateStaff ? 'openAddModal()' : '' })}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = staff.map(s => `
     <tr>
-      <td>
+      <td data-label="Name">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0;">${s.name.charAt(0).toUpperCase()}</div>
           <strong>${s.name}</strong>
         </div>
       </td>
-      <td><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${s.username}</code></td>
-      <td class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${s.designation||'—'}</td>
-      <td>${roleBadge(s.role)}</td>
-      <td><span class="badge ${s.active?'badge-approved':'badge-draft'}">${s.active?'Active':'Inactive'}</span></td>
-      <td><button class="btn btn-ghost btn-sm" onclick='editStaff(${JSON.stringify(s)})'>✏️</button></td>
+      <td data-label="Username"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${s.username}</code></td>
+      <td data-label="Designation" class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${s.designation || '-'}</td>
+      <td data-label="Role">${roleBadge(s.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(s.permissions || []).length} accesses</div></td>
+      <td data-label="Status"><span class="badge ${s.active ? 'badge-approved' : 'badge-draft'}">${s.active ? 'Active' : 'Inactive'}</span></td>
+      <td data-label="Action">${canEditStaff ? `<button class="btn btn-ghost btn-sm" onclick='editStaff(${JSON.stringify(s)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
     </tr>`).join('');
+  } catch (err) {
+    staffTotal = 0;
+    staffHasMore = false;
+    updateStaffPager();
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '⚠', title: 'Staff directory could not load', subtitle: 'Please try again. If the issue continues, refresh the page.', actionLabel: 'Retry', action: 'loadStaff()' })}</td></tr>`;
+    toast(err.message, 'error');
+  }
 }
 
 function openAddModal() {
-  document.getElementById('edit-id').value=''; document.getElementById('modal-title').textContent='Add Staff';
-  document.getElementById('staff-form').reset(); document.getElementById('f-username').readOnly=false;
-  document.getElementById('active-group').style.display='none'; document.getElementById('f-password').required=true;
+  if (!canCreateStaff) return;
+  document.getElementById('edit-id').value = '';
+  document.getElementById('modal-title').textContent = 'Add Staff';
+  document.getElementById('staff-form').reset();
+  document.getElementById('f-username').readOnly = false;
+  document.getElementById('active-group').style.display = 'none';
+  document.getElementById('f-password').required = true;
+  if (canManageAccess) renderAccessMatrix();
   openModal('staff-modal');
 }
+
 function editStaff(s) {
-  document.getElementById('edit-id').value=s.id; document.getElementById('modal-title').textContent='Edit Staff';
-  document.getElementById('f-name').value=s.name; document.getElementById('f-username').value=s.username; document.getElementById('f-username').readOnly=true;
-  document.getElementById('f-role').value=s.role; document.getElementById('f-designation').value=s.designation||''; document.getElementById('f-department').value=s.department||'';
-  document.getElementById('f-active').checked=!!s.active; document.getElementById('f-password').value=''; document.getElementById('f-password').required=false;
-  document.getElementById('active-group').style.display=''; openModal('staff-modal');
+  if (!canEditStaff) return;
+  document.getElementById('edit-id').value = s.id;
+  document.getElementById('modal-title').textContent = 'Edit Staff';
+  document.getElementById('f-name').value = s.name;
+  document.getElementById('f-username').value = s.username;
+  document.getElementById('f-username').readOnly = true;
+  document.getElementById('f-role').value = s.role;
+  document.getElementById('f-designation').value = s.designation || '';
+  document.getElementById('f-department').value = s.department || '';
+  document.getElementById('f-email').value = s.email || '';
+  document.getElementById('f-mobile-number').value = s.mobile_number || '';
+  document.getElementById('f-active').checked = !!s.active;
+  document.getElementById('f-password').value = '';
+  document.getElementById('f-password').required = false;
+  if (canManageAccess) renderAccessMatrix(s.permissions || []);
+  document.getElementById('active-group').style.display = '';
+  openModal('staff-modal');
 }
-document.getElementById('staff-form').addEventListener('submit', async e=>{
+
+document.getElementById('staff-form').addEventListener('submit', async e => {
   e.preventDefault();
   const id = document.getElementById('edit-id').value;
-  const payload = { name:document.getElementById('f-name').value, username:document.getElementById('f-username').value, role:document.getElementById('f-role').value, designation:document.getElementById('f-designation').value, department:document.getElementById('f-department').value, active:document.getElementById('f-active').checked?1:0 };
+  const payload = {
+    name: document.getElementById('f-name').value,
+    username: document.getElementById('f-username').value,
+    role: document.getElementById('f-role').value,
+    designation: document.getElementById('f-designation').value,
+    department: document.getElementById('f-department').value,
+    email: document.getElementById('f-email').value,
+    mobile_number: document.getElementById('f-mobile-number').value,
+    active: document.getElementById('f-active').checked ? 1 : 0
+  };
+  if (canManageAccess) payload.permissions = collectSelectedPermissions();
   const pwd = document.getElementById('f-password').value;
-  if (!id&&!pwd){toast('Password required for new staff','error');return;}
-  if (pwd) payload.password=pwd;
+  if (!id && !pwd) { toast('Password required for new staff','error'); return; }
+  if (pwd) payload.password = pwd;
   try {
-    if (id) await apiFetch(`/staff/${id}`,{method:'PUT',body:payload});
-    else await apiFetch('/staff',{method:'POST',body:payload});
-    closeModal('staff-modal'); toast('Staff saved!','success'); loadStaff();
-  } catch(err){toast(err.message,'error');}
+    if (id) await apiFetch(`/staff/${id}`, { method:'PUT', body:payload });
+    else await apiFetch('/staff', { method:'POST', body:payload });
+    closeModal('staff-modal');
+    toast('Staff saved!','success');
+    loadStaff(id ? staffPage : 1);
+  } catch (err) { toast(err.message,'error'); }
 });
+
 function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
-loadStaff();
+loadAccessCatalog().then(() => loadStaff(staffInitialState.page || 1)).catch(err => toast(err.message,'error'));
 </script>
 </body>
 </html>

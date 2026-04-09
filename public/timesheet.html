@@ -20,7 +20,7 @@
           <div><div class="topbar-title">Log Time</div><div style="font-size:12px;color:var(--text-muted);">Daily capture feeding weekly summary</div></div>
         </div>
       </div>
-      <a href="/my-timesheets.html" class="btn btn-ghost btn-sm"><span class="btn-symbol" aria-hidden="true">&#8592;</span><span class="btn-label">Current</span></a>
+      <a href="/my-timesheets.html" class="btn btn-ghost btn-sm"><span class="btn-symbol" aria-hidden="true">&#8592;</span><span class="btn-label">My Entries</span></a>
     </header>
 
     <div class="page-content proto-page">
@@ -49,9 +49,11 @@
             </div>
             <div class="proto-toolbar-actions">
               <button class="btn btn-primary" type="button" onclick="openAddModal()">+ Add Entry</button>
-              <button class="btn btn-outline" type="button" onclick="saveDayState()">Save Day</button>
+              <button class="btn btn-outline" type="button" id="save-day-btn" onclick="saveDayState()">Save Day</button>
             </div>
           </div>
+
+          <div class="proto-day-summary" id="day-summary"></div>
 
           <div class="proto-weekbar" style="display:none;">
             <div class="proto-weekbar-copy">
@@ -94,7 +96,7 @@
           </div>
 
           <div class="proto-actions">
-            <button class="btn btn-outline" type="button" onclick="submitSelectedDayDrafts()">Submit Day Drafts</button>
+            <button class="btn btn-outline" type="button" id="submit-day-btn" onclick="submitSelectedDayDrafts()">Submit Day Drafts</button>
             <span class="proto-sync" id="day-sync-state">All changes saved</span>
           </div>
         </div>
@@ -176,77 +178,137 @@
 <div class="modal-overlay" id="entry-modal">
   <div class="modal entry-modal-dialog">
     <div class="modal-header">
-      <div class="modal-title" id="entry-modal-title">Add Entry</div>
-      <button class="modal-close" onclick="closeModal('entry-modal')">&times;</button>
+      <div class="modal-header-copy">
+        <div class="modal-kicker">Time Entry</div>
+        <div class="modal-title" id="entry-modal-title">Add Entry</div>
+        <div class="modal-subtitle">Fill the schedule first, then choose the client and describe the work.</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('entry-modal')" aria-label="Close entry modal">&times;</button>
     </div>
     <input type="hidden" id="modal-entry-id">
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Date</label>
-        <input class="form-control" type="date" id="modal-date" onchange="renderModalTimeline()">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Hours</label>
-        <input class="form-control" type="number" id="modal-hours" min="0.25" max="24" step="0.25">
-      </div>
+    <div class="modal-body">
+      <section class="modal-section">
+        <div class="modal-section-head">
+          <div class="modal-section-title">Schedule</div>
+          <div class="modal-section-note">Choose the date, then adjust time using the quick buttons.</div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input class="form-control" type="date" id="modal-date" onchange="renderModalTimeline()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Hours</label>
+            <input class="form-control" type="number" id="modal-hours" min="0.25" max="24" step="0.25">
+          </div>
+        </div>
+        <div class="entry-modal-inline-note" id="modal-schedule-note">Set a start and end time for the clearest timeline. You can also enter hours directly for quick logging.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">From</label>
+            <input class="form-control" type="time" id="modal-start-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
+          </div>
+          <div class="form-group">
+            <label class="form-label">To</label>
+            <input class="form-control" type="time" id="modal-end-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
+          </div>
+        </div>
+        <div class="time-adjust-panel">
+          <div class="time-adjust-row">
+            <div class="time-adjust-label">Start</div>
+            <div class="time-adjust-actions">
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:-30" onclick="adjustModalTimeBoundary('start', -30)">-30m</button>
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:-15" onclick="adjustModalTimeBoundary('start', -15)">-15m</button>
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:15" onclick="adjustModalTimeBoundary('start', 15)">+15m</button>
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:30" onclick="adjustModalTimeBoundary('start', 30)">+30m</button>
+            </div>
+          </div>
+          <div class="time-adjust-row">
+            <div class="time-adjust-label">End</div>
+            <div class="time-adjust-actions">
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:-30" onclick="adjustModalTimeBoundary('end', -30)">-30m</button>
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:-15" onclick="adjustModalTimeBoundary('end', -15)">-15m</button>
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:15" onclick="adjustModalTimeBoundary('end', 15)">+15m</button>
+              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:30" onclick="adjustModalTimeBoundary('end', 30)">+30m</button>
+            </div>
+          </div>
+          <div class="time-preset-row">
+            <div class="time-adjust-label">Duration</div>
+            <div class="time-adjust-actions">
+              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="30" onclick="applyModalDurationPreset(30)">30m</button>
+              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="60" onclick="applyModalDurationPreset(60)">1h</button>
+              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="120" onclick="applyModalDurationPreset(120)">2h</button>
+              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="180" onclick="applyModalDurationPreset(180)">3h</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group modal-timeline-group">
+          <div class="field-inline-meta">
+            <label class="form-label">Timeline Preview</label>
+            <div class="form-help">On mobile, use the quick buttons above. The timeline updates automatically.</div>
+          </div>
+          <div id="modal-day-timeline"></div>
+        </div>
+      </section>
+
+      <section class="modal-section">
+        <div class="modal-section-head">
+          <div class="modal-section-title">Matter Details</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Client / Matter</label>
+          <input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client">
+          <datalist id="client-list"></datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Work Category</label>
+          <select class="form-control" id="modal-task-type"><option value="">Select task</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="modal-description" rows="3" placeholder="What was done?"></textarea>
+        </div>
+      </section>
+
+      <section class="modal-section">
+        <div class="modal-section-head">
+          <div class="modal-section-title">Collaboration And Status</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Worked With</label>
+          <div style="max-width:420px;">
+            <select class="form-control" id="worked-with-select" onchange="addWorkedWithSelection(this.value)">
+              <option value="">Select collaborator</option>
+            </select>
+          </div>
+          <div class="table-wrapper" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;max-width:520px;">
+            <table>
+              <thead>
+                <tr><th>Name</th><th style="width:52px;">Action</th></tr>
+              </thead>
+              <tbody id="worked-with-table-body"></tbody>
+            </table>
+          </div>
+          <div class="form-help">People selected here will receive a collaboration request in their own timesheet.</div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label class="form-label">Work Classification</label>
+          <select class="form-control" id="modal-work-classification"></select>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label class="form-label">Status</label>
+          <div id="modal-status" class="entry-readonly"></div>
+        </div>
+        <div class="entry-modal-inline-note" id="modal-status-note">New entries start as drafts until you submit them.</div>
+      </section>
+
+      <div id="modal-collaboration-warning" class="row-rejection" style="display:none;"></div>
+      <div id="modal-rejection" class="row-rejection" style="display:none;"></div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">From</label>
-        <input class="form-control" type="time" id="modal-start-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
-      </div>
-      <div class="form-group">
-        <label class="form-label">To</label>
-        <input class="form-control" type="time" id="modal-end-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
-      </div>
-    </div>
-    <div class="form-group" style="margin-top:4px;">
-      <div id="modal-day-timeline"></div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Client / Matter</label>
-      <input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client">
-      <datalist id="client-list"></datalist>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Work Category</label>
-      <select class="form-control" id="modal-task-type"><option value="">Select task</option></select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Description</label>
-      <textarea class="form-control" id="modal-description" rows="3" placeholder="What was done?"></textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Worked With</label>
-      <div style="max-width:420px;">
-        <select class="form-control" id="worked-with-select" onchange="addWorkedWithSelection(this.value)">
-          <option value="">Select collaborator</option>
-        </select>
-      </div>
-      <div class="table-wrapper" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;max-width:520px;">
-        <table>
-          <thead>
-            <tr><th>Name</th><th style="width:52px;">Action</th></tr>
-          </thead>
-          <tbody id="worked-with-table-body"></tbody>
-        </table>
-      </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">People selected here will receive a collaboration request in their own timesheet.</div>
-    </div>
-    <div class="form-group" style="margin-top:12px;">
-      <label class="form-label">Work Classification</label>
-      <select class="form-control" id="modal-work-classification"></select>
-    </div>
-    <div class="form-group" style="margin-top:12px;">
-      <label class="form-label">Status</label>
-      <div id="modal-status" class="entry-readonly"></div>
-    </div>
-    <div id="modal-collaboration-warning" class="row-rejection" style="display:none;"></div>
-    <div id="modal-rejection" class="row-rejection" style="display:none;"></div>
-      <div class="modal-actions" style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="saveModalEntry()">Save Entry</button>
-        <button class="btn btn-outline" type="button" onclick="submitModalEntry()">Submit</button>
-        <button class="btn btn-danger" type="button" onclick="deleteModalEntry()">Delete</button>
+      <div class="modal-actions">
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" id="save-entry-btn" onclick="saveModalEntry()">Save Entry</button>
+        <button class="btn btn-outline" type="button" id="submit-entry-btn" onclick="submitModalEntry()">Submit</button>
+        <button class="btn btn-danger" type="button" id="delete-entry-btn" onclick="deleteModalEntry()">Delete</button>
     </div>
   </div>
 </div>
@@ -271,13 +333,15 @@ if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.vi
 
 const user = getUser();
 const todayStr = today();
-let selectedDate = todayStr;
-let weekAnchor = todayStr;
+const timesheetUrlState = readTimesheetUrlState();
+let selectedDate = timesheetUrlState.date || todayStr;
+let weekAnchor = selectedDate;
 let allClientsStore = [];
 let currentEntries = [];
 let collaboratorOptions = [];
 let collaborationRequests = [];
 let selectedWorkedWith = [];
+let activeView = timesheetUrlState.view || 'daily';
 
 const FALLBACK_WORK_CATEGORIES = [
   'Audit',
@@ -293,6 +357,25 @@ const FALLBACK_WORK_CATEGORIES = [
 
 document.getElementById('selected-date-input').value = selectedDate;
 document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+
+function readTimesheetUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  const date = params.get('date');
+  const view = params.get('view');
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : '',
+    view: ['daily', 'weekly'].includes(view) ? view : ''
+  };
+}
+
+function syncTimesheetUrlState(replace = true) {
+  const params = new URLSearchParams(window.location.search);
+  params.set('date', selectedDate);
+  params.set('view', activeView);
+  const nextUrl = `${window.location.pathname}?${params.toString()}`;
+  if (replace) window.history.replaceState({}, '', nextUrl);
+  else window.history.pushState({}, '', nextUrl);
+}
 
 function populateMasterDataSelects() {
   const taskTypeSelect = document.getElementById('modal-task-type');
@@ -388,10 +471,12 @@ function weekRangeFromAnchor(anchor) {
 }
 
 function switchView(view) {
+  activeView = view;
   document.getElementById('daily-view').style.display = view === 'daily' ? '' : 'none';
   document.getElementById('weekly-view').style.display = view === 'weekly' ? '' : 'none';
   document.getElementById('tab-daily').classList.toggle('active', view === 'daily');
   document.getElementById('tab-weekly').classList.toggle('active', view === 'weekly');
+  syncTimesheetUrlState();
 }
 
 function setSyncLabel(text, dirty = false) {
@@ -404,6 +489,7 @@ function handleDateInput(value) {
   if (!value) return;
   selectedDate = value;
   weekAnchor = value;
+  syncTimesheetUrlState();
   loadEntries();
 }
 
@@ -412,6 +498,7 @@ function moveSelectedDay(offset) {
   next.setDate(next.getDate() + offset);
   selectedDate = isoDate(next);
   weekAnchor = selectedDate;
+  syncTimesheetUrlState();
   loadEntries();
 }
 
@@ -421,17 +508,21 @@ function shiftWeek(offsetDays) {
   weekAnchor = isoDate(next);
   const weekDays = weekRangeFromAnchor(weekAnchor);
   if (!weekDays.includes(selectedDate)) selectedDate = weekDays[0];
+  syncTimesheetUrlState();
   loadEntries();
 }
 
 function jumpToToday() {
   selectedDate = todayStr;
   weekAnchor = todayStr;
+  syncTimesheetUrlState();
   loadEntries();
 }
 
 function setSelectedDate(dateStr) {
   selectedDate = dateStr;
+  weekAnchor = dateStr;
+  syncTimesheetUrlState();
   renderAll();
 }
 
@@ -479,7 +570,7 @@ function renderDailyRows() {
   const tbody = document.getElementById('daily-rows');
   const entries = getSelectedDayEntries();
   if (!entries.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-title">No entries for ${fmtDayLabel(selectedDate)}</div><div class="empty-sub">Use + Add Entry to start the day.</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '🕒', title: `No entries for ${fmtDayLabel(selectedDate)}`, subtitle: 'Start this day with your first time entry, or move to another date if you are reviewing a different day.', actionLabel: 'Add Entry', action: 'openAddModal()' })}</td></tr>`;
     return;
   }
   tbody.innerHTML = entries.map(entry => `
@@ -504,6 +595,46 @@ function renderDailyMetrics() {
   document.getElementById('metric-client-work').textContent = stats.clientWork.toFixed(1);
   document.getElementById('metric-other-work').textContent = stats.otherWork.toFixed(1);
   document.getElementById('metric-count').textContent = stats.count;
+}
+
+function renderDaySummary() {
+  const entries = getSelectedDayEntries();
+  const stats = dayStats(entries);
+  const rejectedCount = entries.filter(entry => entry.status === 'rejected').length;
+  const dayLabel = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+  document.getElementById('day-summary').innerHTML = `
+    <div class="proto-day-summary-card">
+      <div class="proto-day-summary-label">Selected Day</div>
+      <div class="proto-day-summary-title">${dayLabel}</div>
+      <div class="proto-day-summary-sub">${stats.count ? `${dayStatusLabel(stats)} with ${fmtHours(stats.total)} logged across ${stats.count} entries.` : 'No time has been logged for this day yet.'}</div>
+    </div>
+    <div class="proto-day-summary-stat">
+      <div class="proto-day-summary-label">Drafts</div>
+      <div class="proto-day-summary-value">${stats.drafts}</div>
+      <div class="proto-day-summary-meta">${stats.drafts ? `${stats.drafts} ready to submit` : 'Nothing pending from drafts'}</div>
+    </div>
+    <div class="proto-day-summary-stat">
+      <div class="proto-day-summary-label">Pending</div>
+      <div class="proto-day-summary-value">${stats.pending}</div>
+      <div class="proto-day-summary-meta">${stats.pending ? `${stats.pending} waiting for review` : 'Nothing waiting for review'}</div>
+    </div>
+    <div class="proto-day-summary-stat">
+      <div class="proto-day-summary-label">Needs Changes</div>
+      <div class="proto-day-summary-value">${rejectedCount}</div>
+      <div class="proto-day-summary-meta">${rejectedCount ? 'Review before resubmitting' : 'No rejected entries'}</div>
+    </div>`;
+}
+
+function syncDayActionState() {
+  const entries = getSelectedDayEntries();
+  const stats = dayStats(entries);
+  const rejectedCount = entries.filter(entry => entry.status === 'rejected').length;
+  const submittableCount = stats.drafts + rejectedCount;
+  const submitBtn = document.getElementById('submit-day-btn');
+  const saveBtn = document.getElementById('save-day-btn');
+  submitBtn.disabled = !submittableCount;
+  submitBtn.textContent = submittableCount ? `Submit Day Drafts (${submittableCount})` : 'No Drafts to Submit';
+  saveBtn.textContent = stats.count ? 'Review Day' : 'Plan Day';
 }
 
 function entryTimelineLabel(entry) {
@@ -596,6 +727,37 @@ function setModalTimelineRange(dateStr, startMinutes, endMinutes) {
   renderModalTimeline();
 }
 
+function adjustModalTimeBoundary(boundary, deltaMinutes) {
+  const dateStr = document.getElementById('modal-date').value || selectedDate;
+  const startMinutes = timeStringToMinutes(document.getElementById('modal-start-time').value);
+  const endMinutes = timeStringToMinutes(document.getElementById('modal-end-time').value);
+
+  if (startMinutes == null || endMinutes == null) {
+    const defaultStart = TIMELINE_START;
+    const defaultEnd = defaultStart + 60;
+    const nextStart = boundary === 'start' ? defaultStart + deltaMinutes : defaultStart;
+    const nextEnd = boundary === 'end' ? defaultEnd + deltaMinutes : defaultEnd;
+    setModalTimelineRange(dateStr, nextStart, nextEnd);
+    return;
+  }
+
+  const nextStart = boundary === 'start' ? startMinutes + deltaMinutes : startMinutes;
+  const nextEnd = boundary === 'end' ? endMinutes + deltaMinutes : endMinutes;
+  setModalTimelineRange(dateStr, nextStart, nextEnd);
+}
+
+function applyModalDurationPreset(durationMinutes) {
+  const dateStr = document.getElementById('modal-date').value || selectedDate;
+  const startMinutes = timeStringToMinutes(document.getElementById('modal-start-time').value);
+  const endMinutes = timeStringToMinutes(document.getElementById('modal-end-time').value);
+  const anchorStart = startMinutes != null
+    ? startMinutes
+    : endMinutes != null
+      ? Math.max(TIMELINE_START, endMinutes - durationMinutes)
+      : TIMELINE_START;
+  setModalTimelineRange(dateStr, anchorStart, anchorStart + durationMinutes);
+}
+
 function currentModalTimelineRange() {
   const startMinutes = timeStringToMinutes(document.getElementById('modal-start-time').value);
   const endMinutes = timeStringToMinutes(document.getElementById('modal-end-time').value);
@@ -646,10 +808,11 @@ function timelineBarInnerHtml(segment, isModalTimeline, density = 'full') {
   const timeText = density === 'tight'
     ? minutesToTimeString(segment.startMinutes)
     : formatTimelineRange(segment.startMinutes, segment.endMinutes);
+  const isTouchTimeline = isModalTimeline && window.matchMedia('(max-width: 768px)').matches;
 
   if (density === 'full') pieces.push(label);
   pieces.push(`<span class="timeline-entry-time">${timeText}</span>`);
-  if (isModalTimeline && segment.state === 'draft') {
+  if (isModalTimeline && !isTouchTimeline && segment.state === 'draft') {
     pieces.push('<span class="timeline-handle start" data-action="resize-start" aria-label="Adjust start time"></span>');
     pieces.push('<span class="timeline-handle end" data-action="resize-end" aria-label="Adjust end time"></span>');
   }
@@ -677,6 +840,7 @@ function beginTimelineDrag(event, mode, dateStr, trackEl) {
 
 function handleTimelinePointerDown(event, containerId) {
   if (containerId !== 'modal-day-timeline' || document.getElementById('modal-start-time').disabled) return;
+  if (window.matchMedia('(max-width: 768px)').matches) return;
   const trackEl = event.currentTarget;
   const dateStr = trackEl.dataset.date;
   const actionTarget = event.target.closest('[data-action]');
@@ -792,6 +956,7 @@ function renderModalTimeline() {
   };
   if (clientText) entry.client_label = clientText;
   applyModalTimeInputLimits();
+  updateModalGuidance();
   renderTimeline('modal-day-timeline', dateStr, entry, entryId || null);
 }
 
@@ -830,9 +995,11 @@ function renderAll() {
   document.getElementById('selected-date-input').value = selectedDate;
   document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
   renderDayStrip();
+  renderDaySummary();
   renderSelectedDayTimeline();
   renderDailyRows();
   renderDailyMetrics();
+  syncDayActionState();
   renderWeeklySummary();
 }
 
@@ -906,6 +1073,9 @@ function renderCollaborationRequests() {
 
 function prefillModal(entry = null) {
   document.getElementById('entry-modal-title').textContent = entry ? 'Edit Entry' : 'Add Entry';
+  document.querySelector('#entry-modal .modal-subtitle').textContent = entry
+    ? 'Review the schedule first, then update matter details and save your changes.'
+    : 'Fill the schedule first, then choose the client and describe the work.';
   document.getElementById('modal-entry-id').value = entry?.id || '';
   document.getElementById('modal-date').value = entry?.entry_date || selectedDate;
   document.getElementById('modal-client-search').value = clientDisplay(entry);
@@ -935,11 +1105,15 @@ function prefillModal(entry = null) {
   ['modal-date', 'modal-client-search', 'modal-task-type', 'modal-description', 'modal-start-time', 'modal-end-time', 'modal-hours', 'modal-work-classification'].forEach(id => {
     document.getElementById(id).disabled = locked;
   });
+  document.querySelectorAll('#entry-modal [data-time-adjust], #entry-modal [data-duration-preset]').forEach(el => {
+    el.disabled = locked;
+  });
   document.getElementById('worked-with-select').disabled = locked || !!entry?.collaboration_source_entry_id;
   document.querySelectorAll('#worked-with-table-body button').forEach(el => {
     el.disabled = locked || !!entry?.collaboration_source_entry_id;
   });
   applyModalTimeInputLimits();
+  updateModalGuidance();
   renderModalTimeline();
 }
 
@@ -955,6 +1129,7 @@ function applyPendingEditFromSession() {
     if (entry?.entry_date) {
       selectedDate = entry.entry_date;
       weekAnchor = entry.entry_date;
+      syncTimesheetUrlState();
     }
     prefillModal(entry);
     openModal('entry-modal');
@@ -986,6 +1161,34 @@ function syncModalHoursFromTime() {
     return;
   }
   document.getElementById('modal-hours').value = diff.toFixed(2).replace(/\.00$/, '');
+}
+
+function updateModalGuidance() {
+  const id = document.getElementById('modal-entry-id').value;
+  const start = document.getElementById('modal-start-time').value;
+  const end = document.getElementById('modal-end-time').value;
+  const hours = document.getElementById('modal-hours').value;
+  const statusMarkup = document.getElementById('modal-status').textContent.trim().toLowerCase();
+  const isSavedEntry = !!id;
+  const isApproved = statusMarkup.includes('approved');
+  const scheduleNote = document.getElementById('modal-schedule-note');
+  const statusNote = document.getElementById('modal-status-note');
+  const saveBtn = document.getElementById('save-entry-btn');
+  const submitBtn = document.getElementById('submit-entry-btn');
+  const deleteBtn = document.getElementById('delete-entry-btn');
+
+  if (start && end) scheduleNote.textContent = 'Timeline and hours are linked. Adjust either one and the preview will stay in sync.';
+  else if (hours) scheduleNote.textContent = 'Hours are set. Add start and end time too if you want a clearer day timeline.';
+  else scheduleNote.textContent = 'Set a start and end time for the clearest timeline. You can also enter hours directly for quick logging.';
+
+  if (!isSavedEntry) statusNote.textContent = 'New entries start as drafts until you save and submit them.';
+  else if (isApproved) statusNote.textContent = 'Approved entries are locked to protect the submitted record.';
+  else statusNote.textContent = 'Save updates first, then submit when this entry is ready for review.';
+
+  saveBtn.textContent = isSavedEntry ? 'Save Changes' : 'Save Entry';
+  submitBtn.textContent = isSavedEntry ? 'Submit Entry' : 'Save Before Submit';
+  submitBtn.disabled = !isSavedEntry || isApproved;
+  deleteBtn.disabled = !isSavedEntry || isApproved;
 }
 
 function validateModalTimeline(payload, currentId = '') {
@@ -1128,9 +1331,11 @@ async function loadClients() {
     const clients = await apiFetch('/clients');
     allClientsStore = clients.filter(c => c.active);
     document.getElementById('client-list').innerHTML = allClientsStore.map(c => `<option value="${c.name} [${c.code}]">`).join('');
+    bootMobileListPickers(document.getElementById('entry-modal'));
   } catch (e) {
     allClientsStore = [];
     document.getElementById('client-list').innerHTML = '';
+    bootMobileListPickers(document.getElementById('entry-modal'));
     console.warn('Client list unavailable on Log Time', e);
   }
 }
@@ -1181,6 +1386,7 @@ async function acceptCollaborationRequest(requestId) {
     if (result.entry?.entry_date) {
       selectedDate = result.entry.entry_date;
       weekAnchor = result.entry.entry_date;
+      syncTimesheetUrlState();
       prefillModal(result.entry);
       openModal('entry-modal');
     }
@@ -1218,12 +1424,26 @@ async function initPage() {
   }
   populateMasterDataSelects();
   renderAll();
+  switchView(activeView);
+  syncTimesheetUrlState();
   applyPendingEditFromSession();
   await loadEntries();
   loadClients();
   loadCollaborators();
   loadCollaborationRequests();
 }
+
+window.addEventListener('popstate', () => {
+  const state = readTimesheetUrlState();
+  const nextDate = state.date || todayStr;
+  const nextView = state.view || 'daily';
+  selectedDate = nextDate;
+  weekAnchor = nextDate;
+  activeView = nextView;
+  renderAll();
+  switchView(nextView);
+  loadEntries();
+});
 
 initPage();
 </script>

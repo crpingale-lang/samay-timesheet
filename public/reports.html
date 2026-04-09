@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reports — Samay</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
@@ -14,52 +15,151 @@
   <aside class="sidebar" id="sidebar-el"></aside>
   <div class="main-content">
     <header class="topbar">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button class="hamburger" onclick="openSidebar()">☰</button>
-        <div class="topbar-title">Reports</div>
-      </div>
-      <button class="btn btn-success btn-sm" onclick="exportCSV()">⬇️ Export CSV</button>
-    </header>
-    <div class="page-content">
-      <!-- FILTERS -->
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
-          <div class="form-group" style="margin:0;min-width:150px;">
-            <label class="form-label">Period</label>
-            <select class="form-control" id="period-select" onchange="applyPeriod()">
-              <option value="this-month">This Month</option>
-              <option value="last-month">Last Month</option>
-              <option value="this-quarter">This Quarter</option>
-              <option value="this-fy">This FY (Apr–Mar)</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0;display:none;" id="c1"><label class="form-label">From</label><input class="form-control" type="date" id="filter-from"></div>
-          <div class="form-group" style="margin:0;display:none;" id="c2"><label class="form-label">To</label><input class="form-control" type="date" id="filter-to"></div>
-          <div class="form-group" style="margin:0;min-width:140px;">
-            <label class="form-label">Staff</label>
-            <select class="form-control" id="filter-staff"><option value="">All Staff</option></select>
-          </div>
-          <button class="btn btn-primary" onclick="loadAll()">🔍 Run</button>
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
+        <div>
+          <div class="topbar-title">Reports</div>
+          <div class="report-topbar-subtitle">Management reporting for approved hours, utilization, and client performance.</div>
         </div>
       </div>
+      <div class="topbar-actions">
+        <div class="report-sync" id="report-sync">Ready</div>
+        <button class="btn btn-success btn-sm" id="export-btn" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </header>
 
-      <!-- TABS -->
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab('utilization',this)">👥 Utilization</button>
-        <button class="tab" onclick="switchTab('client',this)">🏢 By Client</button>
-        <button class="tab" onclick="switchTab('detail',this)">📋 Detail</button>
+    <div class="page-content report-page">
+      <div class="report-page-grid">
+        <section class="card report-sidebar-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Report Controls</div>
+              <div class="card-subtitle">Choose the period and reporting scope.</div>
+            </div>
+          </div>
+
+          <div class="report-sidebar-fields">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Period</label>
+              <select class="form-control" id="period-select" onchange="applyPeriod()">
+                <option value="this-month">This Month</option>
+                <option value="last-month">Last Month</option>
+                <option value="this-quarter">This Quarter</option>
+                <option value="this-fy">This FY (Apr-Mar)</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="form-group" id="c1" style="margin:0;display:none;">
+              <label class="form-label">From</label>
+              <input class="form-control" type="date" id="filter-from">
+            </div>
+            <div class="form-group" id="c2" style="margin:0;display:none;">
+              <label class="form-label">To</label>
+              <input class="form-control" type="date" id="filter-to">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Staff</label>
+              <select class="form-control" id="filter-staff">
+                <option value="">All Staff</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="report-sidebar-actions">
+            <button class="btn btn-primary report-run-btn" onclick="loadAll()">Run Report</button>
+            <button class="btn btn-ghost report-run-btn" type="button" onclick="resetFilters()">Reset</button>
+          </div>
+
+          <div class="report-filter-summary" id="filter-summary">Showing all staff for the current month.</div>
+        </section>
+
+        <section class="card report-summary-card">
+          <div class="report-summary-head">
+            <div>
+              <div class="report-summary-label">Executive Summary</div>
+              <h1 class="report-summary-title">A structured view of approved hours, billable performance, and client contribution.</h1>
+            </div>
+            <div class="report-period-chip">
+              <div class="report-period-chip-label">Selected Range</div>
+              <div class="report-period-chip-value" id="range-label">This Month</div>
+              <div class="report-period-chip-sub" id="range-sub">Loading date range...</div>
+            </div>
+          </div>
+
+          <div class="stats-grid report-stats">
+            <div class="stat-card indigo">
+              <div class="stat-label">Approved Hours</div>
+              <div class="stat-value" id="overview-hours">0.0 hrs</div>
+              <div class="stat-sub" id="overview-hours-sub">Across the selected range</div>
+            </div>
+            <div class="stat-card amber">
+              <div class="stat-label">Billable Mix</div>
+              <div class="stat-value" id="overview-billable">0%</div>
+              <div class="stat-sub" id="overview-billable-sub">0.0 hrs billable</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-label">Realizable Value</div>
+              <div class="stat-value" id="overview-value">Rs 0</div>
+              <div class="stat-sub" id="overview-value-sub">Based on approved billable hours</div>
+            </div>
+            <div class="stat-card blue">
+              <div class="stat-label">Coverage</div>
+              <div class="stat-value" id="overview-coverage">0 staff</div>
+              <div class="stat-sub" id="overview-coverage-sub">0 clients represented</div>
+            </div>
+          </div>
+
+          <div class="report-brief-card">
+            <div class="card-header" style="margin-bottom:12px;">
+              <div>
+                <div class="card-title">Key Takeaways</div>
+                <div class="card-subtitle">Short management notes generated from the selected range.</div>
+              </div>
+            </div>
+            <div class="report-insights-list" id="insight-grid">
+              <div class="report-insight-row empty">Run the report to generate summary observations.</div>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <!-- UTILIZATION -->
+      <div class="tabs report-tabs">
+        <button class="tab active" onclick="switchTab('utilization',this)">Utilization</button>
+        <button class="tab" onclick="switchTab('client',this)">Client Analysis</button>
+        <button class="tab" onclick="switchTab('detail',this)">Entry Detail</button>
+      </div>
+
       <div id="tab-utilization">
         <div class="grid-2" style="margin-bottom:16px;">
-          <div class="card"><div class="card-title" style="margin-bottom:12px;">Hours by Staff</div><canvas id="staffChart" height="220"></canvas></div>
-          <div class="card"><div class="card-title" style="margin-bottom:12px;">Billable Split</div><canvas id="billChart" height="220"></canvas></div>
+          <div class="card">
+            <div class="card-header" style="margin-bottom:12px;">
+              <div>
+                <div class="card-title">Staff Hours Distribution</div>
+                <div class="card-subtitle">Approved hours split between billable and non-billable effort.</div>
+              </div>
+            </div>
+            <canvas id="staffChart" height="220"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header" style="margin-bottom:12px;">
+              <div>
+                <div class="card-title">Overall Billable Mix</div>
+                <div class="card-subtitle">Share of approved effort that contributes to client work.</div>
+              </div>
+            </div>
+            <canvas id="billChart" height="220"></canvas>
+          </div>
         </div>
+
         <div class="card">
+          <div class="card-header" style="margin-bottom:10px;">
+            <div>
+              <div class="card-title">Utilization Table</div>
+              <div class="card-subtitle">Team members ranked by role group, then by name.</div>
+            </div>
+          </div>
           <div class="table-wrapper">
-            <table>
+            <table class="mobile-stack-table">
               <thead><tr><th>Staff</th><th>Role</th><th>Total Hrs</th><th>Billable</th><th class="hide-mobile">Non-Bill.</th><th>Bill. %</th></tr></thead>
               <tbody id="util-tbody"></tbody>
               <tfoot id="util-tfoot"></tfoot>
@@ -68,12 +168,26 @@
         </div>
       </div>
 
-      <!-- CLIENT -->
       <div id="tab-client" style="display:none;">
-        <div class="card" style="margin-bottom:16px;"><canvas id="clientChart" height="120"></canvas></div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header" style="margin-bottom:12px;">
+            <div>
+              <div class="card-title">Client Hours Ranking</div>
+              <div class="card-subtitle">Top clients by approved hours in the selected reporting period.</div>
+            </div>
+          </div>
+          <canvas id="clientChart" height="120"></canvas>
+        </div>
+
         <div class="card">
+          <div class="card-header" style="margin-bottom:10px;">
+            <div>
+              <div class="card-title">Client Summary</div>
+              <div class="card-subtitle">Billable value is derived from approved billable hours and configured rates.</div>
+            </div>
+          </div>
           <div class="table-wrapper">
-            <table>
+            <table class="mobile-stack-table">
               <thead><tr><th>Client</th><th>Total Hrs</th><th>Billable Hrs</th><th class="hide-mobile">Rate</th><th>Value</th></tr></thead>
               <tbody id="client-tbody"></tbody>
               <tfoot id="client-tfoot"></tfoot>
@@ -82,11 +196,16 @@
         </div>
       </div>
 
-      <!-- DETAIL -->
       <div id="tab-detail" style="display:none;">
         <div class="card">
+          <div class="card-header" style="margin-bottom:10px;">
+            <div>
+              <div class="card-title">Detailed Entries</div>
+              <div class="card-subtitle" id="detail-summary">Approved and in-flight records for the selected filter.</div>
+            </div>
+          </div>
           <div class="table-wrapper">
-            <table>
+            <table class="mobile-stack-table">
               <thead><tr><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
               <tbody id="detail-tbody"></tbody>
             </table>
@@ -99,125 +218,247 @@
 
 <nav class="bottom-nav">
   <div class="bottom-nav-items">
-    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon">📊</span>Home</a>
-    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon">⏱️</span>Log</a>
-    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon">📋</span>Mine</a>
-    <a class="bottom-nav-item active" href="/reports.html"><span class="bn-icon">📈</span>Reports</a>
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon" aria-hidden="true">&#8962;</span>Home</a>
+    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon" aria-hidden="true">&#9716;</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon" aria-hidden="true">&#9636;</span>Mine</a>
+    <a class="bottom-nav-item active" href="/reports.html"><span class="bn-icon" aria-hidden="true">&#9675;</span>Reports</a>
   </div>
 </nav>
 
 <script src="/js/app.js"></script>
 <script>
 requireAuth();
-if (!isManagerOrAbove()) window.location.href = '/dashboard.html';
+if (!hasPermission('reports.view')) window.location.href = '/dashboard.html';
 document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+document.getElementById('export-btn').style.display = hasPermission('reports.export') ? '' : 'none';
 
-let staffChart=null, billChart=null, clientChart=null;
+let staffChart = null;
+let billChart = null;
+let clientChart = null;
+let activeLoadId = 0;
+
+function formatShortDate(d) {
+  if (!d) return '-';
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function describePeriod(value) {
+  const labels = { 'this-month': 'This Month', 'last-month': 'Last Month', 'this-quarter': 'This Quarter', 'this-fy': 'This FY', custom: 'Custom Range' };
+  return labels[value] || 'Selected Period';
+}
 
 function applyPeriod() {
-  const p=document.getElementById('period-select').value, now=new Date(), y=now.getFullYear(), m=now.getMonth();
-  let from,to;
-  if(p==='this-month'){from=`${y}-${String(m+1).padStart(2,'0')}-01`;to=today();}
-  else if(p==='last-month'){const lm=new Date(y,m,0);from=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-01`;to=`${lm.getFullYear()}-${String(lm.getMonth()+1).padStart(2,'0')}-${String(lm.getDate()).padStart(2,'0')}`;}
-  else if(p==='this-quarter'){const q=Math.floor(m/3);from=`${y}-${String(q*3+1).padStart(2,'0')}-01`;to=today();}
-  else if(p==='this-fy'){const fs=m>=3?y:y-1;from=`${fs}-04-01`;to=today();}
-  const custom=p==='custom';
-  document.getElementById('c1').style.display=custom?'':'none';
-  document.getElementById('c2').style.display=custom?'':'none';
-  if(!custom){document.getElementById('filter-from').value=from;document.getElementById('filter-to').value=to;}
+  const p = document.getElementById('period-select').value;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  let from;
+  let to;
+  if (p === 'this-month') { from = `${y}-${String(m + 1).padStart(2, '0')}-01`; to = today(); }
+  else if (p === 'last-month') { const lm = new Date(y, m, 0); from = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}-01`; to = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}-${String(lm.getDate()).padStart(2, '0')}`; }
+  else if (p === 'this-quarter') { const q = Math.floor(m / 3); from = `${y}-${String(q * 3 + 1).padStart(2, '0')}-01`; to = today(); }
+  else if (p === 'this-fy') { const fs = m >= 3 ? y : y - 1; from = `${fs}-04-01`; to = today(); }
+  const custom = p === 'custom';
+  document.getElementById('c1').style.display = custom ? '' : 'none';
+  document.getElementById('c2').style.display = custom ? '' : 'none';
+  if (!custom) { document.getElementById('filter-from').value = from; document.getElementById('filter-to').value = to; }
+  updateFilterSummary();
 }
 
-function switchTab(tab,btn){
-  ['utilization','client','detail'].forEach(t=>document.getElementById('tab-'+t).style.display=t===tab?'':'none');
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+function switchTab(tab, btn) {
+  ['utilization', 'client', 'detail'].forEach(t => document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
 }
 
-async function loadFilters(){
+async function loadFilters() {
   try {
-    const staff=await apiFetch('/staff');
-    const sel=document.getElementById('filter-staff');
-    staff.forEach(s=>sel.innerHTML+=`<option value="${s.id}">${s.name} (${s.role})</option>`);
-  } catch(e){}
+    const staff = await apiFetch('/staff');
+    const sel = document.getElementById('filter-staff');
+    staff.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name} (${s.role})</option>`);
+  } catch (e) {}
 }
 
-function getFilters(){return{from:document.getElementById('filter-from').value,to:document.getElementById('filter-to').value,staff:document.getElementById('filter-staff').value};}
+function getFilters() {
+  return { from: document.getElementById('filter-from').value, to: document.getElementById('filter-to').value, staff: document.getElementById('filter-staff').value };
+}
 
-async function loadUtilization(f){
-  const data=await apiFetch(`/reports/utilization?from=${f.from}&to=${f.to}`);
-  const tbody=document.getElementById('util-tbody');
-  if(!data.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No data</div></div></td></tr>`;return;}
-  const totalH=data.reduce((s,r)=>s+r.total_hours,0);
-  const billH=data.reduce((s,r)=>s+r.billable_hours,0);
-  tbody.innerHTML=data.map(r=>{
-    const pct=r.total_hours?((r.billable_hours/r.total_hours)*100).toFixed(0):0;
-    const color=pct>=80?'var(--success)':pct>=50?'var(--warning)':'var(--danger)';
-    return`<tr>
-      <td><strong>${r.name}</strong></td>
-      <td>${roleBadge(r.role||'article')}</td>
-      <td><strong>${fmtHours(r.total_hours)}</strong></td>
-      <td style="color:var(--accent);">${fmtHours(r.billable_hours)}</td>
-      <td class="hide-mobile" style="color:var(--text-muted);">${fmtHours(r.non_billable_hours)}</td>
-      <td><div style="display:flex;align-items:center;gap:6px;"><div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${pct}%;background:${color};"></div></div><span style="font-size:12px;font-weight:600;">${pct}%</span></div></td>
-    </tr>`;
+function getSelectedStaffName() {
+  const sel = document.getElementById('filter-staff');
+  return sel.options[sel.selectedIndex]?.text?.split(' (')[0] || 'All Staff';
+}
+
+function updateFilterSummary() {
+  const f = getFilters();
+  const periodLabel = describePeriod(document.getElementById('period-select').value);
+  const staffName = f.staff ? getSelectedStaffName() : 'All Staff';
+  document.getElementById('range-label').textContent = periodLabel;
+  document.getElementById('range-sub').textContent = `${formatShortDate(f.from)} to ${formatShortDate(f.to)}`;
+  document.getElementById('filter-summary').textContent = `${staffName} | ${formatShortDate(f.from)} to ${formatShortDate(f.to)}`;
+}
+
+function setSyncState(text, mode = 'idle') {
+  const el = document.getElementById('report-sync');
+  el.textContent = text;
+  el.className = `report-sync ${mode}`;
+}
+
+function renderLoadingState() {
+  const loading = `<tr><td colspan="6"><div class="empty-state"><div class="empty-title">Loading report...</div><div class="empty-sub">Refreshing utilization and charts.</div></div></td></tr>`;
+  document.getElementById('util-tbody').innerHTML = loading;
+  document.getElementById('client-tbody').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-title">Loading report...</div><div class="empty-sub">Refreshing client summaries.</div></div></td></tr>`;
+  document.getElementById('detail-tbody').innerHTML = loading;
+  document.getElementById('util-tfoot').innerHTML = '';
+  document.getElementById('client-tfoot').innerHTML = '';
+  document.getElementById('insight-grid').innerHTML = `<div class="report-insight-row empty">Refreshing summary observations...</div>`;
+}
+
+function renderOverview(utilData, clientData, detailData) {
+  const totalHours = utilData.reduce((sum, row) => sum + row.total_hours, 0);
+  const billableHours = utilData.reduce((sum, row) => sum + row.billable_hours, 0);
+  const totalValue = clientData.reduce((sum, row) => sum + row.billable_value, 0);
+  const pct = totalHours ? Math.round((billableHours / totalHours) * 100) : 0;
+  const activeStaff = utilData.filter(row => row.total_hours > 0).length;
+  const activeClients = clientData.filter(row => row.total_hours > 0).length;
+  const entriesCount = detailData.length;
+  document.getElementById('overview-hours').textContent = fmtHours(totalHours);
+  document.getElementById('overview-hours-sub').textContent = `${entriesCount} entr${entriesCount === 1 ? 'y' : 'ies'} in scope`;
+  document.getElementById('overview-billable').textContent = `${pct}%`;
+  document.getElementById('overview-billable-sub').textContent = `${fmtHours(billableHours)} billable`;
+  document.getElementById('overview-value').textContent = fmtCurrency(totalValue);
+  document.getElementById('overview-value-sub').textContent = activeClients ? `${activeClients} active client${activeClients === 1 ? '' : 's'}` : 'No active billed clients';
+  document.getElementById('overview-coverage').textContent = `${activeStaff} staff`;
+  document.getElementById('overview-coverage-sub').textContent = `${activeClients} client${activeClients === 1 ? '' : 's'} represented`;
+  document.getElementById('detail-summary').textContent = `${entriesCount} approved entr${entriesCount === 1 ? 'y' : 'ies'} returned for ${document.getElementById('filter-summary').textContent}.`;
+}
+
+function renderInsights(utilData, clientData, detailData) {
+  const insights = [];
+  const busiestStaff = [...utilData].sort((a, b) => b.total_hours - a.total_hours)[0];
+  const bestClient = [...clientData].sort((a, b) => b.billable_value - a.billable_value)[0];
+  const approvedEntries = detailData.length;
+  const nonBillableHours = utilData.reduce((sum, row) => sum + row.non_billable_hours, 0);
+  if (busiestStaff && busiestStaff.total_hours > 0) insights.push({ title: 'Highest utilization', body: `${busiestStaff.name} logged ${fmtHours(busiestStaff.total_hours)} with ${fmtHours(busiestStaff.billable_hours)} marked billable.` });
+  if (bestClient && bestClient.billable_value > 0) insights.push({ title: 'Largest client contribution', body: `${bestClient.client_name} generated ${fmtCurrency(bestClient.billable_value)} from ${fmtHours(bestClient.billable_hours)} billable hours.` });
+  insights.push({ title: 'Approved coverage', body: approvedEntries ? `${approvedEntries} approved entr${approvedEntries === 1 ? 'y is' : 'ies are'} included in this reporting range.` : 'No approved entries were found in this selection.' });
+  insights.push({ title: 'Non-billable load', body: nonBillableHours ? `${fmtHours(nonBillableHours)} was logged as non-billable effort.` : 'No non-billable effort was recorded in this selection.' });
+  document.getElementById('insight-grid').innerHTML = insights.map(item => `<div class="report-insight-row"><div class="report-insight-row-title">${item.title}</div><div class="report-insight-row-body">${item.body}</div></div>`).join('');
+}
+
+async function loadUtilization(f) {
+  let url = `/reports/utilization?from=${encodeURIComponent(f.from)}&to=${encodeURIComponent(f.to)}`;
+  if (f.staff) url += `&user_id=${f.staff}`;
+  const data = (await apiFetch(url)).filter(row => (parseFloat(row.total_hours) || 0) > 0);
+  const tbody = document.getElementById('util-tbody');
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No utilization data</div><div class="empty-sub">Try widening the date range or removing the staff filter.</div></div></td></tr>`;
+    if (staffChart) staffChart.destroy();
+    if (billChart) billChart.destroy();
+    return data;
+  }
+  const totalH = data.reduce((s, r) => s + r.total_hours, 0);
+  const billH = data.reduce((s, r) => s + r.billable_hours, 0);
+  tbody.innerHTML = data.map(r => {
+    const pct = r.total_hours ? ((r.billable_hours / r.total_hours) * 100).toFixed(0) : 0;
+    const color = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+    return `<tr><td data-label="Staff"><strong>${r.name}</strong></td><td data-label="Role">${roleBadge(r.role || 'article')}</td><td data-label="Total"><strong>${fmtHours(r.total_hours)}</strong></td><td data-label="Billable" style="color:var(--accent);">${fmtHours(r.billable_hours)}</td><td data-label="Non-Billable" class="hide-mobile" style="color:var(--text-muted);">${fmtHours(r.non_billable_hours)}</td><td data-label="Utilization"><div style="display:flex;align-items:center;gap:6px;"><div class="progress-bar" style="flex:1;"><div class="progress-fill" style="width:${pct}%;background:${color};"></div></div><span style="font-size:12px;font-weight:600;">${pct}%</span></div></td></tr>`;
   }).join('');
-  document.getElementById('util-tfoot').innerHTML=`<tr><td colspan="2" style="font-weight:700;">Total</td><td><strong>${fmtHours(totalH)}</strong></td><td style="color:var(--accent);font-weight:700;">${fmtHours(billH)}</td><td colspan="2">${totalH?((billH/totalH)*100).toFixed(0):0}% billable</td></tr>`;
-  if(staffChart)staffChart.destroy();
-  if(billChart)billChart.destroy();
-  staffChart=new Chart(document.getElementById('staffChart').getContext('2d'),{type:'bar',data:{labels:data.map(r=>r.name),datasets:[{label:'Billable',data:data.map(r=>r.billable_hours),backgroundColor:'rgba(67,56,202,0.7)',borderRadius:4},{label:'Non-Billable',data:data.map(r=>r.non_billable_hours),backgroundColor:'rgba(217,119,6,0.4)',borderRadius:4}]},options:{responsive:true,plugins:{legend:{labels:{color:'#64748b'}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748b'}},y:{stacked:true,grid:{color:'#f1f5f9'},ticks:{color:'#64748b'},beginAtZero:true}}}});
-  billChart=new Chart(document.getElementById('billChart').getContext('2d'),{type:'doughnut',data:{labels:['Billable','Non-Billable'],datasets:[{data:[billH,totalH-billH],backgroundColor:['#4338ca','#f59e0b'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,plugins:{legend:{labels:{color:'#64748b'}}}}});
+  document.getElementById('util-tfoot').innerHTML = `<tr><td colspan="2" style="font-weight:700;">Total</td><td><strong>${fmtHours(totalH)}</strong></td><td style="color:var(--accent);font-weight:700;">${fmtHours(billH)}</td><td colspan="2">${totalH ? ((billH / totalH) * 100).toFixed(0) : 0}% billable</td></tr>`;
+  if (staffChart) staffChart.destroy();
+  if (billChart) billChart.destroy();
+  staffChart = new Chart(document.getElementById('staffChart').getContext('2d'), { type: 'bar', data: { labels: data.map(r => r.name), datasets: [{ label: 'Billable', data: data.map(r => r.billable_hours), backgroundColor: 'rgba(67,56,202,0.78)', borderRadius: 8, maxBarThickness: 36 }, { label: 'Non-Billable', data: data.map(r => r.non_billable_hours), backgroundColor: 'rgba(148,163,184,0.55)', borderRadius: 8, maxBarThickness: 36 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#64748b', usePointStyle: true, pointStyle: 'rectRounded' } } }, scales: { x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b' } }, y: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' }, beginAtZero: true } } } });
+  billChart = new Chart(document.getElementById('billChart').getContext('2d'), { type: 'doughnut', data: { labels: ['Billable', 'Non-Billable'], datasets: [{ data: [billH, totalH - billH], backgroundColor: ['#4338ca', '#94a3b8'], borderWidth: 0, hoverOffset: 6, cutout: '68%' }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle' } } } } });
+  return data;
 }
 
-async function loadClientReport(f){
-  const data=await apiFetch(`/reports/by-client?from=${f.from}&to=${f.to}`);
-  const tbody=document.getElementById('client-tbody');
-  if(!data.length){tbody.innerHTML=`<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No data</div></div></td></tr>`;return;}
-  const totalH=data.reduce((s,r)=>s+r.total_hours,0);
-  const totalV=data.reduce((s,r)=>s+r.billable_value,0);
-  tbody.innerHTML=data.map(r=>`<tr>
-    <td><strong>${r.client_name}</strong><div style="font-size:11px;color:var(--primary);">${r.code}</div></td>
-    <td>${fmtHours(r.total_hours)}</td>
-    <td style="color:var(--accent);">${fmtHours(r.billable_hours)}</td>
-    <td class="hide-mobile">${r.billing_rate?fmtCurrency(r.billing_rate)+'/hr':'—'}</td>
-    <td style="color:var(--success);font-weight:700;">${r.billable_value?fmtCurrency(r.billable_value):'—'}</td>
-  </tr>`).join('');
-  document.getElementById('client-tfoot').innerHTML=`<tr><td>Grand Total</td><td><strong>${fmtHours(totalH)}</strong></td><td></td><td class="hide-mobile"></td><td style="color:var(--success);font-weight:700;">${fmtCurrency(totalV)}</td></tr>`;
-  if(clientChart)clientChart.destroy();
-  const top=data.filter(r=>r.total_hours>0).slice(0,8);
-  clientChart=new Chart(document.getElementById('clientChart').getContext('2d'),{type:'bar',data:{labels:top.map(r=>r.client_name),datasets:[{label:'Total Hours',data:top.map(r=>r.total_hours),backgroundColor:'rgba(67,56,202,0.6)',borderRadius:6}]},options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'},ticks:{color:'#64748b'}},y:{grid:{display:false},ticks:{color:'#64748b'}}}}});
+async function loadClientReport(f) {
+  let url = `/reports/by-client?from=${encodeURIComponent(f.from)}&to=${encodeURIComponent(f.to)}`;
+  if (f.staff) url += `&user_id=${f.staff}`;
+  const data = (await apiFetch(url)).filter(row => (parseFloat(row.total_hours) || 0) > 0);
+  const tbody = document.getElementById('client-tbody');
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No client data</div><div class="empty-sub">No approved client hours were found for this range.</div></div></td></tr>`;
+    if (clientChart) clientChart.destroy();
+    return data;
+  }
+  const totalH = data.reduce((s, r) => s + r.total_hours, 0);
+  const totalV = data.reduce((s, r) => s + r.billable_value, 0);
+  tbody.innerHTML = data.map(r => `<tr><td data-label="Client"><strong>${r.client_name}</strong><div style="font-size:11px;color:var(--primary);">${r.code}</div></td><td data-label="Total Hours">${fmtHours(r.total_hours)}</td><td data-label="Billable Hours" style="color:var(--accent);">${fmtHours(r.billable_hours)}</td><td data-label="Rate" class="hide-mobile">${r.billing_rate ? fmtCurrency(r.billing_rate) + '/hr' : '-'}</td><td data-label="Value" style="color:var(--success);font-weight:700;">${r.billable_value ? fmtCurrency(r.billable_value) : '-'}</td></tr>`).join('');
+  document.getElementById('client-tfoot').innerHTML = `<tr><td>Grand Total</td><td><strong>${fmtHours(totalH)}</strong></td><td></td><td class="hide-mobile"></td><td style="color:var(--success);font-weight:700;">${fmtCurrency(totalV)}</td></tr>`;
+  if (clientChart) clientChart.destroy();
+  const top = data.filter(r => r.total_hours > 0).slice(0, 8);
+  clientChart = new Chart(document.getElementById('clientChart').getContext('2d'), { type: 'bar', data: { labels: top.map(r => r.client_name), datasets: [{ label: 'Total Hours', data: top.map(r => r.total_hours), backgroundColor: 'rgba(67,56,202,0.7)', borderRadius: 8 }] }, options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } }, y: { grid: { display: false }, ticks: { color: '#64748b' } } } } });
+  return data;
 }
 
-async function loadDetailEntries(f){
-  let url=`/timesheets?from=${f.from}&to=${f.to}`;
-  if(f.staff)url+=`&user_id=${f.staff}`;
-  const entries=await apiFetch(url);
-  const tbody=document.getElementById('detail-tbody');
-  if(!entries.length){tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No entries</div></div></td></tr>`;return;}
-  tbody.innerHTML=entries.map(e=>`<tr>
-    <td>${fmtDate(e.entry_date)}</td>
-    <td>${e.staff_name}</td>
-    <td class="hide-mobile" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'Internal'}</td>
-    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${e.task_type}</td>
-    <td><strong>${fmtHours(e.hours)}</strong></td>
-    <td>${statusBadge(e.status)}</td>
-  </tr>`).join('');
+async function loadDetailEntries(f) {
+  let url = `/timesheets?status=approved&from=${encodeURIComponent(f.from)}&to=${encodeURIComponent(f.to)}`;
+  if (f.staff) url += `&user_id=${f.staff}`;
+  const entries = await apiFetch(url);
+  const tbody = document.getElementById('detail-tbody');
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No approved entries</div><div class="empty-sub">No approved timesheet entries were found for this filter.</div></div></td></tr>`;
+    return entries;
+  }
+  tbody.innerHTML = entries.map(e => `<tr><td data-label="Date">${fmtDate(e.entry_date)}</td><td data-label="Staff">${e.staff_name}</td><td data-label="Client" class="hide-mobile" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name || 'Internal'}</td><td data-label="Task" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${e.task_type}</td><td data-label="Hours"><strong>${fmtHours(e.hours)}</strong></td><td data-label="Status">${statusBadge(e.status)}</td></tr>`).join('');
+  return entries;
 }
 
-async function loadAll(){const f=getFilters();loadUtilization(f);loadClientReport(f);loadDetailEntries(f);}
-
-function exportCSV(){
-  const f=getFilters();
-  let url=`/api/reports/export?from=${f.from}&to=${f.to}&token=${getToken()}`;
-  if(f.staff)url+=`&user_id=${f.staff}`;
-  window.open(url,'_blank');
+async function loadAll() {
+  const f = getFilters();
+  if (!f.from || !f.to) { toast('Please select a valid date range.', 'error'); return; }
+  updateFilterSummary();
+  renderLoadingState();
+  setSyncState('Refreshing...', 'loading');
+  const loadId = ++activeLoadId;
+  try {
+    const [utilData, clientData, detailData] = await Promise.all([loadUtilization(f), loadClientReport(f), loadDetailEntries(f)]);
+    if (loadId !== activeLoadId) return;
+    renderOverview(utilData || [], clientData || [], detailData || []);
+    renderInsights(utilData || [], clientData || [], detailData || []);
+    setSyncState(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
+  } catch (e) {
+    if (loadId !== activeLoadId) return;
+    setSyncState('Refresh failed', 'error');
+    toast(e.message || 'Unable to load reports right now.', 'error');
+  }
 }
 
-function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
-function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+function resetFilters() {
+  document.getElementById('period-select').value = 'this-month';
+  document.getElementById('filter-staff').value = '';
+  applyPeriod();
+  loadAll();
+}
+
+function exportCSV() {
+  if (!hasPermission('reports.export')) { toast('Export access required', 'error'); return; }
+  const f = getFilters();
+  let url = `/api/reports/export?from=${f.from}&to=${f.to}&token=${getToken()}`;
+  if (f.staff) url += `&user_id=${f.staff}`;
+  window.open(url, '_blank');
+}
+
+function openSidebar() {
+  document.getElementById('sidebar-el').classList.add('open');
+  document.getElementById('sb-overlay').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar-el').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('open');
+}
 
 applyPeriod();
-loadFilters().then(loadAll);
+document.getElementById('filter-staff').addEventListener('change', updateFilterSummary);
+document.getElementById('filter-from').addEventListener('change', updateFilterSummary);
+document.getElementById('filter-to').addEventListener('change', updateFilterSummary);
+loadFilters().then(() => { updateFilterSummary(); loadAll(); });
 </script>
 </body>
 </html>
+
+
+
