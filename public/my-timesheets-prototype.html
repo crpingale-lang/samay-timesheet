@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Timesheet Prototype - Samay</title>
+  <title>Redirecting - Samay</title>
+  <meta http-equiv="refresh" content="0; url=/timesheet.html">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
 </head>
 <body>
+<script>
+window.location.replace('/timesheet.html');
+</script>
 <div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
 <div class="app-shell">
   <aside class="sidebar" id="sidebar-el"></aside>
@@ -182,11 +186,11 @@
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">From</label>
-        <input class="form-control" type="time" id="modal-start-time" oninput="syncModalHoursFromTime()">
+        <input class="form-control time-text-input" type="text" id="modal-start-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-start-time')" onblur="finalizeModalTimeField('modal-start-time')">
       </div>
       <div class="form-group">
         <label class="form-label">To</label>
-        <input class="form-control" type="time" id="modal-end-time" oninput="syncModalHoursFromTime()">
+        <input class="form-control time-text-input" type="text" id="modal-end-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-end-time')" onblur="finalizeModalTimeField('modal-end-time')">
       </div>
     </div>
     <div class="form-group" style="margin-top:12px;">
@@ -253,6 +257,71 @@ function isoDate(d) {
 
 function fmtDayLabel(dateStr) {
   return toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function timeStringToMinutes(value) {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function formatTypedTimeValue(value, finalize = false) {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (!digits) return '';
+
+  if (!finalize) {
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  }
+
+  let hoursDigits = '';
+  let minuteDigits = '';
+  if (digits.length <= 2) {
+    hoursDigits = digits;
+  } else if (digits.length === 3) {
+    hoursDigits = digits.slice(0, 1);
+    minuteDigits = digits.slice(1);
+  } else {
+    hoursDigits = digits.slice(0, 2);
+    minuteDigits = digits.slice(2);
+  }
+
+  if (hoursDigits === '') return '';
+  const hours = Number(hoursDigits);
+  const minutes = minuteDigits === '' ? 0 : Number(minuteDigits);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function handleModalTimeFieldInput(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  input.value = formatTypedTimeValue(input.value, false);
+  input.setCustomValidity('');
+  syncModalHoursFromTime();
+}
+
+function finalizeModalTimeField(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  if (!input.value) {
+    input.setCustomValidity('');
+    syncModalHoursFromTime();
+    return;
+  }
+
+  const normalized = formatTypedTimeValue(input.value, true);
+  if (!normalized) {
+    input.setCustomValidity('Enter time as HH:MM');
+    input.reportValidity();
+    return;
+  }
+
+  input.value = normalized;
+  input.setCustomValidity('');
+  syncModalHoursFromTime();
 }
 
 function weekRangeFromAnchor(anchor) {
@@ -380,9 +449,9 @@ function renderDailyRows() {
 
 function renderDailyMetrics() {
   const stats = dayStats(getSelectedDayEntries());
-  document.getElementById('metric-day-total').textContent = stats.total.toFixed(1);
-  document.getElementById('metric-client-work').textContent = stats.clientWork.toFixed(1);
-  document.getElementById('metric-other-work').textContent = stats.otherWork.toFixed(1);
+  document.getElementById('metric-day-total').textContent = fmtHours(stats.total);
+  document.getElementById('metric-client-work').textContent = fmtHours(stats.clientWork);
+  document.getElementById('metric-other-work').textContent = fmtHours(stats.otherWork);
   document.getElementById('metric-count').textContent = stats.count;
 }
 
@@ -395,7 +464,7 @@ function renderWeeklySummary() {
       <button class="proto-week-card ${dateStr === selectedDate ? 'active' : ''}" onclick="setSelectedDate('${dateStr}'); switchView('daily');">
         <div class="proto-week-card-top">${toDateObj(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })}</div>
         <div class="proto-week-card-date">${toDateObj(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>
-        <div class="proto-week-card-value">${stats.total.toFixed(1)}h</div>
+        <div class="proto-week-card-value">${fmtHours(stats.total)}</div>
         <div class="proto-week-card-sub">${stats.count} entries • ${dayStatusLabel(stats)}</div>
       </button>
     `;
@@ -473,14 +542,20 @@ function syncModalHoursFromTime() {
   const from = document.getElementById('modal-start-time').value;
   const to = document.getElementById('modal-end-time').value;
   if (!from || !to) return;
-  const start = new Date(`2000-01-01T${from}`);
-  const end = new Date(`2000-01-01T${to}`);
-  let diff = (end - start) / 3600000;
-  if (diff < 0) diff += 24;
+  const start = timeStringToMinutes(from);
+  const end = timeStringToMinutes(to);
+  if (start == null || end == null) return;
+  const diff = (end - start) / 60;
+  if (diff <= 0) {
+    document.getElementById('modal-hours').value = '';
+    return;
+  }
   document.getElementById('modal-hours').value = diff.toFixed(2).replace(/\.00$/, '');
 }
 
 function modalPayload() {
+  finalizeModalTimeField('modal-start-time');
+  finalizeModalTimeField('modal-end-time');
   const clientText = document.getElementById('modal-client-search').value;
   const matchedClient = allClientsStore.find(c => `${c.name} [${c.code}]` === clientText);
   return {
