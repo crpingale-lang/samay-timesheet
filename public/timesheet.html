@@ -421,70 +421,109 @@ function applyModalTimeInputLimits() {
   }
 }
 
-function formatTypedTimeValue(value, finalize = false) {
-  const raw = String(value || '').trim();
-  const digits = raw.replace(/\D/g, '').slice(0, 4);
-  if (!digits) return '';
-
-  if (!finalize) {
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-  }
-
-  let hoursDigits = '';
-  let minuteDigits = '';
-  if (digits.length <= 2) {
-    hoursDigits = digits;
-  } else if (digits.length === 3) {
-    hoursDigits = digits.slice(0, 1);
-    minuteDigits = digits.slice(1);
-  } else {
-    hoursDigits = digits.slice(0, 2);
-    minuteDigits = digits.slice(2);
-  }
-
-  if (hoursDigits === '') return '';
-  const hours = Number(hoursDigits);
-  const minutes = minuteDigits === '' ? 0 : Number(minuteDigits);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) return null;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+function formatTimeDigits(digits) {
+  const value = String(digits || '').replace(/\D/g, '').slice(0, 4);
+  if (!value) return '';
+  if (value.length <= 2) return value;
+  return `${value.slice(0, 2)}:${value.slice(2)}`;
 }
 
-function clampTimeStringToInputLimit(value, inputEl) {
-  const minutes = timeStringToMinutes(value);
-  const maxMinutes = timeStringToMinutes(inputEl?.dataset.maxTime || '');
-  if (minutes == null) return value;
-  if (maxMinutes != null && minutes > maxMinutes) return inputEl.dataset.maxTime;
-  return value;
-}
-
-function handleModalTimeFieldInput(fieldId) {
+function initializeModalTimeField(fieldId) {
   const input = document.getElementById(fieldId);
   if (!input) return;
-  input.value = formatTypedTimeValue(input.value, false);
+  input.dataset.timeDigits = String(input.value || '').replace(/\D/g, '').slice(0, 4);
+}
+
+function applyModalTimeFieldDigits(fieldId, digits) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  const normalizedDigits = String(digits || '').replace(/\D/g, '').slice(0, 4);
+  input.dataset.timeDigits = normalizedDigits;
+  input.value = formatTimeDigits(normalizedDigits);
+  input.setSelectionRange(input.value.length, input.value.length);
   input.setCustomValidity('');
   syncModalHoursFromTime();
   renderModalTimeline();
 }
 
+function handleModalTimeFieldKeydown(event, fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input || input.disabled) return false;
+  if (!input.dataset.timeDigits) initializeModalTimeField(fieldId);
+
+  if (event.key >= '0' && event.key <= '9') {
+    event.preventDefault();
+    applyModalTimeFieldDigits(fieldId, `${input.dataset.timeDigits || ''}${event.key}`);
+    return false;
+  }
+
+  if (event.key === 'Backspace') {
+    event.preventDefault();
+    applyModalTimeFieldDigits(fieldId, String(input.dataset.timeDigits || '').slice(0, -1));
+    return false;
+  }
+
+  if (event.key === 'Delete') {
+    event.preventDefault();
+    applyModalTimeFieldDigits(fieldId, '');
+    return false;
+  }
+
+  if (['Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter'].includes(event.key)) {
+    return true;
+  }
+
+  if (event.key === ':') {
+    event.preventDefault();
+    return false;
+  }
+
+  if (event.ctrlKey || event.metaKey) return true;
+  event.preventDefault();
+  return false;
+}
+
+function handleModalTimeFieldPaste(event, fieldId) {
+  event.preventDefault();
+  const pasted = event.clipboardData?.getData('text') || '';
+  applyModalTimeFieldDigits(fieldId, pasted);
+}
+
 function finalizeModalTimeField(fieldId) {
   const input = document.getElementById(fieldId);
   if (!input) return;
-  if (!input.value) {
+  const digits = String(input.dataset.timeDigits || input.value || '').replace(/\D/g, '').slice(0, 4);
+  if (!digits) {
+    input.value = '';
+    input.dataset.timeDigits = '';
     input.setCustomValidity('');
     syncModalHoursFromTime();
     renderModalTimeline();
     return;
   }
 
-  const normalized = formatTypedTimeValue(input.value, true);
-  if (!normalized) {
+  if (digits.length < 3) {
     input.setCustomValidity('Enter time as HH:MM');
     input.reportValidity();
     return;
   }
 
-  input.value = clampTimeStringToInputLimit(normalized, input);
+  const hours = Number(digits.slice(0, 2));
+  const minutes = Number(digits.slice(2).padEnd(2, '0'));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) {
+    input.setCustomValidity('Enter time as HH:MM');
+    input.reportValidity();
+    return;
+  }
+
+  let normalized = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  const maxMinutes = timeStringToMinutes(input.dataset.maxTime || '');
+  if (maxMinutes != null && timeStringToMinutes(normalized) > maxMinutes) {
+    normalized = input.dataset.maxTime;
+  }
+
+  input.value = normalized;
+  input.dataset.timeDigits = normalized.replace(/\D/g, '');
   input.setCustomValidity('');
   syncModalHoursFromTime();
   renderModalTimeline();
@@ -800,6 +839,8 @@ function setModalTimelineRange(dateStr, startMinutes, endMinutes) {
   document.getElementById('modal-date').value = dateStr;
   startInput.value = minutesToTimeString(safeStart);
   endInput.value = minutesToTimeString(safeEnd);
+  startInput.dataset.timeDigits = startInput.value.replace(/\D/g, '');
+  endInput.dataset.timeDigits = endInput.value.replace(/\D/g, '');
   syncModalHoursFromTime();
   renderModalTimeline();
 }
@@ -1137,6 +1178,8 @@ function prefillModal(entry = null) {
   document.getElementById('modal-description').value = entry?.description || '';
   document.getElementById('modal-start-time').value = entry?.start_time || '';
   document.getElementById('modal-end-time').value = entry?.end_time || '';
+  document.getElementById('modal-start-time').dataset.timeDigits = (entry?.start_time || '').replace(/\D/g, '');
+  document.getElementById('modal-end-time').dataset.timeDigits = (entry?.end_time || '').replace(/\D/g, '');
   document.getElementById('modal-hours').value = entry?.hours || '';
   document.getElementById('modal-work-classification').value = normalizeWorkClassification(entry?.work_classification, entry?.billable);
   document.getElementById('modal-status').innerHTML = statusBadge(entry?.status || 'draft');
