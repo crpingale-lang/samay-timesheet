@@ -89,13 +89,13 @@
           <div class="stats-grid report-stats">
             <div class="stat-card indigo">
               <div class="stat-label">Approved Hours</div>
-              <div class="stat-value" id="overview-hours">0.0 hrs</div>
+              <div class="stat-value" id="overview-hours">00:00</div>
               <div class="stat-sub" id="overview-hours-sub">Across the selected range</div>
             </div>
             <div class="stat-card amber">
               <div class="stat-label">Billable Mix</div>
               <div class="stat-value" id="overview-billable">0%</div>
-              <div class="stat-sub" id="overview-billable-sub">0.0 hrs billable</div>
+              <div class="stat-sub" id="overview-billable-sub">00:00 billable</div>
             </div>
             <div class="stat-card green">
               <div class="stat-label">Realizable Value</div>
@@ -368,7 +368,39 @@ async function loadUtilization(f) {
   document.getElementById('util-tfoot').innerHTML = `<tr><td colspan="2" style="font-weight:700;">Total</td><td><strong>${fmtHours(totalH)}</strong></td><td style="color:var(--accent);font-weight:700;">${fmtHours(billH)}</td><td colspan="2">${totalH ? ((billH / totalH) * 100).toFixed(0) : 0}% billable</td></tr>`;
   if (staffChart) staffChart.destroy();
   if (billChart) billChart.destroy();
-  staffChart = new Chart(document.getElementById('staffChart').getContext('2d'), { type: 'bar', data: { labels: data.map(r => r.name), datasets: [{ label: 'Billable', data: data.map(r => r.billable_hours), backgroundColor: 'rgba(67,56,202,0.78)', borderRadius: 8, maxBarThickness: 36 }, { label: 'Non-Billable', data: data.map(r => r.non_billable_hours), backgroundColor: 'rgba(148,163,184,0.55)', borderRadius: 8, maxBarThickness: 36 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#64748b', usePointStyle: true, pointStyle: 'rectRounded' } } }, scales: { x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b' } }, y: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' }, beginAtZero: true } } } });
+  staffChart = new Chart(document.getElementById('staffChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.map(r => r.name),
+      datasets: [
+        { label: 'Billable', data: data.map(r => r.billable_hours), backgroundColor: 'rgba(67,56,202,0.78)', borderRadius: 8, maxBarThickness: 36 },
+        { label: 'Non-Billable', data: data.map(r => r.non_billable_hours), backgroundColor: 'rgba(148,163,184,0.55)', borderRadius: 8, maxBarThickness: 36 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#64748b', usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: {
+          callbacks: {
+            label: context => `${context.dataset.label}: ${fmtHours(context.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b' } },
+        y: {
+          stacked: true,
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            color: '#64748b',
+            callback: value => fmtHours(value)
+          },
+          beginAtZero: true
+        }
+      }
+    }
+  });
   billChart = new Chart(document.getElementById('billChart').getContext('2d'), { type: 'doughnut', data: { labels: ['Billable', 'Non-Billable'], datasets: [{ data: [billH, totalH - billH], backgroundColor: ['#4338ca', '#94a3b8'], borderWidth: 0, hoverOffset: 6, cutout: '68%' }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle' } } } } });
   return data;
 }
@@ -389,7 +421,35 @@ async function loadClientReport(f) {
   document.getElementById('client-tfoot').innerHTML = `<tr><td>Grand Total</td><td><strong>${fmtHours(totalH)}</strong></td><td></td><td class="hide-mobile"></td><td style="color:var(--success);font-weight:700;">${fmtCurrency(totalV)}</td></tr>`;
   if (clientChart) clientChart.destroy();
   const top = data.filter(r => r.total_hours > 0).slice(0, 8);
-  clientChart = new Chart(document.getElementById('clientChart').getContext('2d'), { type: 'bar', data: { labels: top.map(r => r.client_name), datasets: [{ label: 'Total Hours', data: top.map(r => r.total_hours), backgroundColor: 'rgba(67,56,202,0.7)', borderRadius: 8 }] }, options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } }, y: { grid: { display: false }, ticks: { color: '#64748b' } } } } });
+  clientChart = new Chart(document.getElementById('clientChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top.map(r => r.client_name),
+      datasets: [{ label: 'Total Hours', data: top.map(r => r.total_hours), backgroundColor: 'rgba(67,56,202,0.7)', borderRadius: 8 }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: context => fmtHours(context.parsed.x)
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            color: '#64748b',
+            callback: value => fmtHours(value)
+          }
+        },
+        y: { grid: { display: false }, ticks: { color: '#64748b' } }
+      }
+    }
+  });
   return data;
 }
 

@@ -115,17 +115,17 @@
         <div class="proto-metrics">
           <div class="proto-metric">
             <div class="proto-metric-label">Today's Hours</div>
-            <div class="proto-metric-value" id="metric-day-total">0.0</div>
+            <div class="proto-metric-value" id="metric-day-total">00:00</div>
             <div class="proto-metric-sub">total logged</div>
           </div>
           <div class="proto-metric">
             <div class="proto-metric-label">Client Work</div>
-            <div class="proto-metric-value" id="metric-client-work">0.0</div>
+            <div class="proto-metric-value" id="metric-client-work">00:00</div>
             <div class="proto-metric-sub">client-facing work</div>
           </div>
           <div class="proto-metric">
             <div class="proto-metric-label">Other Work</div>
-            <div class="proto-metric-value" id="metric-other-work">0.0</div>
+            <div class="proto-metric-value" id="metric-other-work">00:00</div>
             <div class="proto-metric-sub">internal / admin / learning</div>
           </div>
           <div class="proto-metric">
@@ -206,11 +206,11 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">From</label>
-            <input class="form-control" type="time" id="modal-start-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
+            <input class="form-control time-text-input" type="text" id="modal-start-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-start-time')" onblur="finalizeModalTimeField('modal-start-time')">
           </div>
           <div class="form-group">
             <label class="form-label">To</label>
-            <input class="form-control" type="time" id="modal-end-time" oninput="syncModalHoursFromTime(); renderModalTimeline();">
+            <input class="form-control time-text-input" type="text" id="modal-end-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-end-time')" onblur="finalizeModalTimeField('modal-end-time')">
           </div>
         </div>
         <div class="time-adjust-panel">
@@ -413,12 +413,81 @@ function applyModalTimeInputLimits() {
   const maxTime = `${String(Math.floor(current.minutes / 60)).padStart(2, '0')}:${String(current.minutes % 60).padStart(2, '0')}`;
 
   if (dateStr === current.date) {
-    startInput.max = maxTime;
-    endInput.max = maxTime;
+    startInput.dataset.maxTime = maxTime;
+    endInput.dataset.maxTime = maxTime;
   } else {
-    startInput.removeAttribute('max');
-    endInput.removeAttribute('max');
+    delete startInput.dataset.maxTime;
+    delete endInput.dataset.maxTime;
   }
+}
+
+function formatTypedTimeValue(value, finalize = false) {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (!digits) return '';
+
+  if (!finalize) {
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  }
+
+  let hoursDigits = '';
+  let minuteDigits = '';
+  if (digits.length <= 2) {
+    hoursDigits = digits;
+  } else if (digits.length === 3) {
+    hoursDigits = digits.slice(0, 1);
+    minuteDigits = digits.slice(1);
+  } else {
+    hoursDigits = digits.slice(0, 2);
+    minuteDigits = digits.slice(2);
+  }
+
+  if (hoursDigits === '') return '';
+  const hours = Number(hoursDigits);
+  const minutes = minuteDigits === '' ? 0 : Number(minuteDigits);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function clampTimeStringToInputLimit(value, inputEl) {
+  const minutes = timeStringToMinutes(value);
+  const maxMinutes = timeStringToMinutes(inputEl?.dataset.maxTime || '');
+  if (minutes == null) return value;
+  if (maxMinutes != null && minutes > maxMinutes) return inputEl.dataset.maxTime;
+  return value;
+}
+
+function handleModalTimeFieldInput(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  input.value = formatTypedTimeValue(input.value, false);
+  input.setCustomValidity('');
+  syncModalHoursFromTime();
+  renderModalTimeline();
+}
+
+function finalizeModalTimeField(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  if (!input.value) {
+    input.setCustomValidity('');
+    syncModalHoursFromTime();
+    renderModalTimeline();
+    return;
+  }
+
+  const normalized = formatTypedTimeValue(input.value, true);
+  if (!normalized) {
+    input.setCustomValidity('Enter time as HH:MM');
+    input.reportValidity();
+    return;
+  }
+
+  input.value = clampTimeStringToInputLimit(normalized, input);
+  input.setCustomValidity('');
+  syncModalHoursFromTime();
+  renderModalTimeline();
 }
 
 function toDateObj(dateStr) {
@@ -436,6 +505,7 @@ function fmtDayLabel(dateStr) {
 function timeStringToMinutes(value) {
   if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
   const [hours, minutes] = value.split(':').map(Number);
+  if (hours > 23 || minutes > 59) return null;
   return hours * 60 + minutes;
 }
 
@@ -717,12 +787,19 @@ function formatTimelineRange(startMinutes, endMinutes) {
 }
 
 function setModalTimelineRange(dateStr, startMinutes, endMinutes) {
-  if (document.getElementById('modal-start-time').disabled) return;
-  const safeStart = clampTimelineMinutes(startMinutes);
-  const safeEnd = clampTimelineMinutes(Math.max(endMinutes, safeStart + TIMELINE_DRAG_STEP));
+  const startInput = document.getElementById('modal-start-time');
+  const endInput = document.getElementById('modal-end-time');
+  if (startInput.disabled) return;
+  let safeStart = clampTimelineMinutes(startMinutes);
+  let safeEnd = clampTimelineMinutes(Math.max(endMinutes, safeStart + TIMELINE_DRAG_STEP));
+  const maxMinutes = timeStringToMinutes(startInput.dataset.maxTime || endInput.dataset.maxTime || '');
+  if (maxMinutes != null) {
+    safeEnd = Math.min(safeEnd, maxMinutes);
+    safeStart = Math.min(safeStart, Math.max(TIMELINE_START, safeEnd - TIMELINE_DRAG_STEP));
+  }
   document.getElementById('modal-date').value = dateStr;
-  document.getElementById('modal-start-time').value = minutesToTimeString(safeStart);
-  document.getElementById('modal-end-time').value = minutesToTimeString(safeEnd);
+  startInput.value = minutesToTimeString(safeStart);
+  endInput.value = minutesToTimeString(safeEnd);
   syncModalHoursFromTime();
   renderModalTimeline();
 }
@@ -808,14 +885,9 @@ function timelineBarInnerHtml(segment, isModalTimeline, density = 'full') {
   const timeText = density === 'tight'
     ? minutesToTimeString(segment.startMinutes)
     : formatTimelineRange(segment.startMinutes, segment.endMinutes);
-  const isTouchTimeline = isModalTimeline && window.matchMedia('(max-width: 768px)').matches;
 
   if (density === 'full') pieces.push(label);
   pieces.push(`<span class="timeline-entry-time">${timeText}</span>`);
-  if (isModalTimeline && !isTouchTimeline && segment.state === 'draft') {
-    pieces.push('<span class="timeline-handle start" data-action="resize-start" aria-label="Adjust start time"></span>');
-    pieces.push('<span class="timeline-handle end" data-action="resize-end" aria-label="Adjust end time"></span>');
-  }
   return pieces.join('');
 }
 
@@ -839,24 +911,7 @@ function beginTimelineDrag(event, mode, dateStr, trackEl) {
 }
 
 function handleTimelinePointerDown(event, containerId) {
-  if (containerId !== 'modal-day-timeline' || document.getElementById('modal-start-time').disabled) return;
-  if (window.matchMedia('(max-width: 768px)').matches) return;
-  const trackEl = event.currentTarget;
-  const dateStr = trackEl.dataset.date;
-  const actionTarget = event.target.closest('[data-action]');
-  if (actionTarget) {
-    beginTimelineDrag(event, actionTarget.dataset.action, dateStr, trackEl);
-    return;
-  }
-  if (event.target.closest('.timeline-entry-bar')) return;
-
-  const rect = trackEl.getBoundingClientRect();
-  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-  const rawMinutes = TIMELINE_START + ((TIMELINE_END - TIMELINE_START) * ratio);
-  const maxStart = TIMELINE_END - TIMELINE_CREATE_STEP;
-  const startMinutes = Math.min(snapTimelineMinutes(rawMinutes, TIMELINE_DRAG_STEP, 'floor'), maxStart);
-  const endMinutes = startMinutes + TIMELINE_CREATE_STEP;
-  setModalTimelineRange(dateStr, startMinutes, endMinutes);
+  return;
 }
 
 function handleTimelinePointerMove(event) {
@@ -921,8 +976,7 @@ function renderTimeline(containerId, dateStr, draftEntry = null, excludedId = nu
     const density = timelineBarDensity(width);
     const tooltip = `${formatTimelineRange(segment.startMinutes, segment.endMinutes)}\n${segment.tooltip}`;
     const extraClass = `${segment.state === 'draft' ? 'is-draft' : 'is-booked'} density-${density}`;
-    const action = isModalTimeline && segment.state === 'draft' ? ' data-action="move-draft"' : '';
-    return `<div class="timeline-entry-bar tone-${segment.tone} ${extraClass}" style="top:${top}px;left:${left}%;width:${width}%;" data-tooltip="${escapeHtml(tooltip)}"${action} aria-label="${escapeHtml(tooltip)}">${timelineBarInnerHtml(segment, isModalTimeline, density)}</div>`;
+    return `<div class="timeline-entry-bar tone-${segment.tone} ${extraClass}" style="top:${top}px;left:${left}%;width:${width}%;" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">${timelineBarInnerHtml(segment, isModalTimeline, density)}</div>`;
   }).join('');
   const labelsHtml = labels.map(item => {
     const offset = ((item.minute - TIMELINE_START) / (TIMELINE_END - TIMELINE_START)) * 100;
@@ -1153,9 +1207,10 @@ function syncModalHoursFromTime() {
   const from = document.getElementById('modal-start-time').value;
   const to = document.getElementById('modal-end-time').value;
   if (!from || !to) return;
-  const start = new Date(`2000-01-01T${from}`);
-  const end = new Date(`2000-01-01T${to}`);
-  const diff = (end - start) / 3600000;
+  const startMinutes = timeStringToMinutes(from);
+  const endMinutes = timeStringToMinutes(to);
+  if (startMinutes == null || endMinutes == null) return;
+  const diff = (endMinutes - startMinutes) / 60;
   if (diff <= 0) {
     document.getElementById('modal-hours').value = '';
     return;
@@ -1179,7 +1234,7 @@ function updateModalGuidance() {
 
   if (start && end) scheduleNote.textContent = 'Timeline and hours are linked. Adjust either one and the preview will stay in sync.';
   else if (hours) scheduleNote.textContent = 'Hours are set. Add start and end time too if you want a clearer day timeline.';
-  else scheduleNote.textContent = 'Set a start and end time for the clearest timeline. You can also enter hours directly for quick logging.';
+  else scheduleNote.textContent = 'Type time in HH:MM, for example 09:30 or 12:45. You can also enter hours directly for quick logging.';
 
   if (!isSavedEntry) statusNote.textContent = 'New entries start as drafts until you save and submit them.';
   else if (isApproved) statusNote.textContent = 'Approved entries are locked to protect the submitted record.';
@@ -1194,6 +1249,13 @@ function updateModalGuidance() {
 function validateModalTimeline(payload, currentId = '') {
   if ((payload.start_time && !payload.end_time) || (!payload.start_time && payload.end_time)) {
     return 'Both start time and end time are required together';
+  }
+
+  if (payload.start_time && timeStringToMinutes(payload.start_time) == null) {
+    return 'From time must be entered as HH:MM';
+  }
+  if (payload.end_time && timeStringToMinutes(payload.end_time) == null) {
+    return 'To time must be entered as HH:MM';
   }
 
   const startFutureError = futureTimeError(payload.entry_date, payload.start_time, 'From');
@@ -1223,6 +1285,8 @@ function validateModalTimeline(payload, currentId = '') {
 }
 
 function modalPayload() {
+  finalizeModalTimeField('modal-start-time');
+  finalizeModalTimeField('modal-end-time');
   const clientText = document.getElementById('modal-client-search').value;
   const matchedClient = allClientsStore.find(c => `${c.name} [${c.code}]` === clientText);
   return {

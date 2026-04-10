@@ -724,7 +724,12 @@ function bootMobileListPickers(root = document) {
 
 // Format helpers
 function fmtDate(d) { if (!d) return '-'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
-function fmtHours(h) { return (parseFloat(h)||0).toFixed(1)+' hrs'; }
+function fmtHours(h) {
+  const totalMinutes = Math.max(0, Math.round((parseFloat(h) || 0) * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 function fmtCurrency(v) { return 'Rs ' + (parseFloat(v)||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0}); }
 
 const MASTER_DATA_CACHE_KEY = 'ts_master_data_cache';

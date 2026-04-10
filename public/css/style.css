@@ -499,6 +499,10 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
   color: var(--text-muted);
   line-height: 1.5;
 }
+.time-text-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
 .field-inline-meta {
   display: flex;
   align-items: flex-start;
@@ -1027,13 +1031,13 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
 }
 .day-timeline-wrap {
   position: relative;
-  padding-top: 18px;
+  padding-top: 24px;
   overflow-x: clip;
 }
 .day-timeline-labels {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 16px;
+  height: 20px;
   overflow: hidden;
 }
 .day-timeline {
@@ -1043,22 +1047,22 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
 .day-timeline-track {
   position: relative;
   min-height: inherit;
-  border-radius: 20px;
+  border-radius: 16px;
   background:
     repeating-linear-gradient(
       90deg,
-      rgba(255,255,255,0.28) 0,
-      rgba(255,255,255,0.28) calc((100% / 44) - 1px),
-      rgba(255,255,255,0.9) calc((100% / 44) - 1px),
-      rgba(255,255,255,0.9) calc(100% / 44)
+      rgba(255,255,255,0.2) 0,
+      rgba(255,255,255,0.2) calc((100% / 22) - 1px),
+      rgba(255,255,255,0.82) calc((100% / 22) - 1px),
+      rgba(255,255,255,0.82) calc(100% / 22)
     ),
-    #dbe4f0;
-  box-shadow: inset 0 0 0 1px #cbd5e1;
+    linear-gradient(180deg, #e2e8f0, #cbd5e1);
+  box-shadow: inset 0 0 0 1px #cbd5e1, inset 0 10px 20px rgba(255,255,255,0.22);
 }
 .day-timeline-track.is-modal {
-  cursor: crosshair;
-  touch-action: none;
-  min-height: 34px;
+  cursor: default;
+  touch-action: pan-y;
+  min-height: 56px;
 }
 .day-timeline-shell,
 #modal-day-timeline,
@@ -1067,37 +1071,34 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
 }
 .timeline-entry-bar {
   position: absolute;
-  min-height: 24px;
-  border-radius: 999px;
+  min-height: 36px;
+  border-radius: 12px;
   border: none;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 10px;
-  font-size: 10px;
+  padding: 0 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.2px;
   line-height: 1;
   overflow: hidden;
   transform: translateY(0);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
-  box-shadow: 0 5px 12px rgba(37, 99, 235, 0.16);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
 }
 .timeline-entry-bar:hover {
-  transform: translateY(-1px);
+  transform: none;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
 }
 .timeline-entry-bar.is-booked {
   cursor: default;
 }
 .timeline-entry-bar.is-draft {
-  cursor: grab;
+  cursor: default;
   box-shadow: 0 8px 18px rgba(124, 58, 237, 0.2), inset 0 0 0 1px rgba(255,255,255,0.36);
-}
-.timeline-entry-bar.is-dragging {
-  cursor: grabbing;
 }
 .timeline-entry-bar.tone-client {
   background: linear-gradient(90deg, #2563eb, #60a5fa);
@@ -1177,7 +1178,7 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
   position: absolute;
   top: 0;
   transform: translateX(-50%);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-faint);
   white-space: nowrap;
@@ -2318,19 +2319,19 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
     align-items: flex-start;
   }
   .day-timeline-wrap {
-    padding-top: 22px;
+    padding-top: 24px;
   }
   .day-timeline-label {
-    font-size: 9px;
+    font-size: 10px;
   }
   .timeline-entry-bar {
-    min-height: 22px;
+    min-height: 30px;
     padding-inline: 8px;
     gap: 5px;
-    font-size: 9px;
+    font-size: 10px;
   }
   .timeline-entry-time {
-    font-size: 8.5px;
+    font-size: 9px;
   }
   .timeline-entry-bar.density-compact {
     padding-inline: 7px;
@@ -2444,11 +2445,14 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
     flex: 1 1 calc(50% - 8px);
   }
   .day-timeline-track.is-modal {
-    min-height: 42px;
+    min-height: 60px;
     touch-action: pan-y;
   }
   .timeline-entry-bar {
-    min-height: 28px;
+    min-height: 34px;
+  }
+  .time-text-input {
+    font-size: 16px;
   }
   .mobile-list-picker-overlay {
     align-items: stretch;

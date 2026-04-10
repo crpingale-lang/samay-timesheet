@@ -130,7 +130,27 @@ function renderWeekChart(dayHours) {
   weekChart = new Chart(document.getElementById('weekChart').getContext('2d'), {
     type: 'bar',
     data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label: 'Hours', data: dayHours, backgroundColor: 'rgba(67,56,202,0.15)', borderColor: '#4338ca', borderWidth: 2, borderRadius: 6 }] },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#f1f5f9' }, beginAtZero: true } } }
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: context => fmtHours(context.parsed.y)
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          grid: { color: '#f1f5f9' },
+          beginAtZero: true,
+          ticks: {
+            callback: value => fmtHours(value)
+          }
+        }
+      }
+    }
   });
 }
 
