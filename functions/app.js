@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const staffRoutes = require('./routes/staff');
 const clientRoutes = require('./routes/clients');
 const masterDataRoutes = require('./routes/master-data');
+const attendanceRoutes = require('./routes/attendance');
 const timesheetRoutes = require('./routes/timesheets');
 const reportRoutes = require('./routes/reports');
 
@@ -88,6 +89,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/staff', authMiddleware, staffRoutes);
 app.use('/api/clients', authMiddleware, clientRoutes);
 app.use('/api/master-data', authMiddleware, masterDataRoutes);
+app.use('/api/attendance', authMiddleware, attendanceRoutes);
 app.use('/api/timesheets', authMiddleware, timesheetRoutes);
 app.use('/api/reports', authMiddleware, managerOrAbove, reportRoutes);
 
