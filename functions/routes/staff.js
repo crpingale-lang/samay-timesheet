@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db, admin } = require('../db');
-const { getUsersMap, invalidateCache } = require('../data-cache');
+const { getUsersMap, invalidateCache, invalidateCacheByPrefix } = require('../data-cache');
 const bcrypt = require('bcryptjs');
 
 const APP_PERMISSION_GROUPS = [
@@ -37,6 +37,15 @@ const APP_PERMISSION_GROUPS = [
       { key: 'timesheets.delete_own', label: 'Delete Own' },
       { key: 'timesheets.submit_own', label: 'Submit Own' },
       { key: 'timesheets.view_all', label: 'View All' }
+    ]
+  },
+  {
+    key: 'attendance',
+    label: 'Attendance',
+    permissions: [
+      { key: 'attendance.view_own', label: 'View Own' },
+      { key: 'attendance.create_own', label: 'Add Own' },
+      { key: 'attendance.view_reports', label: 'View Report' }
     ]
   },
   {
@@ -268,6 +277,7 @@ router.post('/', async (req, res) => {
       created_at: admin.firestore.FieldValue.serverTimestamp()
     });
     invalidateCache('users:all');
+    invalidateCacheByPrefix('dashboard:');
     res.json({ id: docRef.id });
   } catch(e) { res.status(500).json({error:e.message}); }
 });
@@ -307,6 +317,7 @@ router.put('/:id', async (req, res) => {
     if (password) updates.password = await bcrypt.hash(password, 10);
     await db.collection('users').doc(req.params.id).update(updates);
     invalidateCache('users:all');
+    invalidateCacheByPrefix('dashboard:');
     res.json({ success: true });
   } catch(e) { res.status(500).json({error:e.message}); }
 });

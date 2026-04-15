@@ -11,6 +11,13 @@ function normalize(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function canViewAttendance(user) {
+  return Array.isArray(user?.permissions) && (
+    user.permissions.includes('attendance.view_reports') ||
+    user.permissions.includes('staff.view')
+  );
+}
+
 function toBoolText(value) {
   if (value === true || value === 1 || value === '1') return 'Yes';
   if (value === false || value === 0 || value === '0') return 'No';
@@ -76,8 +83,8 @@ function projectAttendanceRow(row) {
 }
 
 router.get('/', async (req, res) => {
-  if (!hasPermission(req, 'staff.view')) {
-    return res.status(403).json({ error: 'Permission required: staff.view' });
+  if (!canViewAttendance(req.user)) {
+    return res.status(403).json({ error: 'Permission required: attendance.view_reports' });
   }
 
   try {

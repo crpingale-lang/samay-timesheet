@@ -12,14 +12,14 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'staff.view','staff.create','staff.edit','staff.delete','access.manage',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
-    'reports.view','reports.export',
+    'reports.view','reports.export','attendance.view_reports',
     'dashboard.view_self','dashboard.view_team','dashboard.view_firm'
   ],
   manager: [
     'clients.view','staff.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager',
-    'reports.view','reports.export',
+    'reports.view','reports.export','attendance.view_reports',
     'dashboard.view_self','dashboard.view_team'
   ],
   article: [
@@ -191,11 +191,13 @@ function removeRecoveryCode(hashList, index) {
   return hashList.filter((_, currentIndex) => currentIndex !== index);
 }
 
-async function findUserByUsernameInsensitive(username) {
-  const lowered = String(username || '').trim().toLowerCase();
+async function findUserByIdentifierInsensitive(identifier) {
+  const lowered = String(identifier || '').trim().toLowerCase();
   const users = await getUsersMap();
   for (const [id, data] of users.entries()) {
-    if (String(data.username || '').trim().toLowerCase() === lowered) {
+    const username = String(data.username || '').trim().toLowerCase();
+    const email = String(data.email || '').trim().toLowerCase();
+    if (username === lowered || email === lowered) {
       return { id, data };
     }
   }
@@ -346,19 +348,19 @@ async function getAuthorizedUser(req, res) {
 }
 
 router.post('/login', async (req, res) => {
-  const username = String(req.body?.username || '').trim();
+  const identifier = String(req.body?.username || req.body?.identifier || '').trim();
   const password = String(req.body?.password || '');
 
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Missing credentials' });
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'Username or email and password required' });
   }
 
   try {
-    console.log(`[auth/login] start username=${username}`);
+    console.log(`[auth/login] start identifier=${identifier}`);
     await seedDefaultAdmin();
     invalidateCache('users:all');
 
-    const foundUser = await findUserByUsernameInsensitive(username);
+    const foundUser = await findUserByIdentifierInsensitive(identifier);
     if (!foundUser) return res.status(401).json({ error: 'Invalid credentials' });
 
     const userRef = db.collection('users').doc(foundUser.id);
@@ -373,12 +375,12 @@ router.post('/login', async (req, res) => {
 
     const phoneNumber = toE164PhoneNumber(user.mobile_number);
     if (!phoneNumber) {
-      console.warn(`[auth/login] missing phone number username=${username} userId=${foundUser.id}`);
+      console.warn(`[auth/login] missing phone number identifier=${identifier} userId=${foundUser.id}`);
       return res.status(400).json({ error: 'User mobile number is required for SMS login' });
     }
 
     const smsChallengeToken = createSmsChallenge({ userId: foundUser.id, phoneNumber });
-    console.log(`[auth/login] sms challenge issued username=${username} userId=${foundUser.id} phone=${maskPhoneNumber(phoneNumber)}`);
+    console.log(`[auth/login] sms challenge issued identifier=${identifier} userId=${foundUser.id} phone=${maskPhoneNumber(phoneNumber)}`);
 
     res.json({
       sms_required: true,
@@ -388,7 +390,7 @@ router.post('/login', async (req, res) => {
       user: authUserPayload(foundUser.id, user)
     });
   } catch (err) {
-    console.error(`[auth/login] failed username=${username}`, err);
+    console.error(`[auth/login] failed identifier=${identifier}`, err);
     res.status(500).json({ error: err.message });
   }
 });

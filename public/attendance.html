@@ -113,7 +113,7 @@
 <script src="/js/app.js"></script>
 <script>
 requireAuth();
-if (!hasPermission('staff.view')) window.location.href = '/dashboard.html';
+if (!hasPermission('attendance.view_reports') && !hasPermission('staff.view')) window.location.href = '/dashboard.html';
 document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

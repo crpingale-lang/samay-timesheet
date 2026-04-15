@@ -19,7 +19,7 @@
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div>
           <div class="topbar-title">Reports</div>
-          <div class="report-topbar-subtitle">Management reporting for approved hours, utilization, and client performance.</div>
+          <div class="report-topbar-subtitle">Management reporting for approved hours, utilization, client performance, and team update health.</div>
         </div>
       </div>
       <div class="topbar-actions">
@@ -30,16 +30,16 @@
 
     <div class="page-content report-page">
       <div class="report-page-grid">
-        <section class="card report-sidebar-card">
-          <div class="card-header">
+        <section class="card report-controls-inline">
+          <div class="report-controls-head">
             <div>
               <div class="card-title">Report Controls</div>
               <div class="card-subtitle">Choose the period and reporting scope.</div>
             </div>
+            <div class="report-filter-summary" id="filter-summary">Showing all staff for the current month.</div>
           </div>
-
-          <div class="report-sidebar-fields">
-            <div class="form-group" style="margin:0;">
+          <div class="report-controls-row">
+            <div class="form-group report-control-field" style="margin:0;">
               <label class="form-label">Period</label>
               <select class="form-control" id="period-select" onchange="applyPeriod()">
                 <option value="this-month">This Month</option>
@@ -49,165 +49,250 @@
                 <option value="custom">Custom</option>
               </select>
             </div>
-            <div class="form-group" id="c1" style="margin:0;display:none;">
+            <div class="form-group report-control-field" id="c1" style="margin:0;display:none;">
               <label class="form-label">From</label>
               <input class="form-control" type="date" id="filter-from">
             </div>
-            <div class="form-group" id="c2" style="margin:0;display:none;">
+            <div class="form-group report-control-field" id="c2" style="margin:0;display:none;">
               <label class="form-label">To</label>
               <input class="form-control" type="date" id="filter-to">
             </div>
-            <div class="form-group" style="margin:0;">
+            <div class="form-group report-control-field" style="margin:0;">
               <label class="form-label">Staff</label>
               <select class="form-control" id="filter-staff">
                 <option value="">All Staff</option>
               </select>
             </div>
-          </div>
-
-          <div class="report-sidebar-actions">
-            <button class="btn btn-primary report-run-btn" onclick="loadAll()">Run Report</button>
-            <button class="btn btn-ghost report-run-btn" type="button" onclick="resetFilters()">Reset</button>
-          </div>
-
-          <div class="report-filter-summary" id="filter-summary">Showing all staff for the current month.</div>
-        </section>
-
-        <section class="card report-summary-card">
-          <div class="report-summary-head">
-            <div>
-              <div class="report-summary-label">Executive Summary</div>
-              <h1 class="report-summary-title">A structured view of approved hours, billable performance, and client contribution.</h1>
-            </div>
-            <div class="report-period-chip">
-              <div class="report-period-chip-label">Selected Range</div>
-              <div class="report-period-chip-value" id="range-label">This Month</div>
-              <div class="report-period-chip-sub" id="range-sub">Loading date range...</div>
-            </div>
-          </div>
-
-          <div class="stats-grid report-stats">
-            <div class="stat-card indigo">
-              <div class="stat-label">Approved Hours</div>
-              <div class="stat-value" id="overview-hours">00:00</div>
-              <div class="stat-sub" id="overview-hours-sub">Across the selected range</div>
-            </div>
-            <div class="stat-card amber">
-              <div class="stat-label">Billable Mix</div>
-              <div class="stat-value" id="overview-billable">0%</div>
-              <div class="stat-sub" id="overview-billable-sub">00:00 billable</div>
-            </div>
-            <div class="stat-card green">
-              <div class="stat-label">Realizable Value</div>
-              <div class="stat-value" id="overview-value">Rs 0</div>
-              <div class="stat-sub" id="overview-value-sub">Based on approved billable hours</div>
-            </div>
-            <div class="stat-card blue">
-              <div class="stat-label">Coverage</div>
-              <div class="stat-value" id="overview-coverage">0 staff</div>
-              <div class="stat-sub" id="overview-coverage-sub">0 clients represented</div>
-            </div>
-          </div>
-
-          <div class="report-brief-card">
-            <div class="card-header" style="margin-bottom:12px;">
-              <div>
-                <div class="card-title">Key Takeaways</div>
-                <div class="card-subtitle">Short management notes generated from the selected range.</div>
-              </div>
-            </div>
-            <div class="report-insights-list" id="insight-grid">
-              <div class="report-insight-row empty">Run the report to generate summary observations.</div>
+            <div class="report-controls-actions">
+              <button class="btn btn-primary report-run-btn" onclick="loadAll()">Run Report</button>
+              <button class="btn btn-ghost report-run-btn" type="button" onclick="resetFilters()">Reset</button>
             </div>
           </div>
         </section>
       </div>
 
-      <div class="tabs report-tabs">
-        <button class="tab active" onclick="switchTab('utilization',this)">Utilization</button>
-        <button class="tab" onclick="switchTab('client',this)">Client Analysis</button>
-        <button class="tab" onclick="switchTab('detail',this)">Entry Detail</button>
+      <div class="tabs report-tabs report-section-tabs">
+        <button class="tab active" onclick="switchSection('timesheet',this)">Timesheet</button>
+        <button class="tab" onclick="switchSection('attendance',this)">Attendance</button>
       </div>
 
-      <div id="tab-utilization">
-        <div class="grid-2" style="margin-bottom:16px;">
+      <div id="timesheet-section">
+        <div class="tabs report-tabs report-subtabs">
+          <button class="tab active" onclick="switchTab('utilization',this)">Utilization</button>
+          <button class="tab" onclick="switchTab('client',this)">Client Analysis</button>
+          <button class="tab" onclick="switchTab('detail',this)">Entry Detail</button>
+          <button class="tab" onclick="switchTab('team-watch',this)">Team Watch</button>
+        </div>
+
+        <div id="tab-utilization">
+          <div class="grid-2" style="margin-bottom:16px;">
+            <div class="card">
+              <div class="card-header" style="margin-bottom:12px;">
+                <div>
+                  <div class="card-title">Staff Hours Distribution</div>
+                  <div class="card-subtitle">Approved hours split between billable and non-billable effort.</div>
+                </div>
+              </div>
+              <canvas id="staffChart" height="220"></canvas>
+            </div>
+            <div class="card">
+              <div class="card-header" style="margin-bottom:12px;">
+                <div>
+                  <div class="card-title">Overall Billable Mix</div>
+                  <div class="card-subtitle">Share of approved effort that contributes to client work.</div>
+                </div>
+              </div>
+              <canvas id="billChart" height="220"></canvas>
+            </div>
+          </div>
+
           <div class="card">
-            <div class="card-header" style="margin-bottom:12px;">
+            <div class="card-header" style="margin-bottom:10px;">
               <div>
-                <div class="card-title">Staff Hours Distribution</div>
-                <div class="card-subtitle">Approved hours split between billable and non-billable effort.</div>
+                <div class="card-title">Utilization Table</div>
+                <div class="card-subtitle">Team members ranked by role group, then by name.</div>
               </div>
             </div>
-            <canvas id="staffChart" height="220"></canvas>
+            <div class="table-wrapper">
+              <table class="mobile-stack-table">
+                <thead><tr><th>Staff</th><th>Role</th><th>Total Hrs</th><th>Billable</th><th class="hide-mobile">Non-Bill.</th><th>Bill. %</th></tr></thead>
+                <tbody id="util-tbody"></tbody>
+                <tfoot id="util-tfoot"></tfoot>
+              </table>
+            </div>
           </div>
-          <div class="card">
+        </div>
+
+        <div id="tab-client" style="display:none;">
+          <div class="card" style="margin-bottom:16px;">
             <div class="card-header" style="margin-bottom:12px;">
               <div>
-                <div class="card-title">Overall Billable Mix</div>
-                <div class="card-subtitle">Share of approved effort that contributes to client work.</div>
+                <div class="card-title">Client Hours Ranking</div>
+                <div class="card-subtitle">Top clients by approved hours in the selected reporting period.</div>
               </div>
             </div>
-            <canvas id="billChart" height="220"></canvas>
+            <canvas id="clientChart" height="120"></canvas>
+          </div>
+
+          <div class="card">
+            <div class="card-header" style="margin-bottom:10px;">
+              <div>
+                <div class="card-title">Client Summary</div>
+                <div class="card-subtitle">Billable value is derived from approved billable hours and configured rates.</div>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="mobile-stack-table">
+                <thead><tr><th>Client</th><th>Total Hrs</th><th>Billable Hrs</th><th class="hide-mobile">Rate</th><th>Value</th></tr></thead>
+                <tbody id="client-tbody"></tbody>
+                <tfoot id="client-tfoot"></tfoot>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header" style="margin-bottom:10px;">
-            <div>
-              <div class="card-title">Utilization Table</div>
-              <div class="card-subtitle">Team members ranked by role group, then by name.</div>
+        <div id="tab-detail" style="display:none;">
+          <div class="card">
+            <div class="card-header" style="margin-bottom:10px;">
+              <div>
+                <div class="card-title">Detailed Entries</div>
+                <div class="card-subtitle" id="detail-summary">Approved and in-flight records for the selected filter.</div>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="mobile-stack-table">
+                <thead><tr><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
+                <tbody id="detail-tbody"></tbody>
+              </table>
             </div>
           </div>
-          <div class="table-wrapper">
-            <table class="mobile-stack-table">
-              <thead><tr><th>Staff</th><th>Role</th><th>Total Hrs</th><th>Billable</th><th class="hide-mobile">Non-Bill.</th><th>Bill. %</th></tr></thead>
-              <tbody id="util-tbody"></tbody>
-              <tfoot id="util-tfoot"></tfoot>
-            </table>
+        </div>
+
+        <div id="tab-team-watch" style="display:none;">
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
+              <div>
+                <div class="card-title">Team Update Watch</div>
+                <div class="card-subtitle">A quick partner view of who is logging time, who is under 6 hours, and who has no update for the selected range.</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div class="report-sync" id="team-watch-sync">Ready</div>
+                <button class="btn btn-success btn-sm" type="button" onclick="exportTeamWatchCSV()">Export CSV</button>
+              </div>
+            </div>
+
+            <div class="team-watch-filters">
+              <div class="form-group" style="margin:0;">
+                <label class="form-label">Range</label>
+                <select class="form-control" id="team-watch-period" onchange="applyTeamWatchPeriod()">
+                  <option value="7d">Last 7 Days</option>
+                  <option value="30d">Last 1 Month</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div class="form-group" id="team-watch-from-wrap" style="margin:0;">
+                <label class="form-label">From</label>
+                <input class="form-control" type="date" id="team-watch-from">
+              </div>
+              <div class="form-group" id="team-watch-to-wrap" style="margin:0;">
+                <label class="form-label">To</label>
+                <input class="form-control" type="date" id="team-watch-to">
+              </div>
+              <div class="form-group" style="margin:0;align-self:end;">
+                <button class="btn btn-primary report-run-btn" type="button" onclick="loadTeamWatch()">Update Watch</button>
+              </div>
+            </div>
+
+            <div class="stats-grid report-stats team-watch-stats">
+              <div class="stat-card indigo">
+                <div class="stat-label">Team Members</div>
+                <div class="stat-value" id="team-watch-members">0</div>
+                <div class="stat-sub">Active people in the watch list</div>
+              </div>
+              <div class="stat-card green">
+                <div class="stat-label">Fully Updated</div>
+                <div class="stat-value" id="team-watch-on-track">0</div>
+                <div class="stat-sub">No short or missing days</div>
+              </div>
+              <div class="stat-card amber">
+                <div class="stat-label">Short Days</div>
+                <div class="stat-value" id="team-watch-short-days">0</div>
+                <div class="stat-sub">Days below 6 hours</div>
+              </div>
+              <div class="stat-card red">
+                <div class="stat-label">Missing Days</div>
+                <div class="stat-value" id="team-watch-missing-days">0</div>
+                <div class="stat-sub">No update recorded</div>
+              </div>
+            </div>
+
+            <div class="report-team-watch-note" id="team-watch-note">Select a range up to 31 days. Any day below 06:00 is highlighted in amber and a blank day is flagged in red.</div>
+
+            <div class="table-wrapper">
+              <table class="mobile-stack-table team-watch-table">
+                <thead>
+                  <tr id="team-watch-head-row">
+                    <th>Staff</th>
+                    <th>Role</th>
+                    <th>Total Hrs</th>
+                    <th>Updated</th>
+                    <th>Short</th>
+                    <th>Missing</th>
+                  </tr>
+                </thead>
+                <tbody id="team-watch-tbody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
 
-      <div id="tab-client" style="display:none;">
-        <div class="card" style="margin-bottom:16px;">
-          <div class="card-header" style="margin-bottom:12px;">
-            <div>
-              <div class="card-title">Client Hours Ranking</div>
-              <div class="card-subtitle">Top clients by approved hours in the selected reporting period.</div>
-            </div>
+      <div id="attendance-section" style="display:none;">
+        <div class="stats-grid report-stats">
+          <div class="stat-card indigo">
+            <div class="stat-label">Attendance Records</div>
+            <div class="stat-value" id="attendance-stat-records">0</div>
+            <div class="stat-sub">Rows returned by the current filter</div>
           </div>
-          <canvas id="clientChart" height="120"></canvas>
+          <div class="stat-card green">
+            <div class="stat-label">Unique People</div>
+            <div class="stat-value" id="attendance-stat-people">0</div>
+            <div class="stat-sub">Distinct names in the imported log</div>
+          </div>
+          <div class="stat-card amber">
+            <div class="stat-label">Active Users</div>
+            <div class="stat-value" id="attendance-stat-active">0</div>
+            <div class="stat-sub">Matched to active staff accounts</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-label">Inactive Users</div>
+            <div class="stat-value" id="attendance-stat-inactive">0</div>
+            <div class="stat-sub">Imported people held inactive</div>
+          </div>
         </div>
 
         <div class="card">
-          <div class="card-header" style="margin-bottom:10px;">
+          <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
             <div>
-              <div class="card-title">Client Summary</div>
-              <div class="card-subtitle">Billable value is derived from approved billable hours and configured rates.</div>
+              <div class="card-title">Attendance Summary</div>
+              <div class="card-subtitle">Imported check-in records from the attendance module, filtered by the selected period and staff member.</div>
             </div>
+            <div class="report-sync" id="attendance-report-sync">Ready</div>
           </div>
           <div class="table-wrapper">
             <table class="mobile-stack-table">
-              <thead><tr><th>Client</th><th>Total Hrs</th><th>Billable Hrs</th><th class="hide-mobile">Rate</th><th>Value</th></tr></thead>
-              <tbody id="client-tbody"></tbody>
-              <tfoot id="client-tfoot"></tfoot>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-detail" style="display:none;">
-        <div class="card">
-          <div class="card-header" style="margin-bottom:10px;">
-            <div>
-              <div class="card-title">Detailed Entries</div>
-              <div class="card-subtitle" id="detail-summary">Approved and in-flight records for the selected filter.</div>
-            </div>
-          </div>
-          <div class="table-wrapper">
-            <table class="mobile-stack-table">
-              <thead><tr><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
-              <tbody id="detail-tbody"></tbody>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Date</th>
+                  <th>Entry</th>
+                  <th>Exit</th>
+                  <th>Hours</th>
+                  <th class="hide-mobile">Location</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="attendance-report-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -233,11 +318,18 @@ document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 document.getElementById('export-btn').style.display = hasPermission('reports.export') ? '' : 'none';
+const canViewAttendanceReports = hasPermission('attendance.view_reports') || hasPermission('staff.view');
+const attendanceSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="attendance"]');
+if (!canViewAttendanceReports && attendanceSectionTab) attendanceSectionTab.style.display = 'none';
 
 let staffChart = null;
 let billChart = null;
 let clientChart = null;
 let activeLoadId = 0;
+let teamWatchLoadedRange = null;
+let staffDirectory = [];
+let activeReportSection = 'timesheet';
+let attendanceLoadedKey = '';
 
 function formatShortDate(d) {
   if (!d) return '-';
@@ -267,15 +359,31 @@ function applyPeriod() {
   updateFilterSummary();
 }
 
+function switchSection(section, btn) {
+  if (section === 'attendance' && !canViewAttendanceReports) {
+    toast('Attendance report access required', 'error');
+    return;
+  }
+  activeReportSection = section;
+  document.getElementById('timesheet-section').style.display = section === 'timesheet' ? '' : 'none';
+  document.getElementById('attendance-section').style.display = section === 'attendance' ? '' : 'none';
+  document.querySelectorAll('.report-section-tabs .tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (section === 'attendance') {
+    loadAttendanceSection(true);
+  }
+}
+
 function switchTab(tab, btn) {
-  ['utilization', 'client', 'detail'].forEach(t => document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  ['utilization', 'client', 'detail', 'team-watch'].forEach(t => document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
+  document.querySelectorAll('.report-subtabs .tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
 async function loadFilters() {
   try {
     const staff = await apiFetch('/staff');
+    staffDirectory = Array.isArray(staff) ? staff : [];
     const sel = document.getElementById('filter-staff');
     staff.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name} (${s.role})</option>`);
   } catch (e) {}
@@ -294,15 +402,54 @@ function updateFilterSummary() {
   const f = getFilters();
   const periodLabel = describePeriod(document.getElementById('period-select').value);
   const staffName = f.staff ? getSelectedStaffName() : 'All Staff';
-  document.getElementById('range-label').textContent = periodLabel;
-  document.getElementById('range-sub').textContent = `${formatShortDate(f.from)} to ${formatShortDate(f.to)}`;
-  document.getElementById('filter-summary').textContent = `${staffName} | ${formatShortDate(f.from)} to ${formatShortDate(f.to)}`;
+  const rangeLabelEl = document.getElementById('range-label');
+  const rangeSubEl = document.getElementById('range-sub');
+  const filterSummaryEl = document.getElementById('filter-summary');
+  if (rangeLabelEl) rangeLabelEl.textContent = periodLabel;
+  if (rangeSubEl) rangeSubEl.textContent = `${formatShortDate(f.from)} to ${formatShortDate(f.to)}`;
+  if (filterSummaryEl) filterSummaryEl.textContent = `${staffName} | ${formatShortDate(f.from)} to ${formatShortDate(f.to)}`;
 }
 
 function setSyncState(text, mode = 'idle') {
   const el = document.getElementById('report-sync');
   el.textContent = text;
   el.className = `report-sync ${mode}`;
+}
+
+function teamDateShift(iso, deltaDays) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + deltaDays);
+  return localISODate(d);
+}
+
+function getTeamWatchRange() {
+  const period = document.getElementById('team-watch-period').value;
+  const todayIso = today();
+  if (period === 'custom') {
+    return {
+      period,
+      from: document.getElementById('team-watch-from').value,
+      to: document.getElementById('team-watch-to').value
+    };
+  }
+  const days = period === '30d' ? 30 : 7;
+  return {
+    period,
+    from: teamDateShift(todayIso, -(days - 1)),
+    to: todayIso
+  };
+}
+
+function applyTeamWatchPeriod() {
+  const period = document.getElementById('team-watch-period').value;
+  const custom = period === 'custom';
+  document.getElementById('team-watch-from-wrap').style.display = custom ? '' : 'none';
+  document.getElementById('team-watch-to-wrap').style.display = custom ? '' : 'none';
+  if (!custom) {
+    const range = getTeamWatchRange();
+    document.getElementById('team-watch-from').value = range.from;
+    document.getElementById('team-watch-to').value = range.to;
+  }
 }
 
 function renderLoadingState() {
@@ -312,7 +459,14 @@ function renderLoadingState() {
   document.getElementById('detail-tbody').innerHTML = loading;
   document.getElementById('util-tfoot').innerHTML = '';
   document.getElementById('client-tfoot').innerHTML = '';
-  document.getElementById('insight-grid').innerHTML = `<div class="report-insight-row empty">Refreshing summary observations...</div>`;
+  const insightGrid = document.getElementById('insight-grid');
+  if (insightGrid) insightGrid.innerHTML = `<div class="report-insight-row empty">Refreshing summary observations...</div>`;
+  document.getElementById('team-watch-tbody').innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="empty-title">Loading team watch...</div><div class="empty-sub">Checking the selected range for missing and short updates.</div></div></td></tr>`;
+  document.getElementById('team-watch-members').textContent = '0';
+  document.getElementById('team-watch-on-track').textContent = '0';
+  document.getElementById('team-watch-short-days').textContent = '0';
+  document.getElementById('team-watch-missing-days').textContent = '0';
+  document.getElementById('team-watch-note').textContent = 'Select a range up to 31 days. Any day below 06:00 is highlighted in amber and a blank day is flagged in red.';
 }
 
 function renderOverview(utilData, clientData, detailData) {
@@ -323,18 +477,26 @@ function renderOverview(utilData, clientData, detailData) {
   const activeStaff = utilData.filter(row => row.total_hours > 0).length;
   const activeClients = clientData.filter(row => row.total_hours > 0).length;
   const entriesCount = detailData.length;
-  document.getElementById('overview-hours').textContent = fmtHours(totalHours);
-  document.getElementById('overview-hours-sub').textContent = `${entriesCount} entr${entriesCount === 1 ? 'y' : 'ies'} in scope`;
-  document.getElementById('overview-billable').textContent = `${pct}%`;
-  document.getElementById('overview-billable-sub').textContent = `${fmtHours(billableHours)} billable`;
-  document.getElementById('overview-value').textContent = fmtCurrency(totalValue);
-  document.getElementById('overview-value-sub').textContent = activeClients ? `${activeClients} active client${activeClients === 1 ? '' : 's'}` : 'No active billed clients';
-  document.getElementById('overview-coverage').textContent = `${activeStaff} staff`;
-  document.getElementById('overview-coverage-sub').textContent = `${activeClients} client${activeClients === 1 ? '' : 's'} represented`;
-  document.getElementById('detail-summary').textContent = `${entriesCount} approved entr${entriesCount === 1 ? 'y' : 'ies'} returned for ${document.getElementById('filter-summary').textContent}.`;
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+  setText('overview-hours', fmtHours(totalHours));
+  setText('overview-hours-sub', `${entriesCount} entr${entriesCount === 1 ? 'y' : 'ies'} in scope`);
+  setText('overview-billable', `${pct}%`);
+  setText('overview-billable-sub', `${fmtHours(billableHours)} billable`);
+  setText('overview-value', fmtCurrency(totalValue));
+  setText('overview-value-sub', activeClients ? `${activeClients} active client${activeClients === 1 ? '' : 's'}` : 'No active billed clients');
+  setText('overview-coverage', `${activeStaff} staff`);
+  setText('overview-coverage-sub', `${activeClients} client${activeClients === 1 ? '' : 's'} represented`);
+  const detailSummaryEl = document.getElementById('detail-summary');
+  const filterSummaryText = document.getElementById('filter-summary')?.textContent || 'the selected filter';
+  if (detailSummaryEl) detailSummaryEl.textContent = `${entriesCount} approved entr${entriesCount === 1 ? 'y' : 'ies'} returned for ${filterSummaryText}.`;
 }
 
 function renderInsights(utilData, clientData, detailData) {
+  const insightGrid = document.getElementById('insight-grid');
+  if (!insightGrid) return;
   const insights = [];
   const busiestStaff = [...utilData].sort((a, b) => b.total_hours - a.total_hours)[0];
   const bestClient = [...clientData].sort((a, b) => b.billable_value - a.billable_value)[0];
@@ -344,7 +506,7 @@ function renderInsights(utilData, clientData, detailData) {
   if (bestClient && bestClient.billable_value > 0) insights.push({ title: 'Largest client contribution', body: `${bestClient.client_name} generated ${fmtCurrency(bestClient.billable_value)} from ${fmtHours(bestClient.billable_hours)} billable hours.` });
   insights.push({ title: 'Approved coverage', body: approvedEntries ? `${approvedEntries} approved entr${approvedEntries === 1 ? 'y is' : 'ies are'} included in this reporting range.` : 'No approved entries were found in this selection.' });
   insights.push({ title: 'Non-billable load', body: nonBillableHours ? `${fmtHours(nonBillableHours)} was logged as non-billable effort.` : 'No non-billable effort was recorded in this selection.' });
-  document.getElementById('insight-grid').innerHTML = insights.map(item => `<div class="report-insight-row"><div class="report-insight-row-title">${item.title}</div><div class="report-insight-row-body">${item.body}</div></div>`).join('');
+  insightGrid.innerHTML = insights.map(item => `<div class="report-insight-row"><div class="report-insight-row-title">${item.title}</div><div class="report-insight-row-body">${item.body}</div></div>`).join('');
 }
 
 async function loadUtilization(f) {
@@ -453,6 +615,101 @@ async function loadClientReport(f) {
   return data;
 }
 
+function attendanceStatusBadge(userActive, approved) {
+  if (userActive === 0) return '<span class="badge badge-draft">Inactive User</span>';
+  if (String(approved || '').toLowerCase() === 'auto') return '<span class="badge badge-approved">Auto</span>';
+  return '<span class="badge badge-pending_manager">Imported</span>';
+}
+
+function renderAttendanceRows(items) {
+  const tbody = document.getElementById('attendance-report-tbody');
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No attendance rows found</div><div class="empty-sub">Try a wider date range or clear the staff filter.</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(item => `
+    <tr>
+      <td data-label="Name">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;">${(item.display_name || item.person_name || '?').charAt(0).toUpperCase()}</div>
+          <div>
+            <div style="font-weight:700;">${item.display_name || item.person_name}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${item.username || 'Imported user'}</div>
+          </div>
+        </div>
+      </td>
+      <td data-label="Date">${fmtDate(item.attendance_date)}</td>
+      <td data-label="Entry">${item.entry_time || '-'}</td>
+      <td data-label="Exit">${item.exit_time || '-'}</td>
+      <td data-label="Hours"><strong>${fmtHours(item.hours_worked)}</strong></td>
+      <td data-label="Location" class="hide-mobile" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.location || '-'}</td>
+      <td data-label="Status">${attendanceStatusBadge(item.user_active, item.approved)}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadAttendanceReport(f) {
+  if (!canViewAttendanceReports) {
+    throw new Error('Attendance report access required');
+  }
+  const tbody = document.getElementById('attendance-report-tbody');
+  const syncEl = document.getElementById('attendance-report-sync');
+  const params = new URLSearchParams({
+    from: f.from,
+    to: f.to,
+    page: '1',
+    page_size: '200'
+  });
+  if (f.staff) params.set('user_id', f.staff);
+
+  syncEl.textContent = 'Refreshing...';
+  syncEl.className = 'report-sync loading';
+  tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-title">Loading attendance...</div><div class="empty-sub">Pulling attendance records for the selected range.</div></div></td></tr>`;
+
+  try {
+    const result = await apiFetch(`/attendance?${params.toString()}`);
+    document.getElementById('attendance-stat-records').textContent = String(result.summary?.total_records ?? result.total ?? 0);
+    document.getElementById('attendance-stat-people').textContent = String(result.summary?.unique_people ?? 0);
+    document.getElementById('attendance-stat-active').textContent = String(result.summary?.active_users ?? 0);
+    document.getElementById('attendance-stat-inactive').textContent = String(result.summary?.inactive_users ?? 0);
+    renderAttendanceRows(result.items || []);
+    if (result.has_more) {
+      syncEl.textContent = 'Updated with first 200 rows';
+      syncEl.className = 'report-sync success';
+    } else {
+      syncEl.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+      syncEl.className = 'report-sync success';
+    }
+    return result;
+  } catch (error) {
+    syncEl.textContent = 'Load failed';
+    syncEl.className = 'report-sync error';
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">!</div><div class="empty-title">Attendance could not load</div><div class="empty-sub">${error.message || 'Please try again in a moment.'}</div></div></td></tr>`;
+    return null;
+  }
+}
+
+async function loadAttendanceSection(force = false) {
+  if (!canViewAttendanceReports) {
+    return null;
+  }
+  const f = getFilters();
+  const key = `${f.from || ''}|${f.to || ''}|${f.staff || ''}`;
+  if (!force && attendanceLoadedKey === key) return null;
+  attendanceLoadedKey = key;
+  const tbody = document.getElementById('attendance-report-tbody');
+  const syncEl = document.getElementById('attendance-report-sync');
+  if (tbody) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-title">Loading attendance...</div><div class="empty-sub">Pulling attendance records for the selected range.</div></div></td></tr>`;
+  }
+  if (syncEl) {
+    syncEl.textContent = 'Refreshing...';
+    syncEl.className = 'report-sync loading';
+  }
+  return loadAttendanceReport(f);
+}
+
 async function loadDetailEntries(f) {
   let url = `/timesheets?status=approved&from=${encodeURIComponent(f.from)}&to=${encodeURIComponent(f.to)}`;
   if (f.staff) url += `&user_id=${f.staff}`;
@@ -466,6 +723,248 @@ async function loadDetailEntries(f) {
   return entries;
 }
 
+function formatWatchDayHeader(date) {
+  return new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+}
+
+function teamWatchCellHtml(day) {
+  const hours = parseFloat(day.hours) || 0;
+  if (day.status === 'missing') {
+    return `<span class="team-watch-cell team-watch-cell-missing" title="${day.date}">No update</span>`;
+  }
+  if (day.status === 'short') {
+    return `<span class="team-watch-cell team-watch-cell-short" title="${day.date}: ${fmtHours(hours)}">${fmtHours(hours)}<small>Short</small></span>`;
+  }
+  return `<span class="team-watch-cell team-watch-cell-good" title="${day.date}: ${fmtHours(hours)}">${fmtHours(hours)}<small>OK</small></span>`;
+}
+
+function buildTeamWatchRows(entries, range, staffFilterId = '') {
+  const dayKeys = [];
+  for (let cursor = range.from; cursor <= range.to; cursor = teamDateShift(cursor, 1)) {
+    dayKeys.push(cursor);
+    if (cursor === range.to) break;
+  }
+
+  const totals = new Map();
+  entries.forEach(entry => {
+    if (!entry || entry.status !== 'approved') return;
+    if (staffFilterId && String(entry.user_id || '') !== String(staffFilterId)) return;
+    const date = String(entry.entry_date || '').trim();
+    if (!date || !dayKeys.includes(date)) return;
+    const hours = parseFloat(entry.hours) || 0;
+    if (hours <= 0) return;
+    const key = `${entry.user_id}:${date}`;
+    totals.set(key, (totals.get(key) || 0) + hours);
+  });
+
+  const activeStaff = (staffDirectory.length
+    ? staffDirectory
+    : entries.map(entry => ({
+        id: entry.user_id,
+        name: entry.staff_name,
+        role: entry.staff_role,
+        designation: ''
+      }))
+  ).filter(staff => {
+    const active = staff.active;
+    return String(active ?? '1') !== 'false' && String(active ?? '1') !== '0';
+  }).filter(staff => !staffFilterId || String(staff.id) === String(staffFilterId));
+
+  const rows = activeStaff.map(staff => {
+    const days = dayKeys.map(date => {
+      const hours = totals.get(`${staff.id}:${date}`) || 0;
+      const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
+      return { date, hours, status };
+    });
+    return {
+      id: staff.id,
+      name: staff.name || 'Unknown',
+      role: staff.role || 'article',
+      designation: staff.designation || '',
+      total_hours: Number(days.reduce((sum, day) => sum + day.hours, 0).toFixed(2)),
+      updated_days: days.filter(day => day.hours > 0).length,
+      short_days: days.filter(day => day.status === 'short').length,
+      missing_days: days.filter(day => day.status === 'missing').length,
+      days
+    };
+  }).sort((a, b) => {
+    const missingDiff = b.missing_days - a.missing_days;
+    if (missingDiff !== 0) return missingDiff;
+    const shortDiff = b.short_days - a.short_days;
+    if (shortDiff !== 0) return shortDiff;
+    const totalDiff = a.total_hours - b.total_hours;
+    if (totalDiff !== 0) return totalDiff;
+    const roleDiff = (a.role === 'partner' ? 1 : a.role === 'manager' ? 2 : 3) - (b.role === 'partner' ? 1 : b.role === 'manager' ? 2 : 3);
+    if (roleDiff !== 0) return roleDiff;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+
+  const summary = rows.reduce((acc, row) => {
+    acc.team_members += 1;
+    acc.updated_members += row.updated_days > 0 ? 1 : 0;
+    acc.on_track_members += row.short_days === 0 && row.missing_days === 0 ? 1 : 0;
+    acc.short_day_count += row.short_days;
+    acc.missing_day_count += row.missing_days;
+    acc.total_hours += row.total_hours;
+    return acc;
+  }, {
+    team_members: 0,
+    updated_members: 0,
+    on_track_members: 0,
+    short_day_count: 0,
+    missing_day_count: 0,
+    total_hours: 0
+  });
+
+  return {
+    range,
+    days: dayKeys.map(date => ({ date, label: formatWatchDayHeader(date) })),
+    rows,
+    summary: {
+      ...summary,
+      total_hours: Number(summary.total_hours.toFixed(2))
+    }
+  };
+}
+
+async function loadTeamWatch() {
+  const range = getTeamWatchRange();
+  const daySpan = range.from && range.to
+    ? Math.floor((new Date(range.to + 'T00:00:00').getTime() - new Date(range.from + 'T00:00:00').getTime()) / 86400000)
+    : null;
+  if (!range.from || !range.to || !Number.isFinite(daySpan) || daySpan < 0) {
+    toast('Please select a valid team watch range.', 'error');
+    return null;
+  }
+  if (daySpan > 30) {
+    toast('Team watch can cover at most 31 days.', 'error');
+    return null;
+  }
+
+  const params = new URLSearchParams();
+  params.set('from', range.from);
+  params.set('to', range.to);
+  params.set('status', 'approved');
+  const mainFilters = getFilters();
+  if (mainFilters.staff) params.set('user_id', mainFilters.staff);
+  const tbody = document.getElementById('team-watch-tbody');
+  const syncEl = document.getElementById('team-watch-sync');
+  syncEl.textContent = 'Refreshing...';
+  syncEl.className = 'report-sync loading';
+  tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="empty-title">Loading team watch...</div><div class="empty-sub">Pulling the activity matrix.</div></div></td></tr>`;
+
+  try {
+    const entries = await apiFetch(`/timesheets?${params.toString()}`);
+    const data = buildTeamWatchRows(entries || [], range, mainFilters.staff);
+    teamWatchLoadedRange = data.range || null;
+    const days = Array.isArray(data.days) ? data.days : [];
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const summary = data.summary || {};
+    const shortDayCount = Number(summary.short_day_count || 0);
+    const missingDayCount = Number(summary.missing_day_count || 0);
+    const rangeLabel = teamWatchLoadedRange?.from && teamWatchLoadedRange?.to
+      ? `${formatShortDate(teamWatchLoadedRange.from)} to ${formatShortDate(teamWatchLoadedRange.to)}`
+      : 'Selected range';
+
+    document.getElementById('team-watch-members').textContent = String(summary.team_members || 0);
+    document.getElementById('team-watch-on-track').textContent = String(summary.on_track_members || 0);
+    document.getElementById('team-watch-short-days').textContent = String(shortDayCount);
+    document.getElementById('team-watch-missing-days').textContent = String(missingDayCount);
+    document.getElementById('team-watch-note').textContent = `${rangeLabel}. Days below 06:00 are amber and missing days are red.`;
+
+    const headers = days.map(day => `<th>${formatWatchDayHeader(day.date)}</th>`).join('');
+    document.getElementById('team-watch-head-row').innerHTML = `
+      <th>Staff</th>
+      <th>Role</th>
+      <th>Total Hrs</th>
+      <th>Updated</th>
+      <th>Short</th>
+      <th>Missing</th>
+      ${headers}
+    `;
+
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No team members found</div><div class="empty-sub">Try selecting a different staff member or check access to the staff list.</div></div></td></tr>`;
+      syncEl.textContent = 'Ready';
+      syncEl.className = 'report-sync';
+      return data;
+    }
+
+    tbody.innerHTML = rows.map(row => {
+      const totalClass = row.missing_days > 0 ? 'team-watch-row-missing' : row.short_days > 0 ? 'team-watch-row-short' : 'team-watch-row-good';
+      const dayCells = (row.days || []).map(day => `<td data-label="${formatWatchDayHeader(day.date)}" style="text-align:center;">${teamWatchCellHtml(day)}</td>`).join('');
+      return `
+        <tr class="${totalClass}">
+          <td data-label="Staff"><strong>${row.name}</strong>${row.designation ? `<div style="font-size:11px;color:var(--text-muted);">${row.designation}</div>` : ''}</td>
+          <td data-label="Role">${roleBadge(row.role || 'article')}</td>
+          <td data-label="Total Hrs"><strong>${fmtHours(row.total_hours)}</strong></td>
+          <td data-label="Updated">${row.updated_days}</td>
+          <td data-label="Short" style="color:var(--warning);font-weight:700;">${row.short_days}</td>
+          <td data-label="Missing" style="color:var(--danger);font-weight:700;">${row.missing_days}</td>
+          ${dayCells}
+        </tr>
+      `;
+    }).join('');
+    syncEl.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+    syncEl.className = 'report-sync success';
+    return data;
+  } catch (error) {
+    try {
+      const fallback = await apiFetch(`/reports/team-update-watch${params.toString() ? `?${params.toString()}` : ''}`);
+      teamWatchLoadedRange = fallback.range || null;
+      const days = Array.isArray(fallback.days) ? fallback.days : [];
+      const rows = Array.isArray(fallback.rows) ? fallback.rows : [];
+      const summary = fallback.summary || {};
+      const shortDayCount = Number(summary.short_day_count || 0);
+      const missingDayCount = Number(summary.missing_day_count || 0);
+      const rangeLabel = teamWatchLoadedRange?.from && teamWatchLoadedRange?.to
+        ? `${formatShortDate(teamWatchLoadedRange.from)} to ${formatShortDate(teamWatchLoadedRange.to)}`
+        : 'Selected range';
+      document.getElementById('team-watch-members').textContent = String(summary.team_members || 0);
+      document.getElementById('team-watch-on-track').textContent = String(summary.on_track_members || 0);
+      document.getElementById('team-watch-short-days').textContent = String(shortDayCount);
+      document.getElementById('team-watch-missing-days').textContent = String(missingDayCount);
+      document.getElementById('team-watch-note').textContent = `${rangeLabel}. Days below 06:00 are amber and missing days are red.`;
+
+      const headers = days.map(day => `<th>${formatWatchDayHeader(day.date)}</th>`).join('');
+      document.getElementById('team-watch-head-row').innerHTML = `
+        <th>Staff</th>
+        <th>Role</th>
+        <th>Total Hrs</th>
+        <th>Updated</th>
+        <th>Short</th>
+        <th>Missing</th>
+        ${headers}
+      `;
+      tbody.innerHTML = rows.length
+        ? rows.map(row => {
+            const totalClass = row.missing_days > 0 ? 'team-watch-row-missing' : row.short_days > 0 ? 'team-watch-row-short' : 'team-watch-row-good';
+            const dayCells = (row.days || []).map(day => `<td data-label="${formatWatchDayHeader(day.date)}" style="text-align:center;">${teamWatchCellHtml(day)}</td>`).join('');
+            return `
+              <tr class="${totalClass}">
+                <td data-label="Staff"><strong>${row.name}</strong>${row.designation ? `<div style="font-size:11px;color:var(--text-muted);">${row.designation}</div>` : ''}</td>
+                <td data-label="Role">${roleBadge(row.role || 'article')}</td>
+                <td data-label="Total Hrs"><strong>${fmtHours(row.total_hours)}</strong></td>
+                <td data-label="Updated">${row.updated_days}</td>
+                <td data-label="Short" style="color:var(--warning);font-weight:700;">${row.short_days}</td>
+                <td data-label="Missing" style="color:var(--danger);font-weight:700;">${row.missing_days}</td>
+                ${dayCells}
+              </tr>
+            `;
+          }).join('')
+        : `<tr><td colspan="13"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No team members found</div><div class="empty-sub">Try selecting a different staff member or check access to the staff list.</div></div></td></tr>`;
+      syncEl.textContent = `Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+      syncEl.className = 'report-sync success';
+      return fallback;
+    } catch (fallbackError) {
+      syncEl.textContent = 'Load failed';
+      syncEl.className = 'report-sync error';
+      tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="empty-icon">!</div><div class="empty-title">Team watch could not load</div><div class="empty-sub">${fallbackError.message || error.message || 'Please try again in a moment.'}</div></div></td></tr>`;
+      return null;
+    }
+  }
+}
+
 async function loadAll() {
   const f = getFilters();
   if (!f.from || !f.to) { toast('Please select a valid date range.', 'error'); return; }
@@ -474,10 +973,20 @@ async function loadAll() {
   setSyncState('Refreshing...', 'loading');
   const loadId = ++activeLoadId;
   try {
-    const [utilData, clientData, detailData] = await Promise.all([loadUtilization(f), loadClientReport(f), loadDetailEntries(f)]);
-    if (loadId !== activeLoadId) return;
-    renderOverview(utilData || [], clientData || [], detailData || []);
-    renderInsights(utilData || [], clientData || [], detailData || []);
+    if (activeReportSection === 'attendance') {
+      await loadAttendanceSection(true);
+    } else {
+      const teamWatchPromise = loadTeamWatch();
+      const [utilData, clientData, detailData] = await Promise.all([
+        loadUtilization(f),
+        loadClientReport(f),
+        loadDetailEntries(f)
+      ]);
+      if (loadId !== activeLoadId) return;
+      renderOverview(utilData || [], clientData || [], detailData || []);
+      renderInsights(utilData || [], clientData || [], detailData || []);
+      await teamWatchPromise;
+    }
     setSyncState(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
   } catch (e) {
     if (loadId !== activeLoadId) return;
@@ -501,6 +1010,24 @@ function exportCSV() {
   window.open(url, '_blank');
 }
 
+function exportTeamWatchCSV() {
+  if (!hasPermission('reports.export')) { toast('Export access required', 'error'); return; }
+  const range = getTeamWatchRange();
+  if (!range.from || !range.to) {
+    toast('Please select a valid team watch range.', 'error');
+    return;
+  }
+  const daySpan = Math.floor((new Date(range.to + 'T00:00:00').getTime() - new Date(range.from + 'T00:00:00').getTime()) / 86400000);
+  if (!Number.isFinite(daySpan) || daySpan < 0 || daySpan > 30) {
+    toast('Team watch can cover at most 31 days.', 'error');
+    return;
+  }
+  const params = new URLSearchParams({ from: range.from, to: range.to, token: getToken() });
+  const staff = document.getElementById('filter-staff').value;
+  if (staff) params.set('user_id', staff);
+  window.open(`/api/reports/team-update-watch/export?${params.toString()}`, '_blank');
+}
+
 function openSidebar() {
   document.getElementById('sidebar-el').classList.add('open');
   document.getElementById('sb-overlay').classList.add('open');
@@ -512,6 +1039,7 @@ function closeSidebar() {
 }
 
 applyPeriod();
+applyTeamWatchPeriod();
 document.getElementById('filter-staff').addEventListener('change', updateFilterSummary);
 document.getElementById('filter-from').addEventListener('change', updateFilterSummary);
 document.getElementById('filter-to').addEventListener('change', updateFilterSummary);

@@ -55,7 +55,7 @@
 </div>
 
 <div class="modal-overlay" id="staff-modal">
-  <div class="modal" style="max-width:860px;">
+  <div class="modal staff-modal" style="max-width:860px;width:min(86vw,860px);">
     <div class="modal-header"><div class="modal-title" id="modal-title">Add Staff</div><button class="modal-close" onclick="closeModal('staff-modal')" aria-label="Close staff modal">&times;</button></div>
     <form id="staff-form">
       <input type="hidden" id="edit-id">
@@ -93,7 +93,7 @@
             <tbody id="access-matrix-body"></tbody>
           </table>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Administrator can grant per-user access across masters, timesheets, approvals, reports, and dashboard.</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Administrator can grant per-user access across masters, attendance, timesheets, approvals, reports, and dashboard.</div>
       </div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Save</button>
@@ -114,6 +114,17 @@ const canCreateStaff = hasPermission('staff.create');
 const canEditStaff = hasPermission('staff.edit');
 const canManageAccess = hasPermission('access.manage');
 let accessCatalog = [];
+const REQUIRED_ACCESS_GROUPS = [
+  {
+    key: 'attendance',
+    label: 'Attendance',
+    permissions: [
+      { key: 'attendance.view_own', label: 'View Own' },
+      { key: 'attendance.create_own', label: 'Add Own' },
+      { key: 'attendance.view_reports', label: 'View Report' }
+    ]
+  }
+];
 const STAFF_PAGE_SIZE = 50;
 let staffPage = 1;
 let staffTotal = 0;
@@ -133,6 +144,14 @@ function persistStaffViewState(page = staffPage) {
 
 function accessCell(permissionKey) {
   return `<label style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;margin:4px 6px 4px 0;font-size:12px;cursor:pointer;"><input type="checkbox" data-permission="${permissionKey}"><span>${permissionKey.split('.').slice(1).join(' ')}</span></label>`;
+}
+
+function normalizeAccessCatalog(groups = []) {
+  const catalog = new Map(groups.map(group => [group.key, group]));
+  REQUIRED_ACCESS_GROUPS.forEach(group => {
+    if (!catalog.has(group.key)) catalog.set(group.key, group);
+  });
+  return [...catalog.values()];
 }
 
 function renderAccessMatrix(selected = []) {
@@ -157,8 +176,10 @@ function collectSelectedPermissions() {
 
 async function loadAccessCatalog() {
   if (!canManageAccess) return;
+  accessCatalog = normalizeAccessCatalog(REQUIRED_ACCESS_GROUPS);
+  renderAccessMatrix();
   const result = await apiFetch('/staff/access-catalog');
-  accessCatalog = result.groups || [];
+  accessCatalog = normalizeAccessCatalog(result.groups || accessCatalog);
   document.getElementById('access-group').style.display = '';
   renderAccessMatrix();
 }

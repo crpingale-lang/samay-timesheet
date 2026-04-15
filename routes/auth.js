@@ -84,10 +84,16 @@ function getAuthorizedUser(req, res) {
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  const identifier = String(req.body?.username || req.body?.identifier || '').trim();
+  const password = String(req.body?.password || '');
+  if (!identifier || !password) return res.status(400).json({ error: 'Username or email and password required' });
 
-  const user = db.prepare("SELECT * FROM users WHERE lower(username) = lower(?) AND active = 1").get(username.trim());
+  const user = db.prepare(`
+    SELECT * FROM users
+    WHERE (lower(username) = lower(?) OR lower(email) = lower(?))
+      AND active = 1
+    LIMIT 1
+  `).get(identifier, identifier);
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
   const valid = bcrypt.compareSync(password, user.password);

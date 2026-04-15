@@ -203,6 +203,8 @@ async function buildUtilizationSummary(from, to) {
 
   const rowsByUser = new Map();
   usersMap.forEach((user, id) => {
+    const active = user.active;
+    if (active === false || active === 0 || active === '0') return;
     rowsByUser.set(id, {
       id,
       name: user.name || 'Unknown',
@@ -230,6 +232,9 @@ async function buildUtilizationSummary(from, to) {
       client_work_hours: 0,
       non_client_hours: 0
     };
+    const sourceUser = usersMap.get(entry.user_id);
+    const sourceActive = sourceUser?.active;
+    if (sourceActive === false || sourceActive === 0 || sourceActive === '0') return;
     const hours = parseFloat(entry.hours) || 0;
     const workClassification = normalizeWorkClassification(entry.work_classification, entry.billable);
     existing.total_hours += hours;

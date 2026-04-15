@@ -141,6 +141,15 @@ function weekBoundsForDate(value) {
   return { from: formatIsoDate(start), to: formatIsoDate(end) };
 }
 
+function monthBoundsForDate(value) {
+  const parts = parseIsoDateParts(value);
+  if (!parts) return { from: value, to: value };
+  return {
+    from: `${parts.year}-${String(parts.month).padStart(2, '0')}-01`,
+    to: value
+  };
+}
+
 function validateNotFutureTime(entryDate, startTime, endTime) {
   const current = currentIndiaDateTimeParts();
   if (entryDate !== current.date) return null;
@@ -409,6 +418,24 @@ router.get('/dashboard-summary', (req, res) => {
         pendingApprovals = db.prepare("SELECT COUNT(*) as cnt FROM timesheet_entries WHERE status IN ('pending_manager','pending_partner')").get().cnt;
       }
 
+      let utilization = [];
+      if (hasPermission(req.user, 'dashboard.view_team') || hasPermission(req.user, 'dashboard.view_firm')) {
+        const monthBounds = monthBoundsForDate(today);
+        utilization = db.prepare(`
+          SELECT u.name, u.role,
+            COALESCE(SUM(t.hours), 0) AS total_hours,
+            COALESCE(SUM(CASE WHEN t.work_classification='client_work' THEN t.hours ELSE 0 END), 0) AS client_work_hours
+          FROM users u
+          LEFT JOIN timesheet_entries t ON t.user_id = u.id
+            AND t.entry_date BETWEEN ? AND ?
+            AND t.status = 'approved'
+          WHERE u.active = 1
+          GROUP BY u.id
+          HAVING COALESCE(SUM(t.hours), 0) > 0
+          ORDER BY CASE u.role WHEN 'partner' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END, u.name
+        `).all(monthBounds.from, monthBounds.to);
+      }
+
       const collaborationCount = db.prepare(`
         SELECT COUNT(*) as cnt
         FROM timesheet_collaboration_requests
@@ -426,7 +453,7 @@ router.get('/dashboard-summary', (req, res) => {
         collaboration_requests: collaborationCount,
         week_breakdown: weekBreakdown,
         recent_entries: userEntries.slice(0, 10),
-        utilization: []
+        utilization
       };
     });
 

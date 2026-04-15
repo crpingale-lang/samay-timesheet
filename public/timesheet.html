@@ -193,7 +193,7 @@
       <section class="modal-section">
         <div class="modal-section-head">
           <div class="modal-section-title">Schedule</div>
-          <div class="modal-section-note">Choose the date, then adjust time using the quick buttons.</div>
+          <div class="modal-section-note">Choose the date and enter the start and end time manually.</div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -216,39 +216,10 @@
             <input class="form-control time-text-input" type="text" id="modal-end-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-end-time')" onblur="finalizeModalTimeField('modal-end-time')">
           </div>
         </div>
-        <div class="time-adjust-panel">
-          <div class="time-adjust-row">
-            <div class="time-adjust-label">Start</div>
-            <div class="time-adjust-actions">
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:-30" onclick="adjustModalTimeBoundary('start', -30)">-30m</button>
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:-15" onclick="adjustModalTimeBoundary('start', -15)">-15m</button>
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:15" onclick="adjustModalTimeBoundary('start', 15)">+15m</button>
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="start:30" onclick="adjustModalTimeBoundary('start', 30)">+30m</button>
-            </div>
-          </div>
-          <div class="time-adjust-row">
-            <div class="time-adjust-label">End</div>
-            <div class="time-adjust-actions">
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:-30" onclick="adjustModalTimeBoundary('end', -30)">-30m</button>
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:-15" onclick="adjustModalTimeBoundary('end', -15)">-15m</button>
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:15" onclick="adjustModalTimeBoundary('end', 15)">+15m</button>
-              <button class="btn btn-outline btn-sm time-adjust-btn" type="button" data-time-adjust="end:30" onclick="adjustModalTimeBoundary('end', 30)">+30m</button>
-            </div>
-          </div>
-          <div class="time-preset-row">
-            <div class="time-adjust-label">Duration</div>
-            <div class="time-adjust-actions">
-              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="30" onclick="applyModalDurationPreset(30)">30m</button>
-              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="60" onclick="applyModalDurationPreset(60)">1h</button>
-              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="120" onclick="applyModalDurationPreset(120)">2h</button>
-              <button class="btn btn-ghost btn-sm time-adjust-btn" type="button" data-duration-preset="180" onclick="applyModalDurationPreset(180)">3h</button>
-            </div>
-          </div>
-        </div>
         <div class="form-group modal-timeline-group">
           <div class="field-inline-meta">
             <label class="form-label">Timeline Preview</label>
-            <div class="form-help">On mobile, use the quick buttons above. The timeline updates automatically.</div>
+            <div class="form-help">The timeline updates automatically as you edit the time fields.</div>
           </div>
           <div id="modal-day-timeline"></div>
         </div>
@@ -870,37 +841,6 @@ function setModalTimelineRange(dateStr, startMinutes, endMinutes) {
   endInput.dataset.timeDigits = endInput.value.replace(/\D/g, '');
   syncModalHoursFromTime();
   renderModalTimeline();
-}
-
-function adjustModalTimeBoundary(boundary, deltaMinutes) {
-  const dateStr = document.getElementById('modal-date').value || selectedDate;
-  const startMinutes = timeStringToMinutes(document.getElementById('modal-start-time').value);
-  const endMinutes = timeStringToMinutes(document.getElementById('modal-end-time').value);
-
-  if (startMinutes == null || endMinutes == null) {
-    const defaultStart = TIMELINE_START;
-    const defaultEnd = defaultStart + 60;
-    const nextStart = boundary === 'start' ? defaultStart + deltaMinutes : defaultStart;
-    const nextEnd = boundary === 'end' ? defaultEnd + deltaMinutes : defaultEnd;
-    setModalTimelineRange(dateStr, nextStart, nextEnd);
-    return;
-  }
-
-  const nextStart = boundary === 'start' ? startMinutes + deltaMinutes : startMinutes;
-  const nextEnd = boundary === 'end' ? endMinutes + deltaMinutes : endMinutes;
-  setModalTimelineRange(dateStr, nextStart, nextEnd);
-}
-
-function applyModalDurationPreset(durationMinutes) {
-  const dateStr = document.getElementById('modal-date').value || selectedDate;
-  const startMinutes = timeStringToMinutes(document.getElementById('modal-start-time').value);
-  const endMinutes = timeStringToMinutes(document.getElementById('modal-end-time').value);
-  const anchorStart = startMinutes != null
-    ? startMinutes
-    : endMinutes != null
-      ? Math.max(TIMELINE_START, endMinutes - durationMinutes)
-      : TIMELINE_START;
-  setModalTimelineRange(dateStr, anchorStart, anchorStart + durationMinutes);
 }
 
 function currentModalTimelineRange() {

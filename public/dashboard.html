@@ -95,7 +95,7 @@ const m = msgs[user?.role];
 if (m) infoBar.innerHTML = `<div class="alert ${m.cls}">${m.txt}</div>`;
 
 let weekChart;
-const DASHBOARD_CACHE_VERSION = 1;
+const DASHBOARD_CACHE_VERSION = 2;
 
 function dashboardCacheKey() {
   return `dashboard-summary:v${DASHBOARD_CACHE_VERSION}:${user.id}:${today()}`;
