@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-timesheet-v4';
+const CACHE_NAME = 'ca-timesheet-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
