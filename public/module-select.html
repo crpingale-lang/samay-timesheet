@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choose Module - Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body class="module-gate-page">
+<main class="module-gate-shell">
+  <section class="module-gate-card page-fade-in" aria-labelledby="module-select-title">
+    <div class="module-gate-layout">
+      <div class="module-gate-copy">
+        <div>
+          <div class="module-gate-kicker">Workspace switch</div>
+          <h1 class="module-gate-title" id="module-select-title">Choose the module to open</h1>
+          <p class="module-gate-subtitle">
+            Samay now starts with a module selector so the right workspace opens after sign-in.
+            Pick Timesheet for the current app, or move into UDIN Tracker when it is ready.
+          </p>
+
+          <div class="module-gate-highlights" aria-label="Module summary">
+            <div class="module-gate-highlight">
+              <div class="module-gate-highlight-icon" aria-hidden="true">T</div>
+              <div>
+                <strong>Timesheet</strong>
+                <span>Open the live work log, approvals, reports, and the current practice dashboard.</span>
+              </div>
+            </div>
+            <div class="module-gate-highlight">
+              <div class="module-gate-highlight-icon" aria-hidden="true" style="background:linear-gradient(135deg,var(--accent),#f97316);box-shadow:0 10px 24px rgba(217,119,6,0.22);">U</div>
+              <div>
+                <strong>UDIN Tracker</strong>
+                <span>Reserved for the upcoming UDIN workflow and tracking experience.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="module-gate-visual" aria-hidden="true">
+          <div class="module-gate-visual-label">Module routing</div>
+          <div class="module-gate-visual-number" id="module-visual-number">01</div>
+          <div class="module-gate-visual-copy" id="module-visual-copy">
+            Timesheet is the active workspace. UDIN Tracker will be mapped once it is ready.
+          </div>
+        </div>
+      </div>
+
+      <div class="module-gate-panel">
+        <div>
+          <div class="module-select-label">Select module</div>
+          <div class="form-group module-select-field" style="margin-top:10px;">
+            <label class="form-label" for="module-select">Module</label>
+            <select class="form-control" id="module-select" aria-describedby="module-select-help">
+              <option value="">Choose a module</option>
+              <option value="timesheet">Timesheet</option>
+              <option value="udin-tracker">UDIN Tracker</option>
+            </select>
+          </div>
+          <div class="module-select-meta" id="module-meta">
+            <div class="module-select-meta-title" id="module-meta-title">Choose a module to continue</div>
+            <div class="module-select-meta-copy" id="module-meta-copy">
+              The dropdown will show the workspace description before you continue.
+            </div>
+            <div class="module-select-meta-status" id="module-meta-status">
+              <span class="module-select-meta-status-dot" id="module-meta-dot"></span>
+              <span id="module-meta-status-text">Waiting for selection</span>
+            </div>
+          </div>
+          <div class="module-gate-actions" style="margin-top:18px;">
+            <button class="btn btn-primary" type="button" id="continue-module-btn" disabled>Continue</button>
+            <button class="btn btn-ghost" type="button" onclick="logout()">Logout</button>
+          </div>
+          <div class="module-gate-mini-note" id="module-select-help" style="margin-top:14px;">
+            Your choice will send you to the matching landing page for this session.
+          </div>
+        </div>
+
+        <a class="module-select-back-link" href="/" id="module-return-link">
+          Back to sign-in
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!hasUsableSession()) {
+  window.location.replace('/');
+}
+
+const moduleSelect = document.getElementById('module-select');
+const continueBtn = document.getElementById('continue-module-btn');
+const metaTitle = document.getElementById('module-meta-title');
+const metaCopy = document.getElementById('module-meta-copy');
+const metaStatusText = document.getElementById('module-meta-status-text');
+const metaDot = document.getElementById('module-meta-dot');
+const visualNumber = document.getElementById('module-visual-number');
+const visualCopy = document.getElementById('module-visual-copy');
+
+const moduleCards = {
+  timesheet: {
+    title: 'Timesheet',
+    copy: 'Open the live practice workspace with the dashboard, time capture, approvals, reports, and staff tools.',
+    status: 'Ready now',
+    number: '01',
+    accent: 'var(--primary)'
+  },
+  'udin-tracker': {
+    title: 'UDIN Tracker',
+    copy: 'This module is reserved for the future UDIN tracker experience. The placeholder landing page is live for now.',
+    status: 'Coming soon',
+    number: '02',
+    accent: 'var(--accent)'
+  }
+};
+
+function renderModuleDetails(moduleKey) {
+  const moduleData = moduleCards[moduleKey];
+  if (!moduleData) {
+    metaTitle.textContent = 'Choose a module to continue';
+    metaCopy.textContent = 'The dropdown will show the workspace description before you continue.';
+    metaStatusText.textContent = 'Waiting for selection';
+    metaDot.style.background = 'var(--primary)';
+    metaDot.style.boxShadow = '0 0 0 5px rgba(99, 102, 241, 0.12)';
+    visualNumber.textContent = '01';
+    visualCopy.textContent = 'Timesheet is the active workspace. UDIN Tracker will be mapped once it is ready.';
+    continueBtn.disabled = true;
+    return;
+  }
+
+  metaTitle.textContent = moduleData.title;
+  metaCopy.textContent = moduleData.copy;
+  metaStatusText.textContent = moduleData.status;
+  metaDot.style.background = moduleData.accent === 'var(--accent)' ? 'var(--accent)' : 'var(--primary)';
+  metaDot.style.boxShadow = moduleData.accent === 'var(--accent)'
+    ? '0 0 0 5px rgba(217, 119, 6, 0.14)'
+    : '0 0 0 5px rgba(99, 102, 241, 0.12)';
+  visualNumber.textContent = moduleData.number;
+  visualCopy.textContent = moduleKey === 'timesheet'
+    ? 'Open the main workspace to continue into the live timesheet app.'
+    : 'Open the placeholder page while the UDIN Tracker module is being built.';
+  continueBtn.disabled = false;
+}
+
+moduleSelect.value = getSelectedModule();
+renderModuleDetails(moduleSelect.value);
+
+moduleSelect.addEventListener('change', () => {
+  renderModuleDetails(moduleSelect.value);
+});
+
+continueBtn.addEventListener('click', () => {
+  const selected = moduleSelect.value;
+  if (!selected) {
+    toast('Choose a module first', 'info');
+    return;
+  }
+  setSelectedModule(selected);
+  window.location.replace(getModuleLandingPage(selected));
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !continueBtn.disabled) {
+    continueBtn.click();
+  }
+});
+</script>
+</body>
+</html>

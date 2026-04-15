@@ -1,5 +1,32 @@
 const admin = require('firebase-admin');
-admin.initializeApp();
+const fs = require('fs');
+const path = require('path');
+
+function resolveProjectId() {
+  const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID;
+  if (envProjectId) return envProjectId;
+
+  try {
+    const firebasercPath = path.join(__dirname, '..', '.firebaserc');
+    if (fs.existsSync(firebasercPath)) {
+      const config = JSON.parse(fs.readFileSync(firebasercPath, 'utf8'));
+      const projectId = config?.projects?.default;
+      if (projectId) return projectId;
+    }
+  } catch {
+    // Fall through to Admin SDK auto-detection.
+  }
+
+  return undefined;
+}
+
+const appOptions = {};
+const projectId = resolveProjectId();
+if (projectId) {
+  appOptions.projectId = projectId;
+}
+
+admin.initializeApp(appOptions);
 const db = admin.firestore();
 
 function fullAdminPermissions() {
@@ -25,6 +52,9 @@ async function seedDefaultAdmin() {
     permissions: fullAdminPermissions(),
     email: '',
     mobile_number: '',
+    mfa_secret: '',
+    mfa_enabled: false,
+    mfa_recovery_code_hashes: [],
     designation: 'System Administrator',
     department: 'Administration',
     active: true,

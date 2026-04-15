@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Samay — Login</title>
-  <meta name="description" content="CA Firm Timesheet Management System — Login">
+  <title>Samay - Login</title>
+  <meta name="description" content="CA Firm Timesheet Management System - Login">
   <link rel="stylesheet" href="/css/style.css">
+  <script src="/firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 </head>
 <body>
 <div class="login-page">
@@ -25,11 +28,11 @@
       </div>
       <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none;background:var(--danger-bg);padding:8px 12px;border-radius:6px;border:1px solid #fecaca;"></div>
       <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">
-        Sign In →
+        Send SMS Code ->
       </button>
     </form>
-    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;">
-      <strong>Roles:</strong> Partner → Manager → Article
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
+      <strong>Security:</strong> Password + SMS code, then choose your module
     </div>
   </div>
 </div>
@@ -39,23 +42,264 @@
   const existingTarget = getDefaultLandingPage();
   if (!hasUsableSession() && (getToken() || existingUser)) clearSession();
   if (hasUsableSession() && existingTarget !== '/') window.location.replace(existingTarget);
-  document.getElementById('login-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const btn = document.getElementById('login-btn');
+
+  const loginForm = document.getElementById('login-form');
+  const loginCard = document.querySelector('.login-card');
+  const loginFooter = document.getElementById('login-footer');
+  const passwordGroup = document.getElementById('password').closest('.form-group');
+  let loginStep = 'request';
+  let smsChallengeToken = '';
+  let confirmationResult = null;
+  let phoneNumber = '';
+  let firebaseReady = false;
+  let recaptchaVerifier = null;
+  const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+  passwordGroup.insertAdjacentHTML('afterend', `
+    <div class="form-group" id="otp-group" style="display:none;">
+      <label class="form-label" for="otp">SMS Code</label>
+      <input class="form-control" type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code">
+      <div class="login-field-note" id="otp-note">We will send an SMS code to your registered mobile number.</div>
+      <div class="login-inline-actions" style="margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" type="button" id="resend-sms-btn" style="display:none;">Resend SMS Code</button>
+      </div>
+    </div>
+  `);
+
+  const smsInfo = document.createElement('div');
+  smsInfo.className = 'login-mfa-panel';
+  smsInfo.id = 'sms-info';
+  smsInfo.setAttribute('aria-live', 'polite');
+  smsInfo.innerHTML = `
+    <div class="login-step-label">SMS Login</div>
+    <div class="login-mfa-title" id="sms-title"></div>
+    <div class="login-mfa-copy" id="sms-copy"></div>
+  `;
+  loginCard.insertBefore(smsInfo, loginFooter);
+
+  const smsCopy = document.getElementById('sms-copy');
+  const smsTitle = document.getElementById('sms-title');
+  const otpGroup = document.getElementById('otp-group');
+  const otpInput = document.getElementById('otp');
+  const otpNote = document.getElementById('otp-note');
+  const resendSmsBtn = document.getElementById('resend-sms-btn');
+
+  function setLoginError(message) {
     const errEl = document.getElementById('login-error');
-    btn.textContent = 'Signing in…'; btn.disabled = true; errEl.style.display = 'none';
+    if (!message) {
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+      return;
+    }
+    errEl.textContent = message;
+    errEl.style.display = 'block';
+  }
+
+  function setButtonLabel() {
+    document.getElementById('login-btn').textContent = loginStep === 'verify'
+      ? 'Verify SMS Code ->'
+      : 'Send SMS Code ->';
+  }
+
+  function maskPhoneNumber(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (digits.length <= 4) return digits;
+    return `${digits.slice(0, 2)}${'*'.repeat(Math.max(0, digits.length - 4))}${digits.slice(-2)}`;
+  }
+
+  function resetRecaptcha() {
     try {
-      const data = await apiFetch('/auth/login', {
-        method: 'POST',
-        body: { username: document.getElementById('username').value.trim(), password: document.getElementById('password').value }
-      });
-      setSession(data.token, data.user);
-      window.location.replace(getDefaultLandingPage());
+      if (window.grecaptcha && typeof window.grecaptcha.reset === 'function' && typeof recaptchaVerifier?._widgetId !== 'undefined') {
+        window.grecaptcha.reset(recaptchaVerifier._widgetId);
+      }
+    } catch {}
+  }
+
+  function loadFirebaseConfig() {
+    const config = window.FIREBASE_WEB_CONFIG || window.FIREBASE_CONFIG || window.firebaseConfig;
+    if (!config || !config.apiKey || !config.authDomain || !config.projectId || !config.appId) {
+      throw new Error('Firebase web config is missing. Add it in /firebase-config.js first.');
+    }
+    return config;
+  }
+
+  function ensureFirebaseApp() {
+    if (firebaseReady) return firebase.auth();
+    const config = loadFirebaseConfig();
+    if (!firebase.apps.length) {
+      firebase.initializeApp(config);
+    }
+    const auth = firebase.auth();
+    if (isLocalDev) {
+      auth.settings.appVerificationDisabledForTesting = true;
+    }
+    firebaseReady = true;
+    return auth;
+  }
+
+  function ensureRecaptcha(auth) {
+    if (recaptchaVerifier) return recaptchaVerifier;
+    const containerId = 'recaptcha-container';
+    if (!document.getElementById(containerId)) {
+      const node = document.createElement('div');
+      node.id = containerId;
+      node.style.display = 'none';
+      loginCard.appendChild(node);
+    }
+    recaptchaVerifier = new firebase.auth.RecaptchaVerifier(containerId, { size: 'invisible' });
+    return recaptchaVerifier;
+  }
+
+  function showOtpStep(message) {
+    loginStep = 'verify';
+    otpGroup.style.display = '';
+    resendSmsBtn.style.display = '';
+    smsInfo.classList.add('open');
+    smsTitle.textContent = `SMS sent to ${message}`;
+    smsCopy.textContent = '';
+    otpNote.textContent = 'Enter the 6-digit code.';
+    setButtonLabel();
+    otpInput.focus();
+  }
+
+  function resetLoginStep() {
+    loginStep = 'request';
+    smsChallengeToken = '';
+    confirmationResult = null;
+    phoneNumber = '';
+    otpGroup.style.display = 'none';
+    resendSmsBtn.style.display = 'none';
+    smsInfo.classList.remove('open');
+    smsTitle.textContent = '';
+    smsCopy.textContent = '';
+    otpInput.value = '';
+    setButtonLabel();
+  }
+
+  async function copyText(value, label) {
+    if (!value) return;
+    if (!navigator.clipboard?.writeText) return;
+    await navigator.clipboard.writeText(value);
+    toast(`${label} copied to clipboard`, 'success');
+  }
+
+  async function requestSmsCode({ resend = false } = {}) {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value.trim(),
+        password: document.getElementById('password').value
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Unable to start SMS login');
+    }
+    if (!data.sms_required || !data.sms_challenge_token || !data.phone_number) {
+      throw new Error('SMS login was not initialized correctly');
+    }
+
+    smsChallengeToken = data.sms_challenge_token;
+    phoneNumber = data.phone_number;
+    const auth = ensureFirebaseApp();
+    const verifier = ensureRecaptcha(auth);
+    try {
+      confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, verifier);
     } catch (err) {
-      errEl.textContent = err.message; errEl.style.display = 'block';
-      btn.textContent = 'Sign In →'; btn.disabled = false;
+      resetRecaptcha();
+      throw err;
+    }
+    showOtpStep(maskPhoneNumber(data.phone_number || phoneNumber) || data.masked_phone_number || 'your registered phone');
+  }
+
+  setButtonLabel();
+
+  resendSmsBtn.addEventListener('click', async () => {
+    if (loginStep !== 'verify') return;
+    const btn = document.getElementById('login-btn');
+    setLoginError('');
+    resendSmsBtn.disabled = true;
+    btn.disabled = true;
+    btn.textContent = 'Resending...';
+    otpInput.value = '';
+    try {
+      await requestSmsCode({ resend: true });
+    } catch (err) {
+      setLoginError(err.message);
+      resetRecaptcha();
+    } finally {
+      resendSmsBtn.disabled = false;
+      btn.disabled = false;
+      setButtonLabel();
     }
   });
+
+  loginForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    setLoginError('');
+    btn.disabled = true;
+
+    try {
+      if (loginStep === 'request') {
+        btn.textContent = 'Sending SMS...';
+        await requestSmsCode();
+        return;
+      }
+
+      if (loginStep === 'verify') {
+        btn.textContent = 'Verifying...';
+        if (!confirmationResult) {
+          throw new Error('Please request a new SMS code');
+        }
+        const otp = otpInput.value.trim();
+        if (!otp) {
+          throw new Error('Enter the SMS code');
+        }
+
+        const confirmation = await confirmationResult.confirm(otp);
+        const firebaseIdToken = await confirmation.user.getIdToken(true);
+        const completeResponse = await fetch('/api/auth/complete-sms-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sms_challenge_token: smsChallengeToken,
+            firebase_id_token: firebaseIdToken
+          })
+        });
+        const completeData = await completeResponse.json().catch(() => ({}));
+        if (!completeResponse.ok) {
+          throw new Error(completeData.error || 'Unable to complete SMS login');
+        }
+
+        setSession(completeData.token, completeData.user);
+        resetLoginStep();
+        window.location.replace('/module-select.html');
+        return;
+      }
+    } catch (err) {
+      setLoginError(err.message);
+      if (loginStep === 'request') {
+        resetLoginStep();
+      }
+      if (loginStep === 'verify' && /Firebase|reCAPTCHA|code/.test(err.message)) {
+        otpInput.focus();
+      }
+    } finally {
+      btn.disabled = false;
+      setButtonLabel();
+    }
+  });
+
+  if (!window.FIREBASE_WEB_CONFIG && !window.FIREBASE_CONFIG && !window.firebaseConfig) {
+    smsInfo.classList.add('open');
+    smsCopy.textContent = 'Firebase web config is missing. Add /firebase-config.js before testing SMS login.';
+  } else if (isLocalDev) {
+    smsInfo.classList.add('open');
+    smsCopy.textContent = 'Local dev mode is on. Use Firebase Auth test phone numbers in the console to avoid sending real SMS while you test.';
+  }
 </script>
 </body>
 </html>

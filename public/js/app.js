@@ -3,6 +3,7 @@
 const API = '/api';
 const LOCAL_CACHE_PREFIX = 'ts_cache:';
 const SESSION_LAST_ACTIVITY_KEY = 'ts_last_activity';
+const SELECTED_MODULE_KEY = 'ts_selected_module';
 const SESSION_REFRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 const SESSION_ACTIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const SESSION_REFRESH_CHECK_MS = 60 * 1000;
@@ -154,7 +155,45 @@ function isManager() { return getUser()?.role === 'manager'; }
 function isManagerOrAbove() { return ['partner','manager'].includes(getUser()?.role); }
 function isArticle() { return getUser()?.role === 'article'; }
 
+function getSelectedModule() {
+  return String(localStorage.getItem(SELECTED_MODULE_KEY) || '').trim().toLowerCase();
+}
+
+function setSelectedModule(moduleKey) {
+  const normalized = String(moduleKey || '').trim().toLowerCase();
+  if (!normalized) {
+    localStorage.removeItem(SELECTED_MODULE_KEY);
+    return '';
+  }
+  localStorage.setItem(SELECTED_MODULE_KEY, normalized);
+  return normalized;
+}
+
+function clearSelectedModule() {
+  localStorage.removeItem(SELECTED_MODULE_KEY);
+}
+
+function getModuleLandingPage(moduleKey = getSelectedModule()) {
+  switch (String(moduleKey || '').trim().toLowerCase()) {
+    case 'timesheet':
+      return getDefaultLandingPage();
+    case 'udin':
+    case 'udin-tracker':
+      return '/udin-coming-soon.html';
+    default:
+      return getDefaultLandingPage();
+  }
+}
+
 function getDefaultLandingPage() {
+  const selectedModule = getSelectedModule();
+  if (!selectedModule) return '/module-select.html';
+  if (selectedModule === 'timesheet') {
+    if (hasPermission('dashboard.view_self')) return '/dashboard.html';
+    if (hasPermission('timesheets.view_own')) return '/timesheet.html';
+    return '/';
+  }
+  if (selectedModule === 'udin' || selectedModule === 'udin-tracker') return '/udin-coming-soon.html';
   if (hasPermission('dashboard.view_self')) return '/dashboard.html';
   if (hasPermission('timesheets.view_own')) return '/timesheet.html';
   if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) return '/approvals.html';
@@ -181,6 +220,7 @@ function clearSession() {
   localStorage.removeItem('ts_token');
   localStorage.removeItem('ts_user');
   localStorage.removeItem(SESSION_LAST_ACTIVITY_KEY);
+  clearSelectedModule();
 }
 function requireAuth(managerAbove = false) {
   const token = getToken(); const user = getUser();
@@ -240,23 +280,21 @@ function bootSessionKeepAlive() {
   });
   window.addEventListener('focus', () => {
     recordSessionActivity();
-    refreshSession();
+    if (getToken() && isTokenExpired()) logout();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       recordSessionActivity();
-      refreshSession();
+      if (getToken() && isTokenExpired()) logout();
     }
   });
 
   if (hasUsableSession()) {
     recordSessionActivity();
-    refreshSession();
   }
 
   window.setInterval(() => {
-    if (!hasUsableSession()) return;
-    refreshSession();
+    if (getToken() && isTokenExpired()) logout();
   }, SESSION_REFRESH_CHECK_MS);
 }
 
@@ -366,12 +404,6 @@ async function apiFetch(path, options = {}) {
     },
     body: options.body ? JSON.stringify(options.body) : undefined
   });
-  if (res.status === 401 && token && !options._retriedAfterRefresh) {
-    const refreshed = await refreshSession({ force: true });
-    if (refreshed) {
-      return apiFetch(path, { ...options, _retriedAfterRefresh: true });
-    }
-  }
   if (res.status === 401) { logout(); return; }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Something went wrong');
@@ -884,6 +916,33 @@ function buildSidebar() {
   document.querySelectorAll('.nav-item[data-page]').forEach(el => {
     el.classList.toggle('active', el.dataset.page === current);
   });
+
+  injectModuleSwitcher();
+}
+
+function injectModuleSwitcher() {
+  const current = window.location.pathname.split('/').pop() || 'index.html';
+  if (['module-select.html', 'index.html'].includes(current)) return;
+
+  const actions = document.querySelector('.topbar-actions');
+  const topbar = document.querySelector('.topbar');
+  const host = actions || topbar;
+  if (!host || host.querySelector('[data-module-switcher]')) return;
+
+  const link = document.createElement('a');
+  link.href = '/module-select.html';
+  link.className = 'btn btn-ghost btn-sm';
+  link.dataset.moduleSwitcher = 'true';
+  link.innerHTML = '<span class="btn-symbol" aria-hidden="true">⇆</span><span class="btn-label">Modules</span>';
+  if (actions) {
+    actions.prepend(link);
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'topbar-actions';
+  wrapper.appendChild(link);
+  topbar.appendChild(wrapper);
 }
 
 // Canonical sidebar HTML â€” call this in each page's <aside>
@@ -896,16 +955,17 @@ function SIDEBAR_HTML() {
       </div>
     </div>
     <nav class="sidebar-nav">
-      <span class="nav-section-label">Main</span>
-      <a class="nav-item" data-page="dashboard.html" href="/dashboard.html"><span class="icon">⌂</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item" data-page="timesheet.html" href="/timesheet.html"><span class="icon">◔</span><span class="nav-label">Log Time</span></a>
-      <a class="nav-item" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="icon">▤</span><span class="nav-label">My Timesheets</span></a>
+      <span class="nav-section-label">Workspace</span>
+      <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
+      <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
+      <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
+      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view">Management</span>
-      <a class="nav-item" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="icon">✓</span><span class="nav-label">Approvals</span></a>
-      <a class="nav-item" data-page="reports.html" href="/reports.html" data-permissions="reports.view"><span class="icon">◌</span><span class="nav-label">Reports</span></a>
+      <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
+      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
       <span class="nav-section-label" data-permissions="clients.view,staff.view">Admin</span>
-      <a class="nav-item" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="icon">▣</span><span class="nav-label">Clients</span></a>
-      <a class="nav-item" data-page="staff.html" href="/staff.html" data-permissions="staff.view"><span class="icon">◎</span><span class="nav-label">Staff</span></a>
+      <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>
+      <a class="nav-item nav-item-staff" data-page="staff.html" href="/staff.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Staff</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-pill">
