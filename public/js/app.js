@@ -955,16 +955,17 @@ function SIDEBAR_HTML() {
       </div>
     </div>
     <nav class="sidebar-nav">
-      <span class="nav-section-label">Main</span>
-      <a class="nav-item" data-page="dashboard.html" href="/dashboard.html"><span class="icon">⌂</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item" data-page="timesheet.html" href="/timesheet.html"><span class="icon">◔</span><span class="nav-label">Log Time</span></a>
-      <a class="nav-item" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="icon">▤</span><span class="nav-label">My Timesheets</span></a>
+      <span class="nav-section-label">Workspace</span>
+      <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
+      <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
+      <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
+      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view">Management</span>
-      <a class="nav-item" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="icon">✓</span><span class="nav-label">Approvals</span></a>
-      <a class="nav-item" data-page="reports.html" href="/reports.html" data-permissions="reports.view"><span class="icon">◌</span><span class="nav-label">Reports</span></a>
+      <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
+      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
       <span class="nav-section-label" data-permissions="clients.view,staff.view">Admin</span>
-      <a class="nav-item" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="icon">▣</span><span class="nav-label">Clients</span></a>
-      <a class="nav-item" data-page="staff.html" href="/staff.html" data-permissions="staff.view"><span class="icon">◎</span><span class="nav-label">Staff</span></a>
+      <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>
+      <a class="nav-item nav-item-staff" data-page="staff.html" href="/staff.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Staff</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-pill">
