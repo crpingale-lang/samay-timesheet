@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { db, seedDefaultAdmin } = require('../db');
+const { db, admin, seedDefaultAdmin } = require('../db');
 const { getUsersMap, invalidateCache } = require('../data-cache');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { JWT_SECRET, SESSION_TTL } = require('../config');
 const ROLE_DEFAULT_PERMISSIONS = {
   partner: [
@@ -27,6 +28,168 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'dashboard.view_self'
   ]
 };
+
+const TOTP_STEP_SECONDS = 30;
+const TOTP_DIGITS = 6;
+const RECOVERY_CODE_COUNT = 8;
+const RECOVERY_CODE_BYTES = 5;
+const OTP_ISSUER = 'Samay';
+const SMS_CHALLENGE_TTL_SECONDS = 10 * 60;
+
+function base32Encode(buffer) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0;
+  let value = 0;
+  let output = '';
+
+  for (const byte of buffer) {
+    value = (value << 8) | byte;
+    bits += 8;
+
+    while (bits >= 5) {
+      output += alphabet[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+
+  if (bits > 0) {
+    output += alphabet[(value << (5 - bits)) & 31];
+  }
+
+  return output;
+}
+
+function base32Decode(secret) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const cleaned = String(secret || '')
+    .toUpperCase()
+    .replace(/[\s=-]/g, '');
+
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+
+  for (const char of cleaned) {
+    const index = alphabet.indexOf(char);
+    if (index < 0) continue;
+    value = (value << 5) | index;
+    bits += 5;
+
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+
+  return Buffer.from(bytes);
+}
+
+function normalizeOtp(value) {
+  return String(value || '').replace(/[\s-]/g, '').trim().toUpperCase();
+}
+
+function generateTotpSecret() {
+  return base32Encode(crypto.randomBytes(20));
+}
+
+function generateRecoveryCodes() {
+  return Array.from({ length: RECOVERY_CODE_COUNT }, () =>
+    crypto.randomBytes(RECOVERY_CODE_BYTES).toString('hex').toUpperCase()
+  );
+}
+
+function getHotpToken(secret, counter) {
+  const key = base32Decode(secret);
+  const buffer = Buffer.alloc(8);
+  let value = BigInt(counter);
+
+  for (let i = 7; i >= 0; i -= 1) {
+    buffer[i] = Number(value & 255n);
+    value >>= 8n;
+  }
+
+  const hmac = crypto.createHmac('sha1', key).update(buffer).digest();
+  const offset = hmac[hmac.length - 1] & 15;
+  const code = (
+    ((hmac[offset] & 127) << 24) |
+    (hmac[offset + 1] << 16) |
+    (hmac[offset + 2] << 8) |
+    hmac[offset + 3]
+  ) % (10 ** TOTP_DIGITS);
+
+  return String(code).padStart(TOTP_DIGITS, '0');
+}
+
+function verifyTotp(secret, code, window = 1) {
+  const normalizedCode = normalizeOtp(code);
+  if (!/^\d{6}$/.test(normalizedCode)) return false;
+
+  const counter = Math.floor(Date.now() / 1000 / TOTP_STEP_SECONDS);
+  for (let offset = -window; offset <= window; offset += 1) {
+    if (getHotpToken(secret, counter + offset) === normalizedCode) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildOtpAuthUrl({ username, secret }) {
+  const label = `${OTP_ISSUER}:${String(username || '').trim()}`;
+  const params = new URLSearchParams({
+    secret,
+    issuer: OTP_ISSUER,
+    algorithm: 'SHA1',
+    digits: String(TOTP_DIGITS),
+    period: String(TOTP_STEP_SECONDS)
+  });
+  return `otpauth://totp/${encodeURIComponent(label)}?${params.toString()}`;
+}
+
+function createSmsChallenge({ userId, phoneNumber }) {
+  return jwt.sign(
+    {
+      purpose: 'sms-login',
+      userId,
+      phoneNumber: toE164PhoneNumber(phoneNumber)
+    },
+    JWT_SECRET,
+    { expiresIn: `${SMS_CHALLENGE_TTL_SECONDS}s` }
+  );
+}
+
+function verifySmsChallenge(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded?.purpose !== 'sms-login' || !decoded?.userId || !decoded?.phoneNumber) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+function hashRecoveryCodes(codes) {
+  return codes.map(code => bcrypt.hashSync(code, 10));
+}
+
+function findRecoveryCodeIndex(hashList, code) {
+  const normalized = normalizeOtp(code);
+  if (!normalized) return -1;
+
+  for (let index = 0; index < hashList.length; index += 1) {
+    if (bcrypt.compareSync(normalized, hashList[index])) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function removeRecoveryCode(hashList, index) {
+  return hashList.filter((_, currentIndex) => currentIndex !== index);
+}
 
 async function findUserByUsernameInsensitive(username) {
   const lowered = String(username || '').trim().toLowerCase();
@@ -54,13 +217,13 @@ async function findUserByEmailInsensitive(email, excludeId = null) {
 }
 
 async function findUserByMobileNumber(mobileNumber, excludeId = null) {
-  const normalized = String(mobileNumber || '').trim();
+  const normalized = toE164PhoneNumber(mobileNumber);
   if (!normalized) return null;
   const users = await db.collection('users').get();
   for (const doc of users.docs) {
     if (excludeId && doc.id === excludeId) continue;
     const data = doc.data();
-    if (String(data.mobile_number || '').trim() === normalized) {
+    if (toE164PhoneNumber(data.mobile_number) === normalized) {
       return { id: doc.id, data };
     }
   }
@@ -73,6 +236,36 @@ function normalizeEmail(value) {
 
 function normalizeMobileNumber(value) {
   return String(value || '').trim();
+}
+
+function normalizePhoneCandidate(value) {
+  return String(value || '').trim().replace(/[\s-]/g, '');
+}
+
+function toE164PhoneNumber(value) {
+  const cleaned = normalizePhoneCandidate(value);
+  if (!cleaned) return '';
+  if (cleaned.startsWith('+')) {
+    const digits = cleaned.slice(1).replace(/\D/g, '');
+    return digits.length >= 10 && digits.length <= 15 ? `+${digits}` : '';
+  }
+
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return '';
+}
+
+function maskPhoneNumber(value) {
+  const phone = toE164PhoneNumber(value);
+  if (!phone) return '';
+  const digits = phone.slice(1);
+  if (digits.length <= 4) return phone;
+  return `+${digits.slice(0, 2)}${'*'.repeat(Math.max(0, digits.length - 6))}${digits.slice(-4)}`;
 }
 
 function normalizeRole(role) {
@@ -90,7 +283,10 @@ function isValidEmail(value) {
 }
 
 function isValidMobileNumber(value) {
-  const digits = value.replace(/\D/g, '');
+  if (!value) return true;
+  const normalized = normalizePhoneCandidate(value);
+  if (/^\+\d{10,15}$/.test(normalized)) return true;
+  const digits = normalized.replace(/\D/g, '');
   return digits.length >= 10 && digits.length <= 15;
 }
 
@@ -150,47 +346,106 @@ async function getAuthorizedUser(req, res) {
 }
 
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
+  const username = String(req.body?.username || '').trim();
+  const password = String(req.body?.password || '');
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Missing credentials' });
+  }
 
   try {
-    await seedDefaultAdmin(); // Safely ensure default partner exists or bypasses if already seeded
+    console.log(`[auth/login] start username=${username}`);
+    await seedDefaultAdmin();
     invalidateCache('users:all');
 
     const foundUser = await findUserByUsernameInsensitive(username);
     if (!foundUser) return res.status(401).json({ error: 'Invalid credentials' });
-    
-    const userDoc = { id: foundUser.id };
+
+    const userRef = db.collection('users').doc(foundUser.id);
     const user = foundUser.data;
-    
-    if (user.active === false || user.active === 0 || user.active === '0') return res.status(403).json({ error: 'Account disabled' });
+
+    if (user.active === false || user.active === 0 || user.active === '0') {
+      return res.status(403).json({ error: 'Account disabled' });
+    }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
+    const phoneNumber = toE164PhoneNumber(user.mobile_number);
+    if (!phoneNumber) {
+      console.warn(`[auth/login] missing phone number username=${username} userId=${foundUser.id}`);
+      return res.status(400).json({ error: 'User mobile number is required for SMS login' });
+    }
+
+    const smsChallengeToken = createSmsChallenge({ userId: foundUser.id, phoneNumber });
+    console.log(`[auth/login] sms challenge issued username=${username} userId=${foundUser.id} phone=${maskPhoneNumber(phoneNumber)}`);
+
+    res.json({
+      sms_required: true,
+      sms_challenge_token: smsChallengeToken,
+      phone_number: phoneNumber,
+      masked_phone_number: maskPhoneNumber(phoneNumber),
+      user: authUserPayload(foundUser.id, user)
+    });
+  } catch (err) {
+    console.error(`[auth/login] failed username=${username}`, err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/complete-sms-login', async (req, res) => {
+  const smsChallengeToken = String(req.body?.sms_challenge_token || '');
+  const firebaseIdToken = String(req.body?.firebase_id_token || '');
+
+  if (!smsChallengeToken || !firebaseIdToken) {
+    return res.status(400).json({ error: 'Missing SMS login details' });
+  }
+
+  const challenge = verifySmsChallenge(smsChallengeToken);
+  if (!challenge) {
+    return res.status(401).json({ error: 'SMS challenge expired or invalid' });
+  }
+
+  try {
+    console.log(`[auth/complete-sms-login] start userId=${challenge.userId} phone=${maskPhoneNumber(challenge.phoneNumber)}`);
+    const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
+    const verifiedPhone = toE164PhoneNumber(decodedToken.phone_number || '');
+    if (!verifiedPhone || verifiedPhone !== challenge.phoneNumber) {
+      console.warn(`[auth/complete-sms-login] phone mismatch challenge=${maskPhoneNumber(challenge.phoneNumber)} token=${maskPhoneNumber(verifiedPhone)}`);
+      return res.status(401).json({ error: 'Phone verification did not match the requested account' });
+    }
+
+    const userDoc = await db.collection('users').doc(challenge.userId).get();
+    if (!userDoc.exists) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = userDoc.data();
+    if (user.active === false || user.active === 0 || user.active === '0') {
+      return res.status(403).json({ error: 'Account disabled' });
+    }
+
+    const userPhone = toE164PhoneNumber(user.mobile_number);
+    if (!userPhone || userPhone !== verifiedPhone) {
+      return res.status(401).json({ error: 'Phone verification did not match the account record' });
+    }
+
     const userPayload = authUserPayload(userDoc.id, user);
     const token = issueSessionToken(userDoc.id, user, userPayload.permissions);
-    
+    console.log(`[auth/complete-sms-login] success userId=${userDoc.id} username=${user.username}`);
+
     res.json({
       token,
       user: userPayload
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[auth/complete-sms-login] failed', err);
+    res.status(401).json({ error: err.message || 'Unable to verify SMS login' });
   }
 });
 
 router.post('/refresh-session', async (req, res) => {
-  const authorized = await getAuthorizedUser(req, res);
-  if (!authorized) return;
-
-  const userPayload = authUserPayload(authorized.id, authorized.data);
-  const token = issueSessionToken(authorized.id, authorized.data, userPayload.permissions);
-
-  res.json({
-    token,
-    user: userPayload
-  });
+  return res.status(410).json({ error: 'Daily login required' });
 });
 
 router.post('/change-password', async (req, res) => {

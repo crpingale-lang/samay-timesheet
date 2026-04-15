@@ -88,6 +88,28 @@ function normalizeMobileNumber(value) {
   return String(value || '').trim();
 }
 
+function normalizePhoneCandidate(value) {
+  return String(value || '').trim().replace(/[\s-]/g, '');
+}
+
+function toE164PhoneNumber(value) {
+  const cleaned = normalizePhoneCandidate(value);
+  if (!cleaned) return '';
+  if (cleaned.startsWith('+')) {
+    const digits = cleaned.slice(1).replace(/\D/g, '');
+    return digits.length >= 10 && digits.length <= 15 ? `+${digits}` : '';
+  }
+
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return '';
+}
+
 function ensurePermissions(role, permissions) {
   const normalizedRole = normalizeRole(role);
   if (Array.isArray(permissions) && permissions.length) return permissions;
@@ -119,7 +141,9 @@ function isValidEmail(value) {
 
 function isValidMobileNumber(value) {
   if (!value) return true;
-  const digits = value.replace(/\D/g, '');
+  const normalized = normalizePhoneCandidate(value);
+  if (/^\+\d{10,15}$/.test(normalized)) return true;
+  const digits = normalized.replace(/\D/g, '');
   return digits.length >= 10 && digits.length <= 15;
 }
 
@@ -145,12 +169,13 @@ async function emailExistsInsensitive(email, excludeId = null) {
 }
 
 async function mobileNumberExists(mobileNumber, excludeId = null) {
-  const normalized = normalizeMobileNumber(mobileNumber);
+  const normalized = toE164PhoneNumber(mobileNumber) || normalizeMobileNumber(mobileNumber);
   if (!normalized) return false;
   const users = await getUsersMap();
   for (const [id, data] of users.entries()) {
     if (excludeId && id === excludeId) continue;
-    if (normalizeMobileNumber(data.mobile_number) === normalized) return true;
+    const existing = toE164PhoneNumber(data.mobile_number) || normalizeMobileNumber(data.mobile_number);
+    if (existing === normalized) return true;
   }
   return false;
 }
@@ -234,6 +259,9 @@ router.post('/', async (req, res) => {
       permissions: ensurePermissions(role || 'article', permissions),
       email,
       mobile_number: mobileNumber,
+      mfa_secret: '',
+      mfa_enabled: false,
+      mfa_recovery_code_hashes: [],
       designation: designation || '',
       department: department || '',
       active: active !== undefined ? active : true,

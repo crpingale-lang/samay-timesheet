@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UDIN Tracker - Coming Soon</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body class="coming-soon-page">
+<main class="coming-soon-shell">
+  <section class="coming-soon-card page-fade-in" aria-labelledby="udin-coming-soon-title">
+    <div class="coming-soon-layout">
+      <div class="coming-soon-copy">
+        <div>
+          <div class="coming-soon-kicker">UDIN tracker</div>
+          <h1 class="coming-soon-title" id="udin-coming-soon-title">Coming soon</h1>
+          <p class="coming-soon-subtitle">
+            The UDIN Tracker module is not live yet. We are reserving this landing page now so the future
+            workflow can drop in without changing the sign-in journey later.
+          </p>
+
+          <div class="coming-soon-list" aria-label="Planned capabilities">
+            <div class="coming-soon-list-item">
+              <span class="coming-soon-list-bullet" aria-hidden="true"></span>
+              <span>Track UDIN entries and reference details from one place.</span>
+            </div>
+            <div class="coming-soon-list-item">
+              <span class="coming-soon-list-bullet" aria-hidden="true"></span>
+              <span>Search, filter, and status-check active tracker records.</span>
+            </div>
+            <div class="coming-soon-list-item">
+              <span class="coming-soon-list-bullet" aria-hidden="true"></span>
+              <span>Keep the module selector ready so this workspace can slot in cleanly.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="module-gate-visual" style="background:linear-gradient(135deg,#111827,#4338ca 55%,#f59e0b);">
+          <div class="coming-soon-visual-label">Reserved module</div>
+          <div class="coming-soon-visual-number">02</div>
+          <div class="coming-soon-visual-copy">
+            This landing page is the placeholder for the future UDIN tracker module.
+          </div>
+        </div>
+      </div>
+
+      <div class="coming-soon-panel">
+        <div class="module-select-label">Status</div>
+        <div class="module-select-meta">
+          <div class="module-select-meta-title">Build in progress</div>
+          <div class="module-select-meta-copy">
+            The routing is ready. The actual UDIN feature set can be added here when development starts.
+          </div>
+          <div class="module-select-meta-status">
+            <span class="module-select-meta-status-dot" style="background:var(--accent);box-shadow:0 0 0 5px rgba(217,119,6,0.14);"></span>
+            <span>Coming soon</span>
+          </div>
+        </div>
+
+        <div class="coming-soon-actions">
+          <a class="btn btn-primary" href="/module-select.html">Back to modules</a>
+          <a class="btn btn-ghost" href="/dashboard.html">Open Timesheet</a>
+          <button class="btn btn-ghost" type="button" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="module-gate-mini-note">
+          When UDIN Tracker is ready, this page can be replaced without changing the module selector.
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!hasUsableSession()) {
+  window.location.replace('/');
+}
+</script>
+</body>
+</html>
