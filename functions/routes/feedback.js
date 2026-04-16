@@ -129,16 +129,15 @@ router.get('/reports', async (req, res) => {
   if (feedbackType && FEEDBACK_TYPES[feedbackType]) {
     query = query.where('feedback_type', '==', feedbackType);
   }
-  if (from) {
-    query = query.where('submitted_date', '>=', from);
-  }
-  if (to) {
-    query = query.where('submitted_date', '<=', to);
-  }
 
   const snapshot = await query.get();
   const rows = snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(row => {
+      if (from && String(row.submitted_date || '') < from) return false;
+      if (to && String(row.submitted_date || '') > to) return false;
+      return true;
+    })
     .sort((a, b) => String(b.submitted_date || '').localeCompare(String(a.submitted_date || '')) || String(b.submitted_at || '').localeCompare(String(a.submitted_at || '')))
     .map(sanitizeSubmission);
 
