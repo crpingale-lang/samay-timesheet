@@ -26,6 +26,13 @@ const MASTER_PERMISSION_GROUPS = [
 const APP_PERMISSION_GROUPS = [
   ...MASTER_PERMISSION_GROUPS,
   {
+    key: 'feedback',
+    label: 'Feedback',
+    permissions: [
+      { key: 'feedback.view', label: 'View Reports' }
+    ]
+  },
+  {
     key: 'timesheets',
     label: 'Timesheets',
     permissions: [

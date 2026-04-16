@@ -28,6 +28,7 @@
 
       <!-- Role-specific info bar -->
       <div id="role-info-bar" style="margin-bottom:16px;"></div>
+      <div id="feedback-banner" style="margin-bottom:16px;"></div>
 
       <div class="stats-grid">
         <div class="stat-card indigo"><div class="stat-icon">⏱️</div><div class="stat-label">Today's Hours</div><div class="stat-value" id="stat-today">—</div><div class="stat-sub">Logged today</div></div>
@@ -69,11 +70,12 @@
   </div>
 </div>
 <script src="/js/app.js"></script>
+<script src="/js/feedback.js"></script>
 <script>
 requireAuth();
 if (!hasPermission('dashboard.view_self')) {
-  clearSession();
-  window.location.replace('/');
+  setAuthNotice('Your account does not have dashboard access. Opening the most appropriate landing page instead.');
+  window.location.replace(getDefaultLandingPage());
 }
 document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
@@ -93,6 +95,7 @@ const msgs = {
 };
 const m = msgs[user?.role];
 if (m) infoBar.innerHTML = `<div class="alert ${m.cls}">${m.txt}</div>`;
+feedbackInitDashboard();
 
 let weekChart;
 const DASHBOARD_CACHE_VERSION = 2;

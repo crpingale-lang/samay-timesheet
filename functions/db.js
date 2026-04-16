@@ -2,6 +2,13 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 const path = require('path');
 
+if (!process.env.FIREBASE_AUTH_EMULATOR_HOST && !process.env.K_SERVICE) {
+  process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
+}
+if (!process.env.FIRESTORE_EMULATOR_HOST && !process.env.K_SERVICE) {
+  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
+}
+
 function resolveProjectId() {
   const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID;
   if (envProjectId) return envProjectId;
@@ -35,7 +42,8 @@ function fullAdminPermissions() {
     'staff.view','staff.create','staff.edit','staff.delete','access.manage',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
-    'reports.view','reports.export','dashboard.view_self','dashboard.view_team','dashboard.view_firm'
+    'reports.view','reports.export','dashboard.view_self','dashboard.view_team','dashboard.view_firm',
+    'feedback.view'
   ];
 }
 
@@ -58,7 +66,7 @@ async function seedDefaultAdmin() {
     designation: 'System Administrator',
     department: 'Administration',
     active: true,
-    created_at: admin.firestore.FieldValue.serverTimestamp()
+    created_at: new Date()
   };
 
   if (adminSnapshot.empty) {

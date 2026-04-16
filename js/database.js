@@ -2,13 +2,14 @@ const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const {
   serializePermissions,
   getDefaultPermissions,
   ensurePermissions
 } = require('./permissions');
 
-const dbDir = path.join(__dirname, '..', 'data');
+const dbDir = process.env.TIMESHEET_DB_DIR || path.join(os.tmpdir(), 'timesheet-local-db');
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 const db = new Database(path.join(dbDir, 'timesheet.db'));
@@ -152,6 +153,21 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(category, key)
   );
+
+  CREATE TABLE IF NOT EXISTS feedback_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feedback_type TEXT NOT NULL,
+    submitted_by_user_id INTEGER NOT NULL,
+    submitted_by_name TEXT NOT NULL,
+    submitted_by_username TEXT NOT NULL,
+    submitted_by_role TEXT NOT NULL,
+    submitted_by_designation TEXT,
+    payload_json TEXT NOT NULL,
+    submitted_date TEXT NOT NULL,
+    submitted_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(feedback_type, submitted_by_user_id)
+  );
 `);
 
 // Migrate: add new columns if they don't exist (safe for existing DBs)
@@ -203,6 +219,28 @@ if (!userCols.includes('mobile_number')) {
   db.exec("ALTER TABLE users ADD COLUMN mobile_number TEXT");
 }
 
+const feedbackCols = db.prepare("PRAGMA table_info(feedback_submissions)").all().map(c => c.name);
+if (!feedbackCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      feedback_type TEXT NOT NULL,
+      submitted_by_user_id INTEGER NOT NULL,
+      submitted_by_name TEXT NOT NULL,
+      submitted_by_username TEXT NOT NULL,
+      submitted_by_role TEXT NOT NULL,
+      submitted_by_designation TEXT,
+      payload_json TEXT NOT NULL,
+      submitted_date TEXT NOT NULL,
+      submitted_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(feedback_type, submitted_by_user_id)
+    );
+  `);
+} else if (!feedbackCols.includes('submitted_date')) {
+  db.exec("ALTER TABLE feedback_submissions ADD COLUMN submitted_date TEXT NOT NULL DEFAULT ''");
+}
+
 const users = db.prepare("SELECT id, role, permissions FROM users").all();
 const updatePermissions = db.prepare("UPDATE users SET permissions = ? WHERE id = ?");
 for (const user of users) {
@@ -216,8 +254,8 @@ db.exec("UPDATE timesheet_entries SET status='pending_manager' WHERE status='sub
 const partnerExists = db.prepare("SELECT id FROM users WHERE role='partner' LIMIT 1").get();
 if (!partnerExists) {
   const hash = bcrypt.hashSync('admin123', 10);
-  db.prepare("INSERT INTO users (name, username, password, role, permissions, designation) VALUES (?, ?, ?, ?, ?, ?)")
-    .run('Partner Admin', 'partner', hash, 'partner', serializePermissions(getDefaultPermissions('partner')), 'Managing Partner');
+  db.prepare("INSERT INTO users (name, username, password, role, permissions, designation, email, mobile_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run('Partner Admin', 'partner', hash, 'partner', serializePermissions(getDefaultPermissions('partner')), 'Managing Partner', 'partner@example.com', '+919999999991');
   console.log('✅ Default partner created: partner / admin123');
 }
 
@@ -225,8 +263,8 @@ if (!partnerExists) {
 const managerExists = db.prepare("SELECT id FROM users WHERE role='manager' LIMIT 1").get();
 if (!managerExists) {
   const hash = bcrypt.hashSync('manager123', 10);
-  db.prepare("INSERT INTO users (name, username, password, role, permissions, designation) VALUES (?, ?, ?, ?, ?, ?)")
-    .run('Sample Manager', 'manager', hash, 'manager', serializePermissions(getDefaultPermissions('manager')), 'Audit Manager');
+  db.prepare("INSERT INTO users (name, username, password, role, permissions, designation, email, mobile_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run('Sample Manager', 'manager', hash, 'manager', serializePermissions(getDefaultPermissions('manager')), 'Audit Manager', 'manager@example.com', '+919999999992');
   console.log('✅ Default manager created: manager / manager123');
 }
 

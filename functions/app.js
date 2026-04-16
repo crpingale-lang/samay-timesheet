@@ -12,6 +12,7 @@ const masterDataRoutes = require('./routes/master-data');
 const attendanceRoutes = require('./routes/attendance');
 const timesheetRoutes = require('./routes/timesheets');
 const reportRoutes = require('./routes/reports');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 const ROLE_DEFAULT_PERMISSIONS = {
@@ -95,6 +96,7 @@ app.use('/api/master-data', authMiddleware, masterDataRoutes);
 app.use('/api/attendance', authMiddleware, attendanceRoutes);
 app.use('/api/timesheets', authMiddleware, timesheetRoutes);
 app.use('/api/reports', authMiddleware, managerOrAbove, reportRoutes);
+app.use('/api/feedback', authMiddleware, feedbackRoutes);
 
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

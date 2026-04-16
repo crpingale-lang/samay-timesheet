@@ -4,6 +4,7 @@ const API = '/api';
 const LOCAL_CACHE_PREFIX = 'ts_cache:';
 const SESSION_LAST_ACTIVITY_KEY = 'ts_last_activity';
 const SELECTED_MODULE_KEY = 'ts_selected_module';
+const AUTH_NOTICE_KEY = 'ts_auth_notice';
 const SESSION_REFRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 const SESSION_ACTIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const SESSION_REFRESH_CHECK_MS = 60 * 1000;
@@ -177,6 +178,26 @@ function clearSelectedModule() {
   localStorage.removeItem(SELECTED_MODULE_KEY);
 }
 
+function setAuthNotice(message) {
+  const text = String(message || '').trim();
+  if (!text) {
+    localStorage.removeItem(AUTH_NOTICE_KEY);
+    return;
+  }
+  localStorage.setItem(AUTH_NOTICE_KEY, text);
+}
+
+function consumeAuthNotice() {
+  const message = String(localStorage.getItem(AUTH_NOTICE_KEY) || '').trim();
+  localStorage.removeItem(AUTH_NOTICE_KEY);
+  return message;
+}
+
+function redirectToLogin(message) {
+  if (message) setAuthNotice(message);
+  window.location.href = '/';
+}
+
 function getModuleLandingPage(moduleKey = getSelectedModule()) {
   switch (String(moduleKey || '').trim().toLowerCase()) {
     case 'timesheet':
@@ -201,7 +222,7 @@ function getDefaultLandingPage() {
   if (hasPermission('dashboard.view_self')) return '/dashboard.html';
   if (hasPermission('timesheets.view_own')) return '/timesheet.html';
   if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) return '/approvals.html';
-  if (hasPermission('reports.view')) return '/reports.html';
+  if (hasPermission('reports.view') || hasPermission('feedback.view')) return '/reports.html';
   if (hasPermission('attendance.view_reports') || hasPermission('attendance.view_own') || hasPermission('attendance.create_own')) return '/attendance.html';
   if (hasPermission('clients.view')) return '/clients.html';
   if (hasPermission('staff.view')) return '/staff.html';
@@ -229,20 +250,42 @@ function clearSession() {
 }
 function requireAuth(managerAbove = false) {
   const token = getToken(); const user = getUser();
-  if (!token || !user || isTokenExpired(token)) { clearSession(); window.location.href = '/'; return false; }
-  if (managerAbove && !['manager','partner'].includes(user.role)) { window.location.href = getDefaultLandingPage(); return false; }
+  if (!token || !user || isTokenExpired(token)) {
+    clearSession();
+    redirectToLogin('Your session expired. Please sign in again.');
+    return false;
+  }
+  if (managerAbove && !['manager','partner'].includes(user.role)) {
+    setAuthNotice('You do not have access to that page.');
+    window.location.href = getDefaultLandingPage();
+    return false;
+  }
   return true;
 }
 function requirePartner() {
   const user = getUser();
-  if (!user) { window.location.href = '/'; return false; }
-  if (user.role !== 'partner') { window.location.href = getDefaultLandingPage(); return false; }
+  if (!user) {
+    redirectToLogin('Please sign in to continue.');
+    return false;
+  }
+  if (user.role !== 'partner') {
+    setAuthNotice('That page is available only to partners.');
+    window.location.href = getDefaultLandingPage();
+    return false;
+  }
   return true;
 }
 function requirePermission(permission) {
   const user = getUser();
-  if (!user) { window.location.href = '/'; return false; }
-  if (!hasPermission(permission)) { window.location.href = getDefaultLandingPage(); return false; }
+  if (!user) {
+    redirectToLogin('Please sign in to continue.');
+    return false;
+  }
+  if (!hasPermission(permission)) {
+    setAuthNotice(`You do not have permission to open ${permission}.`);
+    window.location.href = getDefaultLandingPage();
+    return false;
+  }
   return true;
 }
 function logout() { clearSession(); window.location.href = '/'; }
@@ -260,11 +303,14 @@ async function refreshSession({ force = false } = {}) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
     }
-  }).then(async res => {
-    if (!res.ok) {
-      if (res.status === 401) clearSession();
-      return false;
-    }
+    }).then(async res => {
+      if (!res.ok) {
+        if (res.status === 401) {
+          clearSession();
+          setAuthNotice('Your session expired. Please sign in again.');
+        }
+        return false;
+      }
     const data = await res.json().catch(() => ({}));
     if (!data?.token || !data?.user) return false;
     setSession(data.token, data.user);
@@ -407,9 +453,13 @@ async function apiFetch(path, options = {}) {
       ...(token ? { Authorization: 'Bearer ' + token } : {}),
       ...(options.headers || {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-  if (res.status === 401) { logout(); return; }
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+  if (res.status === 401) {
+    clearSession();
+    redirectToLogin('Your session expired or the server rejected your session. Please sign in again.');
+    return;
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Something went wrong');
   return data;
@@ -965,9 +1015,9 @@ function SIDEBAR_HTML() {
       <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
       <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
       <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
-      <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view">Management</span>
+      <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
       <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
-      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
+      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
       <span class="nav-section-label" data-permissions="clients.view,staff.view">Admin</span>
       <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>
       <a class="nav-item nav-item-staff" data-page="staff.html" href="/staff.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Staff</span></a>

@@ -28,6 +28,13 @@ const APP_PERMISSION_GROUPS = [
     ]
   },
   {
+    key: 'feedback',
+    label: 'Feedback',
+    permissions: [
+      { key: 'feedback.view', label: 'View Reports' }
+    ]
+  },
+  {
     key: 'timesheets',
     label: 'Timesheets',
     permissions: [
@@ -274,8 +281,8 @@ router.post('/', async (req, res) => {
       designation: designation || '',
       department: department || '',
       active: active !== undefined ? active : true,
-      created_at: admin.firestore.FieldValue.serverTimestamp()
-    });
+        created_at: new Date()
+      });
     invalidateCache('users:all');
     invalidateCacheByPrefix('dashboard:');
     res.json({ id: docRef.id });
