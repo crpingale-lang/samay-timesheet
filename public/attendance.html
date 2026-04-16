@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Attendance - Samay</title>
+  <title>Attendance Check In - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
@@ -30,54 +30,59 @@
       <div class="card" id="attendance-checkin-card" style="margin-bottom:16px;">
         <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
           <div>
-            <div class="card-title">Mark Attendance</div>
-            <div class="card-subtitle">Pick a location, then allow geolocation so we can verify you are within 50 metres.</div>
+            <div class="card-title">Check In</div>
+            <div class="card-subtitle">Tap Check In to open the form, choose a location, then capture your current location to verify you are within the allowed radius.</div>
           </div>
-          <div class="report-sync" id="attendance-checkin-sync">Waiting</div>
-        </div>
-        <div class="report-sidebar-fields attendance-filters" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px;">
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Name</label>
-            <input class="form-control" type="text" id="attendance-name" readonly>
-          </div>
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Time</label>
-            <input class="form-control" type="text" id="attendance-time" readonly>
-          </div>
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Location</label>
-            <select class="form-control" id="attendance-location">
-              <option value="">Loading locations...</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Action</label>
-            <button class="btn btn-ghost btn-sm" type="button" id="detect-location-btn" onclick="detectCurrentLocation()">Use Current Location</button>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+            <div class="report-sync" id="attendance-checkin-sync">Tap Check In</div>
+            <button class="btn btn-primary btn-sm" type="button" id="toggle-checkin-btn" aria-expanded="false" onclick="toggleCheckInPanel()">Check In</button>
           </div>
         </div>
-        <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px;">
-          <div class="stat-card blue">
-            <div class="stat-label">Current Location</div>
-            <div class="stat-value" id="geo-distance">-</div>
-            <div class="stat-sub" id="geo-status">Waiting for geolocation permission.</div>
+        <div id="checkin-panel" hidden>
+          <div class="report-sidebar-fields attendance-filters" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Name</label>
+              <input class="form-control" type="text" id="attendance-name" readonly>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Time</label>
+              <input class="form-control" type="text" id="attendance-time" readonly>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Location</label>
+              <select class="form-control" id="attendance-location">
+                <option value="">Loading locations...</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Action</label>
+              <button class="btn btn-ghost btn-sm" type="button" id="detect-location-btn" onclick="detectCurrentLocation()">Use Current Location</button>
+            </div>
           </div>
-          <div class="stat-card green">
-            <div class="stat-label">Selected Office</div>
-            <div class="stat-value" id="selected-location-label">-</div>
-            <div class="stat-sub" id="selected-location-meta">Choose a location from the dropdown.</div>
+          <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px;">
+            <div class="stat-card blue">
+              <div class="stat-label">Current Location</div>
+              <div class="stat-value" id="geo-distance">-</div>
+              <div class="stat-sub" id="geo-status">Waiting for geolocation permission.</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-label">Selected Office</div>
+              <div class="stat-value" id="selected-location-label">-</div>
+              <div class="stat-sub" id="selected-location-meta">Choose a location from the dropdown.</div>
+            </div>
+            <div class="stat-card amber">
+              <div class="stat-label">Save Status</div>
+              <div class="stat-value" id="geo-save-status">Disabled</div>
+              <div class="stat-sub">You must be inside the allowed radius to save.</div>
+            </div>
           </div>
-          <div class="stat-card amber">
-            <div class="stat-label">Save Status</div>
-            <div class="stat-value" id="geo-save-status">Disabled</div>
-            <div class="stat-sub">You must be inside the allowed radius to save.</div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">Current Coordinates</label>
+            <div class="form-control" id="current-coords" style="display:flex;align-items:center;min-height:42px;background:var(--surface-muted);">Not detected yet</div>
           </div>
-        </div>
-        <div class="form-group" style="margin-bottom:12px;">
-          <label class="form-label">Current Coordinates</label>
-          <div class="form-control" id="current-coords" style="display:flex;align-items:center;min-height:42px;background:var(--surface-muted);">Not detected yet</div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
-          <button class="btn btn-primary" type="button" id="save-attendance-btn" onclick="saveAttendance()">Save Attendance</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn btn-primary" type="button" id="save-attendance-btn" onclick="saveAttendance()">Check In</button>
+          </div>
         </div>
       </div>
 
@@ -186,6 +191,7 @@ let totalRecords = 0;
 let summary = null;
 let currentGeo = null;
 let attendanceLocations = [];
+let checkInPanelOpen = false;
 const currentUser = getUser() || {};
 const canViewAttendanceAll = hasPermission('attendance.view_reports') || hasPermission('staff.view');
 const canCreateAttendance = hasPermission('attendance.create_own') || canViewAttendanceAll;
@@ -237,7 +243,53 @@ function updateCurrentTime() {
   document.getElementById('attendance-time').value = formatCurrentTime();
 }
 
+function setCheckInPanel(open) {
+  checkInPanelOpen = !!open;
+  const panel = document.getElementById('checkin-panel');
+  const button = document.getElementById('toggle-checkin-btn');
+  if (panel) panel.hidden = !checkInPanelOpen;
+  if (button) {
+    button.textContent = checkInPanelOpen ? 'Close' : 'Check In';
+    button.setAttribute('aria-expanded', String(checkInPanelOpen));
+  }
+  if (checkInPanelOpen) {
+    if (canCreateAttendance && attendanceLocations.length && !currentGeo) {
+      detectCurrentLocation();
+    } else {
+      updateGeofenceUi();
+    }
+    window.setTimeout(() => {
+      document.getElementById('checkin-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
+}
+
+function toggleCheckInPanel() {
+  setCheckInPanel(!checkInPanelOpen);
+}
+
+function toFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeAttendanceLocation(location) {
+  if (!location) return null;
+  const latitude = toFiniteNumber(location.latitude);
+  const longitude = toFiniteNumber(location.longitude);
+  const radiusMeters = toFiniteNumber(location.radius_meters);
+  return {
+    ...location,
+    latitude,
+    longitude,
+    radius_meters: radiusMeters != null && radiusMeters > 0 ? radiusMeters : 50
+  };
+}
+
 function getLocationDistanceMeters(lat1, lon1, lat2, lon2) {
+  const coords = [lat1, lon1, lat2, lon2].map(toFiniteNumber);
+  if (coords.some(value => value == null)) return null;
+  [lat1, lon1, lat2, lon2] = coords;
   const toRad = deg => (deg * Math.PI) / 180;
   const earthRadius = 6371000;
   const dLat = toRad(lat2 - lat1);
@@ -286,11 +338,19 @@ function updateGeofenceUi() {
   }
 
   const distance = getLocationDistanceMeters(currentGeo.latitude, currentGeo.longitude, selected.latitude, selected.longitude);
+  if (distance == null) {
+    distanceEl.textContent = '-';
+    statusEl.textContent = 'Selected location is missing valid coordinates.';
+    saveEl.textContent = 'Disabled';
+    document.getElementById('save-attendance-btn').disabled = true;
+    coordsEl.textContent = `${currentGeo.latitude.toFixed(6)}, ${currentGeo.longitude.toFixed(6)} (accuracy ±${Math.round(currentGeo.accuracy || 0)}m)`;
+    return;
+  }
   const withinRadius = distance <= (selected.radius_meters || 50);
   distanceEl.textContent = `${Math.round(distance)}m`;
   coordsEl.textContent = `${currentGeo.latitude.toFixed(6)}, ${currentGeo.longitude.toFixed(6)} (accuracy ±${Math.round(currentGeo.accuracy || 0)}m)`;
   if (withinRadius) {
-    statusEl.textContent = 'Within allowed radius. You can save now.';
+    statusEl.textContent = 'Within allowed radius. You can check in now.';
     saveEl.textContent = 'Enabled';
     saveEl.className = 'stat-value';
     distanceEl.style.color = 'var(--success)';
@@ -306,7 +366,9 @@ function updateGeofenceUi() {
 async function loadAttendanceLocations() {
   try {
     const result = await apiFetch('/master-data');
-    attendanceLocations = Array.isArray(result.locations) ? result.locations : [];
+    attendanceLocations = (Array.isArray(result.locations) ? result.locations : [])
+      .map(normalizeAttendanceLocation)
+      .filter(location => location && location.latitude != null && location.longitude != null);
     const select = document.getElementById('attendance-location');
     if (!attendanceLocations.length) {
       select.innerHTML = '<option value="">No locations configured</option>';
@@ -362,6 +424,10 @@ async function saveAttendance() {
     return;
   }
   const distance = getLocationDistanceMeters(currentGeo.latitude, currentGeo.longitude, selected.latitude, selected.longitude);
+  if (distance == null) {
+    toast('Unable to calculate the distance for the selected location', 'error');
+    return;
+  }
   if (distance > (selected.radius_meters || 50)) {
     toast(`You are outside the allowed radius for ${selected.label}`, 'error');
     return;
@@ -381,12 +447,12 @@ async function saveAttendance() {
       }
     });
     setCheckinState('Saved', 'success');
-    toast('Attendance recorded successfully', 'success');
+    toast('Check-in recorded successfully', 'success');
     await loadAttendance(1);
     updateGeofenceUi();
   } catch (error) {
     setCheckinState('Save failed', 'error');
-    toast(error.message || 'Unable to save attendance', 'error');
+    toast(error.message || 'Unable to complete check in', 'error');
   } finally {
     updateGeofenceUi();
   }
@@ -488,7 +554,7 @@ document.getElementById('attendance-location').addEventListener('change', update
 loadAttendanceLocations().then(() => {
   updateCurrentTime();
   updateGeofenceUi();
-  if (canCreateAttendance && attendanceLocations.length) detectCurrentLocation();
+  setCheckInPanel(false);
 });
 window.setInterval(updateCurrentTime, 60000);
 
