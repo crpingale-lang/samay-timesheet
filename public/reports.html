@@ -329,31 +329,10 @@
 <script src="/js/feedback.js"></script>
 <script>
 requireAuth();
-const canViewTimesheetReports = hasPermission('reports.view');
-const canViewFeedbackReports = hasPermission('feedback.view');
-if (!canViewTimesheetReports && !canViewFeedbackReports) window.location.href = '/dashboard.html';
-document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
-buildSidebar();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-if (!canViewTimesheetReports && canViewFeedbackReports) {
-  const titleEl = document.querySelector('.topbar-title');
-  const subtitleEl = document.querySelector('.report-topbar-subtitle');
-  if (titleEl) titleEl.textContent = 'Feedback';
-  if (subtitleEl) subtitleEl.textContent = 'Anonymous feedback reports for authorized users only.';
-}
-document.getElementById('export-btn').style.display = canViewTimesheetReports && hasPermission('reports.export') ? '' : 'none';
-const canViewAttendanceReports = canViewTimesheetReports && (hasPermission('attendance.view_reports') || hasPermission('staff.view'));
-const canViewFeedbackSection = canViewFeedbackReports;
-const attendanceSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="attendance"]');
-const timesheetSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="timesheet"]');
-const feedbackSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="feedback"]');
-if (!canViewTimesheetReports && timesheetSectionTab) timesheetSectionTab.style.display = 'none';
-if (!canViewAttendanceReports && attendanceSectionTab) attendanceSectionTab.style.display = 'none';
-if (!canViewFeedbackSection && feedbackSectionTab) feedbackSectionTab.style.display = 'none';
-if (document.getElementById('staff-filter-group') && !canViewTimesheetReports) {
-  document.getElementById('staff-filter-group').style.display = 'none';
-}
-
+let canViewTimesheetReports = false;
+let canViewFeedbackReports = false;
+let canViewAttendanceReports = false;
+let canViewFeedbackSection = false;
 let staffChart = null;
 let billChart = null;
 let clientChart = null;
@@ -362,6 +341,52 @@ let teamWatchLoadedRange = null;
 let staffDirectory = [];
 let activeReportSection = 'timesheet';
 let attendanceLoadedKey = '';
+bootReportsPage();
+
+async function bootReportsPage() {
+  await refreshSession({ force: true }).catch(() => {});
+
+  canViewTimesheetReports = hasPermission('reports.view');
+  canViewFeedbackReports = hasPermission('feedback.view');
+  if (!canViewTimesheetReports && !canViewFeedbackReports) window.location.href = '/dashboard.html';
+
+  document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+  buildSidebar();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if (!canViewTimesheetReports && canViewFeedbackReports) {
+    const titleEl = document.querySelector('.topbar-title');
+    const subtitleEl = document.querySelector('.report-topbar-subtitle');
+    if (titleEl) titleEl.textContent = 'Feedback';
+    if (subtitleEl) subtitleEl.textContent = 'Anonymous feedback reports for authorized users only.';
+  }
+  document.getElementById('export-btn').style.display = canViewTimesheetReports && hasPermission('reports.export') ? '' : 'none';
+  canViewAttendanceReports = canViewTimesheetReports && (hasPermission('attendance.view_reports') || hasPermission('staff.view'));
+  canViewFeedbackSection = canViewFeedbackReports;
+  const attendanceSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="attendance"]');
+  const timesheetSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="timesheet"]');
+  const feedbackSectionTab = document.querySelector('.report-section-tabs .tab[onclick*="feedback"]');
+  if (!canViewTimesheetReports && timesheetSectionTab) timesheetSectionTab.style.display = 'none';
+  if (!canViewAttendanceReports && attendanceSectionTab) attendanceSectionTab.style.display = 'none';
+  if (!canViewFeedbackSection && feedbackSectionTab) feedbackSectionTab.style.display = 'none';
+  if (document.getElementById('staff-filter-group') && !canViewTimesheetReports) {
+    document.getElementById('staff-filter-group').style.display = 'none';
+  }
+  applyPeriod();
+  applyTeamWatchPeriod();
+  if (!canViewTimesheetReports && canViewFeedbackSection) {
+    switchSection('feedback', feedbackSectionTab || document.querySelector('.report-section-tabs .tab'));
+  }
+  document.getElementById('filter-staff').addEventListener('change', updateFilterSummary);
+  document.getElementById('filter-from').addEventListener('change', updateFilterSummary);
+  document.getElementById('filter-to').addEventListener('change', updateFilterSummary);
+  await loadFilters();
+  updateFilterSummary();
+  if (activeReportSection === 'feedback') {
+    await feedbackInitReports();
+  } else {
+    loadAll();
+  }
+}
 
 function formatShortDate(d) {
   if (!d) return '-';
@@ -1079,23 +1104,6 @@ function closeSidebar() {
   document.getElementById('sidebar-el').classList.remove('open');
   document.getElementById('sb-overlay').classList.remove('open');
 }
-
-applyPeriod();
-applyTeamWatchPeriod();
-if (!canViewTimesheetReports && canViewFeedbackSection) {
-  switchSection('feedback', feedbackSectionTab || document.querySelector('.report-section-tabs .tab'));
-}
-document.getElementById('filter-staff').addEventListener('change', updateFilterSummary);
-document.getElementById('filter-from').addEventListener('change', updateFilterSummary);
-document.getElementById('filter-to').addEventListener('change', updateFilterSummary);
-loadFilters().then(() => {
-  updateFilterSummary();
-  if (activeReportSection === 'feedback') {
-    feedbackInitReports();
-  } else {
-    loadAll();
-  }
-});
 </script>
 </body>
 </html>
