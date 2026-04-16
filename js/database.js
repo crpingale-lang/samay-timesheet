@@ -240,6 +240,9 @@ if (!feedbackCols.length) {
 } else if (!feedbackCols.includes('submitted_date')) {
   db.exec("ALTER TABLE feedback_submissions ADD COLUMN submitted_date TEXT NOT NULL DEFAULT ''");
 }
+if (!feedbackCols.includes('submitted_at')) {
+  db.exec("ALTER TABLE feedback_submissions ADD COLUMN submitted_at TEXT DEFAULT (datetime('now'))");
+}
 
 const users = db.prepare("SELECT id, role, permissions FROM users").all();
 const updatePermissions = db.prepare("UPDATE users SET permissions = ? WHERE id = ?");
