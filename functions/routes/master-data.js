@@ -72,8 +72,28 @@ async function listCategory(category) {
 
 function normalizeLocationItem(item) {
   const label = String(item.location || item.Location || item.name || item.Name || '').trim();
-  const latitude = Number(item.latitude ?? item.Latitude ?? item.lat ?? item.Lat ?? item.latitude_deg ?? item.latitude_degrees);
-  const longitude = Number(item.longitude ?? item.Longitude ?? item.lng ?? item.Lng ?? item.lon ?? item.Long);
+  const latitude = Number(
+    item.latitude ??
+    item.Latitude ??
+    item.lat ??
+    item.Lat ??
+    item.latitude_deg ??
+    item.latitude_degrees ??
+    item.latitudeDeg ??
+    item.lat_deg
+  );
+  const longitude = Number(
+    item.longitude ??
+    item.Longitude ??
+    item.lng ??
+    item.Lng ??
+    item.lon ??
+    item.Long ??
+    item.longitude_deg ??
+    item.longitude_degrees ??
+    item.longitudeDeg ??
+    item.lng_deg
+  );
   const radiusMeters = Number(item.radius_meters ?? item.radius ?? item.Radius ?? 50);
   return {
     id: item.id,
@@ -89,7 +109,7 @@ async function listLocations() {
   const items = await getLocationMasterItems();
   return items
     .map(normalizeLocationItem)
-    .filter(item => item.active)
+    .filter(item => item.active && item.latitude != null && item.longitude != null)
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
