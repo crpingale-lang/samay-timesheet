@@ -128,17 +128,17 @@ function ensurePermissions(role, permissions) {
       'staff.view','staff.create','staff.edit','staff.delete','access.manage',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
       'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
-      'reports.view','reports.export','dashboard.view_self','dashboard.view_team','dashboard.view_firm'
+      'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','dashboard.view_self','dashboard.view_team','dashboard.view_firm'
     ],
     manager: [
       'clients.view','staff.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
       'approvals.view_manager_queue','approvals.approve_manager',
-      'reports.view','reports.export','dashboard.view_self','dashboard.view_team'
+      'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','dashboard.view_self','dashboard.view_team'
     ],
     article: [
       'clients.view',
-      'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','dashboard.view_self'
+      'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','attendance.view_own','attendance.create_own','dashboard.view_self'
     ]
   };
   return fallback[normalizedRole] || [];

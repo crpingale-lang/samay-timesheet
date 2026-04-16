@@ -62,6 +62,8 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'timesheets.edit_own',
     'timesheets.delete_own',
     'timesheets.submit_own',
+    'attendance.view_own',
+    'attendance.create_own',
     'dashboard.view_self'
   ]
 };
@@ -200,7 +202,7 @@ function getDefaultLandingPage() {
   if (hasPermission('timesheets.view_own')) return '/timesheet.html';
   if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) return '/approvals.html';
   if (hasPermission('reports.view')) return '/reports.html';
-  if (hasPermission('attendance.view_reports')) return '/attendance.html';
+  if (hasPermission('attendance.view_reports') || hasPermission('attendance.view_own') || hasPermission('attendance.create_own')) return '/attendance.html';
   if (hasPermission('clients.view')) return '/clients.html';
   if (hasPermission('staff.view')) return '/staff.html';
   return '/';
@@ -962,7 +964,7 @@ function SIDEBAR_HTML() {
       <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
       <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
       <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
-      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
+      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view">Management</span>
       <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
       <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>

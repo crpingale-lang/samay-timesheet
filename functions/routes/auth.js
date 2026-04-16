@@ -12,19 +12,20 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'staff.view','staff.create','staff.edit','staff.delete','access.manage',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
-    'reports.view','reports.export','attendance.view_reports',
+    'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports',
     'dashboard.view_self','dashboard.view_team','dashboard.view_firm'
   ],
   manager: [
     'clients.view','staff.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager',
-    'reports.view','reports.export','attendance.view_reports',
+    'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports',
     'dashboard.view_self','dashboard.view_team'
   ],
   article: [
     'clients.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own',
+    'attendance.view_own','attendance.create_own',
     'dashboard.view_self'
   ]
 };

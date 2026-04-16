@@ -71,11 +71,19 @@ async function getMasterDataItems() {
   });
 }
 
+async function getLocationMasterItems() {
+  return remember('location-master:all', 300000, async () => {
+    const snapshot = await db.collection('location_master').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  });
+}
+
 module.exports = {
   remember,
   getUsersMap,
   getClientsMap,
   getMasterDataItems,
+  getLocationMasterItems,
   invalidateCache,
   invalidateCacheByPrefix
 };

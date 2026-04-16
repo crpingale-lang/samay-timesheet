@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { getMasterDataItems, invalidateCache } = require('../data-cache');
+const { getMasterDataItems, getLocationMasterItems, invalidateCache } = require('../data-cache');
 
 const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification']);
 
@@ -70,12 +70,36 @@ async function listCategory(category) {
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.label.localeCompare(b.label));
 }
 
+function normalizeLocationItem(item) {
+  const label = String(item.location || item.Location || item.name || item.Name || '').trim();
+  const latitude = Number(item.latitude ?? item.Latitude ?? item.lat ?? item.Lat ?? item.latitude_deg ?? item.latitude_degrees);
+  const longitude = Number(item.longitude ?? item.Longitude ?? item.lng ?? item.Lng ?? item.lon ?? item.Long);
+  const radiusMeters = Number(item.radius_meters ?? item.radius ?? item.Radius ?? 50);
+  return {
+    id: item.id,
+    label: label || `Location ${item.id}`,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    radius_meters: Number.isFinite(radiusMeters) && radiusMeters > 0 ? radiusMeters : 50,
+    active: item.active !== false && item.active !== 0 && item.active !== '0'
+  };
+}
+
+async function listLocations() {
+  const items = await getLocationMasterItems();
+  return items
+    .map(normalizeLocationItem)
+    .filter(item => item.active)
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 router.get('/', async (req, res) => {
   try {
     await ensureMasterData();
     res.json({
       work_categories: await listCategory('work_category'),
-      work_classifications: await listCategory('work_classification')
+      work_classifications: await listCategory('work_classification'),
+      locations: await listLocations()
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
