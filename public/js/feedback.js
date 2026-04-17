@@ -116,6 +116,7 @@ const FEEDBACK_STATE = {
   modalType: '',
   sectionIndex: 0,
   answers: {},
+  validationErrors: {},
   reportTab: 'manager_feedback',
   reportData: {}
 };
@@ -133,6 +134,8 @@ function feedbackInjectStyles() {
     .pill.on{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary-dark);font-weight:600}
     .q-textarea{width:100%;min-height:100px;border:1px solid var(--border);border-radius:14px;padding:12px 14px;background:#fff;resize:vertical;outline:none;line-height:1.6}
     .q-textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,56,202,.10)}
+    .q-text-hint{margin-top:8px;font-size:12px;line-height:1.45;color:var(--text-muted)}
+    .q-error{margin-top:8px;font-size:12px;line-height:1.45;color:#b91c1c}
     .nps-btn{min-width:42px;height:42px;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--text);transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}
     .nps-btn:hover{transform:translateY(-1px);background:#f8fafc}
     .nps-btn.on{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary-dark);font-weight:700}
@@ -200,6 +203,57 @@ function feedbackCurrentSchema(type = FEEDBACK_STATE.modalType) {
   return FEEDBACK_SCHEMAS[type] || null;
 }
 
+function feedbackWordCount(value) {
+  const words = String(value || '').trim().match(/\S+/g);
+  return words ? words.length : 0;
+}
+
+function feedbackTextValidationMessage(value) {
+  const count = feedbackWordCount(value);
+  if (!count) return 'This field is required. Please enter at least 20 words.';
+  if (count < 20) return `Please enter at least 20 words. You have ${count}.`;
+  return '';
+}
+
+function feedbackTextQuestions(schema = feedbackCurrentSchema()) {
+  if (!schema) return [];
+  return schema.sections.flatMap(section => section.questions.filter(question => question.type === 'text'));
+}
+
+function feedbackValidationMessageMap(errors = []) {
+  return Object.fromEntries(errors.map(error => [error.id, error.message]));
+}
+
+function feedbackSetTextValidation(questionId, message) {
+  const input = document.getElementById(`feedback-text-${questionId}`);
+  const errorEl = document.getElementById(`feedback-error-${questionId}`);
+  if (input) {
+    input.setAttribute('aria-invalid', message ? 'true' : 'false');
+  }
+  if (errorEl) {
+    errorEl.textContent = message || '';
+    errorEl.style.display = message ? 'block' : 'none';
+  }
+}
+
+function feedbackApplyValidationErrors(errors = []) {
+  FEEDBACK_STATE.validationErrors = feedbackValidationMessageMap(errors);
+  feedbackTextQuestions().forEach(question => {
+    feedbackSetTextValidation(question.id, FEEDBACK_STATE.validationErrors[question.id] || '');
+  });
+}
+
+function feedbackValidateTextQuestions(items = []) {
+  const questions = items.flatMap(item => (Array.isArray(item?.questions) ? item.questions : [item]));
+  return questions
+    .filter(question => question && question.type === 'text')
+    .map(question => {
+      const message = feedbackTextValidationMessage(FEEDBACK_STATE.answers[question.id]);
+      return message ? { id: question.id, message } : null;
+    })
+    .filter(Boolean);
+}
+
 function feedbackEnsureModal() {
   if (document.getElementById('feedback-modal')) return;
   const wrapper = document.createElement('div');
@@ -247,7 +301,12 @@ function feedbackRenderQuestion(question) {
       </div>
     `;
   } else if (question.type === 'text') {
-    body = `<textarea class="q-textarea" placeholder="Write your response here..." oninput="feedbackTextAnswer('${question.id}', this.value)">${feedbackEscape(value || '')}</textarea>`;
+    const error = FEEDBACK_STATE.validationErrors[question.id] || '';
+    body = `
+      <textarea class="q-textarea" id="feedback-text-${question.id}" placeholder="Write your response here..." required aria-required="true" aria-invalid="${error ? 'true' : 'false'}" aria-describedby="feedback-error-${question.id}" oninput="feedbackTextAnswer('${question.id}', this.value, this)">${feedbackEscape(value || '')}</textarea>
+      <div class="q-text-hint">Required. Minimum 20 words.</div>
+      <div class="q-error" id="feedback-error-${question.id}"${error ? '' : ' style="display:none;"'}>${feedbackEscape(error)}</div>
+    `;
   } else if (question.type === 'nps') {
     body = `
       <div class="nps-row">
@@ -348,6 +407,7 @@ function feedbackOpenForm(type = feedbackPrimaryType()) {
   FEEDBACK_STATE.modalType = type;
   FEEDBACK_STATE.sectionIndex = 0;
   FEEDBACK_STATE.answers = {};
+  FEEDBACK_STATE.validationErrors = {};
   feedbackEnsureModal();
   feedbackRenderModal();
   openModal('feedback-modal');
@@ -372,6 +432,10 @@ function feedbackAnswer(id, value) {
 
 function feedbackTextAnswer(id, value) {
   FEEDBACK_STATE.answers[id] = value;
+  const currentError = FEEDBACK_STATE.validationErrors[id];
+  if (currentError) {
+    feedbackSetTextValidation(id, feedbackTextValidationMessage(value));
+  }
 }
 
 function feedbackToggle(id, value) {
@@ -395,9 +459,30 @@ function feedbackPrev() {
 async function feedbackNext() {
   const schema = feedbackCurrentSchema();
   if (!schema) return;
+  const currentSection = schema.sections[FEEDBACK_STATE.sectionIndex];
+  const sectionErrors = feedbackValidateTextQuestions(currentSection ? [currentSection] : []);
+  if (sectionErrors.length) {
+    feedbackApplyValidationErrors(sectionErrors);
+    const firstInvalid = document.getElementById(`feedback-text-${sectionErrors[0].id}`);
+    firstInvalid?.focus();
+    firstInvalid?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    toast('Please complete the required text responses.', 'error');
+    return;
+  }
   if (FEEDBACK_STATE.sectionIndex < schema.sections.length - 1) {
     FEEDBACK_STATE.sectionIndex += 1;
+    feedbackApplyValidationErrors([]);
     feedbackRenderModal();
+    return;
+  }
+
+  const submissionErrors = feedbackValidateTextQuestions(schema.sections);
+  if (submissionErrors.length) {
+    feedbackApplyValidationErrors(submissionErrors);
+    const firstInvalid = document.getElementById(`feedback-text-${submissionErrors[0].id}`);
+    firstInvalid?.focus();
+    firstInvalid?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    toast('Please complete the required text responses.', 'error');
     return;
   }
 

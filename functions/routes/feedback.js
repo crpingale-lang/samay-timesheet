@@ -13,6 +13,11 @@ const FEEDBACK_TYPES = {
   }
 };
 
+const FEEDBACK_TEXT_QUESTION_IDS = {
+  manager_feedback: ['wl5', 'gi4', 'mb5', 'cu5', 'ov5'],
+  article_feedback: ['ap4', 'ag4', 'ab4', 'ao3']
+};
+
 function normalizeRole(role) {
   return String(role || '').trim().toLowerCase();
 }
@@ -58,6 +63,22 @@ function canViewFeedbackReports(user) {
   return Array.isArray(user?.permissions) && user.permissions.includes('feedback.view');
 }
 
+function countWords(value) {
+  const words = String(value || '').trim().match(/\S+/g);
+  return words ? words.length : 0;
+}
+
+function validateFeedbackTextAnswers(feedbackType, answers = {}) {
+  const questionIds = FEEDBACK_TEXT_QUESTION_IDS[feedbackType] || [];
+  for (const questionId of questionIds) {
+    const text = String(answers?.[questionId] || '').trim();
+    if (countWords(text) < 20) {
+      return false;
+    }
+  }
+  return true;
+}
+
 router.get('/status', async (req, res) => {
   const available_types = availableTypesForUser(req.user);
   const snapshot = await db.collection('feedback_submissions')
@@ -81,6 +102,9 @@ router.post('/submit', async (req, res) => {
   }
   if (!answers) {
     return res.status(400).json({ error: 'Feedback answers are required' });
+  }
+  if (!validateFeedbackTextAnswers(feedbackType, answers)) {
+    return res.status(400).json({ error: 'Each text response must be at least 20 words long' });
   }
 
   try {
