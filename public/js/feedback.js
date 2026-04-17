@@ -247,7 +247,7 @@ function feedbackRenderQuestion(question) {
       </div>
     `;
   } else if (question.type === 'text') {
-    body = `<textarea class="q-textarea" placeholder="Write your response here..." oninput="feedbackAnswer('${question.id}', this.value)">${feedbackEscape(value || '')}</textarea>`;
+    body = `<textarea class="q-textarea" placeholder="Write your response here..." oninput="feedbackTextAnswer('${question.id}', this.value)">${feedbackEscape(value || '')}</textarea>`;
   } else if (question.type === 'nps') {
     body = `
       <div class="nps-row">
@@ -368,6 +368,10 @@ function feedbackRenderModal() {
 function feedbackAnswer(id, value) {
   FEEDBACK_STATE.answers[id] = value;
   feedbackRenderModal();
+}
+
+function feedbackTextAnswer(id, value) {
+  FEEDBACK_STATE.answers[id] = value;
 }
 
 function feedbackToggle(id, value) {
