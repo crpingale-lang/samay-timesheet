@@ -135,7 +135,9 @@ function feedbackInjectStyles() {
     .q-textarea{width:100%;min-height:100px;border:1px solid var(--border);border-radius:14px;padding:12px 14px;background:#fff;resize:vertical;outline:none;line-height:1.6}
     .q-textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,56,202,.10)}
     .q-text-hint{margin-top:8px;font-size:12px;line-height:1.45;color:var(--text-muted)}
+    .q-text-hint strong{color:var(--text)}
     .q-error{margin-top:8px;font-size:12px;line-height:1.45;color:#b91c1c}
+    .text-rule-note{margin:0 0 16px;padding:12px 14px;border:1px solid rgba(67,56,202,.18);border-radius:14px;background:rgba(67,56,202,.06);color:var(--text);font-size:13px;line-height:1.5}
     .nps-btn{min-width:42px;height:42px;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--text);transition:background .15s ease,border-color .15s ease,color .15s ease,transform .15s ease}
     .nps-btn:hover{transform:translateY(-1px);background:#f8fafc}
     .nps-btn.on{background:var(--primary-bg);border-color:var(--primary-light);color:var(--primary-dark);font-weight:700}
@@ -304,7 +306,7 @@ function feedbackRenderQuestion(question) {
     const error = FEEDBACK_STATE.validationErrors[question.id] || '';
     body = `
       <textarea class="q-textarea" id="feedback-text-${question.id}" placeholder="Write your response here..." required aria-required="true" aria-invalid="${error ? 'true' : 'false'}" aria-describedby="feedback-error-${question.id}" oninput="feedbackTextAnswer('${question.id}', this.value, this)">${feedbackEscape(value || '')}</textarea>
-      <div class="q-text-hint">Required. Minimum 20 words.</div>
+      <div class="q-text-hint"><strong>Required.</strong> Minimum 20 words before you can continue.</div>
       <div class="q-error" id="feedback-error-${question.id}"${error ? '' : ' style="display:none;"'}>${feedbackEscape(error)}</div>
     `;
   } else if (question.type === 'nps') {
@@ -330,6 +332,7 @@ function feedbackRenderSection(type) {
   const schema = feedbackCurrentSchema(type);
   if (!schema) return '';
   const section = schema.sections[FEEDBACK_STATE.sectionIndex];
+  const hasTextQuestions = section.questions.some(question => question.type === 'text');
   const progress = schema.sections.length > 1
     ? Math.round((FEEDBACK_STATE.sectionIndex / (schema.sections.length - 1)) * 100)
     : 100;
@@ -347,6 +350,7 @@ function feedbackRenderSection(type) {
       <div class="sec-title">${feedbackEscape(section.title)}</div>
       <div class="sec-desc">${feedbackEscape(section.description)}</div>
     </div>
+    ${hasTextQuestions ? '<div class="text-rule-note"><strong>Before you continue:</strong> every text response in this section is required and must have at least 20 words.</div>' : ''}
     ${section.questions.map(feedbackRenderQuestion).join('')}
     <div class="nav-row">
       <button class="btn" type="button" onclick="feedbackPrev()">${FEEDBACK_STATE.sectionIndex === 0 ? 'Cancel' : 'Previous section'}</button>
