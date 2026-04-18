@@ -244,45 +244,44 @@
         </div>
       </section>
 
-      <section class="modal-section">
-        <div class="modal-section-head">
-          <div class="modal-section-title">Collaboration And Status</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Worked With</label>
-          <div style="max-width:420px;">
-            <select class="form-control" id="worked-with-select" onchange="addWorkedWithSelection(this.value)">
-              <option value="">Select collaborator</option>
-            </select>
-          </div>
-          <div class="table-wrapper" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;max-width:520px;">
-            <table>
-              <thead>
-                <tr><th>Name</th><th style="width:52px;">Action</th></tr>
-              </thead>
-              <tbody id="worked-with-table-body"></tbody>
-            </table>
-          </div>
-          <div class="form-help">People selected here will receive a collaboration request in their own timesheet.</div>
-        </div>
-        <div class="form-group" style="margin-top:12px;">
-          <label class="form-label">Work Classification</label>
-          <select class="form-control" id="modal-work-classification"></select>
-        </div>
-        <div class="form-group" style="margin-top:12px;">
-          <label class="form-label">Status</label>
-          <div id="modal-status" class="entry-readonly"></div>
-        </div>
-        <div class="entry-modal-inline-note" id="modal-status-note">New entries start as drafts until you submit them.</div>
-      </section>
-
       <div id="modal-collaboration-warning" class="row-rejection" style="display:none;"></div>
       <div id="modal-rejection" class="row-rejection" style="display:none;"></div>
+      <details class="entry-advanced">
+        <summary>More details and status</summary>
+        <div class="entry-advanced-content">
+          <div class="form-group">
+            <label class="form-label">Worked With</label>
+            <div style="max-width:420px;">
+              <select class="form-control" id="worked-with-select" onchange="addWorkedWithSelection(this.value)">
+                <option value="">Select collaborator</option>
+              </select>
+            </div>
+            <div class="table-wrapper" style="margin-top:10px;border:1px solid var(--border);border-radius:10px;max-width:520px;">
+              <table>
+                <thead>
+                  <tr><th>Name</th><th style="width:52px;">Action</th></tr>
+                </thead>
+                <tbody id="worked-with-table-body"></tbody>
+              </table>
+            </div>
+            <div class="form-help">People selected here will receive a collaboration request in their own timesheet.</div>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label class="form-label">Work Classification</label>
+            <select class="form-control" id="modal-work-classification"></select>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label class="form-label">Status</label>
+            <div id="modal-status" class="entry-readonly"></div>
+          </div>
+          <div class="entry-modal-inline-note" id="modal-status-note">New entries start as drafts until you submit them.</div>
+        </div>
+      </details>
     </div>
       <div class="modal-actions">
         <button class="btn btn-primary" style="flex:1;justify-content:center;" id="save-entry-btn" onclick="saveModalEntry()">Save Entry</button>
         <button class="btn btn-outline" type="button" id="submit-entry-btn" onclick="submitModalEntry()">Submit</button>
-        <button class="btn btn-danger" type="button" id="delete-entry-btn" onclick="deleteModalEntry()">Delete</button>
+        <button class="btn btn-danger-ghost" type="button" id="delete-entry-btn" onclick="deleteModalEntry()">Delete</button>
     </div>
   </div>
 </div>
