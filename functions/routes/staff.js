@@ -18,13 +18,21 @@ const APP_PERMISSION_GROUPS = [
   },
   {
     key: 'staff',
-    label: 'Staff Master',
+    label: 'User Master',
     permissions: [
       { key: 'staff.view', label: 'View' },
       { key: 'staff.create', label: 'Add' },
       { key: 'staff.edit', label: 'Edit' },
       { key: 'staff.delete', label: 'Delete' },
       { key: 'access.manage', label: 'Access' }
+    ]
+  },
+  {
+    key: 'firm',
+    label: 'Firm Shell',
+    permissions: [
+      { key: 'firm.dashboard.view', label: 'Firm Dashboard' },
+      { key: 'modules.view', label: 'Go to Module' }
     ]
   },
   {
@@ -133,18 +141,21 @@ function ensurePermissions(role, permissions) {
     partner: [
       'clients.view','clients.create','clients.edit','clients.delete','clients.import',
       'staff.view','staff.create','staff.edit','staff.delete','access.manage',
+      'modules.view','firm.dashboard.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
       'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
       'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','dashboard.view_self','dashboard.view_team','dashboard.view_firm'
     ],
     manager: [
       'clients.view','staff.view',
+      'modules.view','firm.dashboard.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
       'approvals.view_manager_queue','approvals.approve_manager',
       'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','dashboard.view_self','dashboard.view_team'
     ],
     article: [
       'clients.view',
+      'modules.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','attendance.view_own','attendance.create_own','dashboard.view_self'
     ]
   };
@@ -161,6 +172,15 @@ function isValidMobileNumber(value) {
   if (/^\+\d{10,15}$/.test(normalized)) return true;
   const digits = normalized.replace(/\D/g, '');
   return digits.length >= 10 && digits.length <= 15;
+}
+
+function normalizeStatusFilter(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['active', 'inactive', 'all'].includes(normalized) ? normalized : '';
+}
+
+function isActiveUser(value) {
+  return value === true || value === 1 || value === '1' || String(value).trim().toLowerCase() === 'true';
 }
 
 async function usernameExistsInsensitive(username, excludeId = null) {
@@ -210,6 +230,7 @@ router.get('/', async (req, res) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 50, 1), 200);
     const wantsPagedResponse = !!(req.query.page || req.query.page_size || req.query.q);
+    const statusFilter = normalizeStatusFilter(req.query.status);
     const snapshot = await getUsersMap();
     const users = [];
     snapshot.forEach((value, id) => {
@@ -228,19 +249,24 @@ router.get('/', async (req, res) => {
     const filtered = query
       ? users.filter(user => [user.name, user.username, user.role, user.designation, user.department, user.email, user.mobile_number].join(' ').toLowerCase().includes(query))
       : users;
+    const statusFiltered = statusFilter === 'active'
+      ? filtered.filter(user => isActiveUser(user.active))
+      : statusFilter === 'inactive'
+        ? filtered.filter(user => !isActiveUser(user.active))
+        : filtered;
 
     if (!wantsPagedResponse) {
-      return res.json(filtered);
+      return res.json(statusFiltered);
     }
 
     const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
+    const items = statusFiltered.slice(start, start + pageSize);
     res.json({
       items,
-      total: filtered.length,
+      total: statusFiltered.length,
       page,
       page_size: pageSize,
-      has_more: start + items.length < filtered.length
+      has_more: start + items.length < statusFiltered.length
     });
   } catch(e) { res.status(500).json({error:e.message}); }
 });

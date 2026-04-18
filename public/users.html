@@ -6,6 +6,11 @@
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
+  <style>
+    .user-status-filter{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .pill-toggle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--text-muted);cursor:pointer;background:var(--bg)}
+    .pill-toggle input{margin:0}
+  </style>
 </head>
 <body>
 <div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
@@ -17,8 +22,9 @@
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div class="topbar-title">Users</div>
       </div>
-      <button class="btn btn-primary btn-sm" id="add-staff-btn" onclick="openAddModal()">+ Add User</button>
+      <button class="btn btn-primary btn-sm" id="add-user-btn" onclick="openAddModal()">+ Add User</button>
     </header>
+
     <div class="page-content">
       <div class="badge-flow" style="margin-bottom:14px;">
         <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Hierarchy:</span>
@@ -28,32 +34,35 @@
         <span style="font-size:12px;color:var(--text-muted);">-></span>
         <span class="badge badge-article">Article</span>
       </div>
+
       <div class="card">
         <div class="card-header">
           <div class="search-bar list-search">
-            <input class="form-control" type="text" id="staff-search" placeholder="Search staff..." oninput="queueStaffSearch()" style="padding-left:34px;">
+            <input class="form-control" type="text" id="user-search" placeholder="Search users..." oninput="queueUserSearch()" style="padding-left:34px;">
             <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;">Search</span>
           </div>
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end;">
-            <div class="segmented-control" id="user-status-filter" style="display:inline-flex;gap:6px;flex-wrap:wrap;">
-              <label class="pill-toggle"><input type="radio" name="staff-status" value="active" checked> Active</label>
-              <label class="pill-toggle"><input type="radio" name="staff-status" value="inactive"> Inactive</label>
-              <label class="pill-toggle"><input type="radio" name="staff-status" value="all"> All</label>
+            <div class="user-status-filter" id="user-status-filter">
+              <label class="pill-toggle"><input type="radio" name="user-status" value="active" checked> Active</label>
+              <label class="pill-toggle"><input type="radio" name="user-status" value="inactive"> Inactive</label>
+              <label class="pill-toggle"><input type="radio" name="user-status" value="all"> All</label>
             </div>
-            <span id="staff-count" class="list-count"></span>
+            <span id="user-count" class="list-count"></span>
           </div>
         </div>
+
         <div class="table-wrapper">
           <table class="mobile-stack-table">
             <thead><tr><th>Name</th><th>Username</th><th class="hide-mobile">Designation</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody id="staff-tbody"></tbody>
+            <tbody id="users-tbody"></tbody>
           </table>
         </div>
+
         <div class="list-pagination">
-          <span id="staff-page-meta" class="list-page-meta"></span>
+          <span id="user-page-meta" class="list-page-meta"></span>
           <div class="list-pagination-actions">
-            <button class="btn btn-ghost btn-sm" id="staff-prev-btn" onclick="changeStaffPage(-1)">Previous</button>
-            <button class="btn btn-ghost btn-sm" id="staff-next-btn" onclick="changeStaffPage(1)">Next</button>
+            <button class="btn btn-ghost btn-sm" id="user-prev-btn" onclick="changeUserPage(-1)">Previous</button>
+            <button class="btn btn-ghost btn-sm" id="user-next-btn" onclick="changeUserPage(1)">Next</button>
           </div>
         </div>
       </div>
@@ -61,10 +70,10 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="staff-modal">
+<div class="modal-overlay" id="user-modal">
   <div class="modal staff-modal" style="max-width:860px;width:min(86vw,860px);">
-    <div class="modal-header"><div class="modal-title" id="modal-title">Add Staff</div><button class="modal-close" onclick="closeModal('staff-modal')" aria-label="Close staff modal">&times;</button></div>
-    <form id="staff-form">
+    <div class="modal-header"><div class="modal-title" id="modal-title">Add User</div><button class="modal-close" onclick="closeModal('user-modal')" aria-label="Close user modal">&times;</button></div>
+    <form id="user-form">
       <input type="hidden" id="edit-id">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" type="text" id="f-name" required placeholder="e.g. Priya Sharma"></div>
@@ -100,11 +109,11 @@
             <tbody id="access-matrix-body"></tbody>
           </table>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Administrator can grant per-user access across masters, attendance, timesheets, approvals, reports, dashboard, and the anonymous feedback reports. Tick <strong>Feedback → View Reports</strong> to allow this user to see the feedback section inside Reports.</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Grant access per user for users, clients, timesheets, approvals, reports, dashboard, and the firm shell.</div>
       </div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Save</button>
-        <button type="button" class="btn btn-ghost" onclick="closeModal('staff-modal')">Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal('user-modal')">Cancel</button>
       </div>
     </form>
   </div>
@@ -117,8 +126,8 @@ document.getElementById('sidebar-el').innerHTML = FIRM_SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-const canCreateStaff = hasPermission('staff.create');
-const canEditStaff = hasPermission('staff.edit');
+const canCreateUser = hasPermission('staff.create');
+const canEditUser = hasPermission('staff.edit');
 const canManageAccess = hasPermission('access.manage');
 let accessCatalog = [];
 const REQUIRED_ACCESS_GROUPS = [
@@ -132,33 +141,29 @@ const REQUIRED_ACCESS_GROUPS = [
     ]
   }
 ];
-const STAFF_PAGE_SIZE = 50;
-let staffPage = 1;
-let staffTotal = 0;
-let staffHasMore = false;
-let staffSearchTimer;
-const STAFF_VIEW_STATE_KEY = 'staff';
-const staffInitialState = readViewState(STAFF_VIEW_STATE_KEY) || {};
-document.getElementById('staff-search').value = staffInitialState.q || '';
-document.querySelectorAll('input[name="staff-status"]').forEach(input => {
-  input.checked = (staffInitialState.status || 'active') === input.value;
+const USER_PAGE_SIZE = 50;
+let userPage = 1;
+let userTotal = 0;
+let userHasMore = false;
+let userSearchTimer = null;
+const USERS_VIEW_STATE_KEY = 'users';
+const usersInitialState = readViewState(USERS_VIEW_STATE_KEY) || {};
+document.getElementById('user-search').value = usersInitialState.q || '';
+document.querySelectorAll('input[name="user-status"]').forEach(input => {
+  input.checked = (usersInitialState.status || 'active') === input.value;
 });
-document.getElementById('add-staff-btn').style.display = canCreateStaff ? '' : 'none';
+document.getElementById('add-user-btn').style.display = canCreateUser ? '' : 'none';
 
-function getStaffStatusFilter() {
-  return document.querySelector('input[name="staff-status"]:checked')?.value || 'active';
+function getUserStatusFilter() {
+  return document.querySelector('input[name="user-status"]:checked')?.value || 'active';
 }
 
-function persistStaffViewState(page = staffPage) {
-  writeViewState(STAFF_VIEW_STATE_KEY, {
-    q: document.getElementById('staff-search').value.trim(),
-    status: getStaffStatusFilter(),
+function persistUserViewState(page = userPage) {
+  writeViewState(USERS_VIEW_STATE_KEY, {
+    q: document.getElementById('user-search').value.trim(),
+    status: getUserStatusFilter(),
     page
   });
-}
-
-function accessCell(permissionKey) {
-  return `<label style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;margin:4px 6px 4px 0;font-size:12px;cursor:pointer;"><input type="checkbox" data-permission="${permissionKey}"><span>${permissionKey.split('.').slice(1).join(' ')}</span></label>`;
 }
 
 function normalizeAccessCatalog(groups = []) {
@@ -169,15 +174,17 @@ function normalizeAccessCatalog(groups = []) {
   return [...catalog.values()];
 }
 
+function accessCell(permissionKey) {
+  return `<label style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;margin:4px 6px 4px 0;font-size:12px;cursor:pointer;"><input type="checkbox" data-permission="${permissionKey}"><span>${permissionKey.split('.').slice(1).join(' ')}</span></label>`;
+}
+
 function renderAccessMatrix(selected = []) {
   const tbody = document.getElementById('access-matrix-body');
-  tbody.innerHTML = accessCatalog.map(group => {
-    return `
+  tbody.innerHTML = accessCatalog.map(group => `
       <tr>
         <td><strong>${group.label}</strong></td>
         <td>${group.permissions.map(permission => accessCell(permission.key)).join('')}</td>
-      </tr>`;
-  }).join('');
+      </tr>`).join('');
 
   selected.forEach(permission => {
     const input = tbody.querySelector(`[data-permission="${permission}"]`);
@@ -193,111 +200,111 @@ async function loadAccessCatalog() {
   if (!canManageAccess) return;
   accessCatalog = normalizeAccessCatalog(REQUIRED_ACCESS_GROUPS);
   renderAccessMatrix();
-  const result = await apiFetch('/staff/access-catalog');
+  const result = await apiFetch('/users/access-catalog');
   accessCatalog = normalizeAccessCatalog(result.groups || accessCatalog);
   document.getElementById('access-group').style.display = '';
   renderAccessMatrix();
 }
 
-function queueStaffSearch() {
-  clearTimeout(staffSearchTimer);
-  staffSearchTimer = setTimeout(() => loadStaff(1), 180);
+function queueUserSearch() {
+  clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(() => loadUsers(1), 180);
 }
 
-function updateStaffPager() {
-  const start = staffTotal ? ((staffPage - 1) * STAFF_PAGE_SIZE) + 1 : 0;
-  const end = staffTotal ? Math.min(staffPage * STAFF_PAGE_SIZE, staffTotal) : 0;
-  const statusLabel = getStaffStatusFilter();
+function updateUserPager() {
+  const start = userTotal ? ((userPage - 1) * USER_PAGE_SIZE) + 1 : 0;
+  const end = userTotal ? Math.min(userPage * USER_PAGE_SIZE, userTotal) : 0;
+  const statusLabel = getUserStatusFilter();
   const totalLabel = statusLabel === 'active' ? 'active users' : statusLabel === 'inactive' ? 'inactive users' : 'users';
-  document.getElementById('staff-count').textContent = `${staffTotal} ${totalLabel}`;
-  document.getElementById('staff-page-meta').textContent = staffTotal ? `Showing ${start}-${end} of ${staffTotal}` : 'No users found';
-  document.getElementById('staff-prev-btn').disabled = staffPage <= 1;
-  document.getElementById('staff-next-btn').disabled = !staffHasMore;
+  document.getElementById('user-count').textContent = `${userTotal} ${totalLabel}`;
+  document.getElementById('user-page-meta').textContent = userTotal ? `Showing ${start}-${end} of ${userTotal}` : 'No users found';
+  document.getElementById('user-prev-btn').disabled = userPage <= 1;
+  document.getElementById('user-next-btn').disabled = !userHasMore;
 }
 
-function changeStaffPage(delta) {
-  const nextPage = staffPage + delta;
+function changeUserPage(delta) {
+  const nextPage = userPage + delta;
   if (nextPage < 1) return;
-  if (delta > 0 && !staffHasMore) return;
-  loadStaff(nextPage);
+  if (delta > 0 && !userHasMore) return;
+  loadUsers(nextPage);
 }
 
-async function loadStaff(page = 1) {
-  const q = document.getElementById('staff-search').value.trim();
-  const status = getStaffStatusFilter();
-  persistStaffViewState(page);
-  const params = new URLSearchParams({ page: String(page), page_size: String(STAFF_PAGE_SIZE) });
+async function loadUsers(page = 1) {
+  const q = document.getElementById('user-search').value.trim();
+  const status = getUserStatusFilter();
+  persistUserViewState(page);
+  const params = new URLSearchParams({ page: String(page), page_size: String(USER_PAGE_SIZE) });
   if (q) params.set('q', q);
   if (status) params.set('status', status);
-  const tbody = document.getElementById('staff-tbody');
-  tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '⏳', title: 'Loading staff', subtitle: 'Refreshing the staff directory now.' })}</td></tr>`;
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '...', title: 'Loading users', subtitle: 'Refreshing the user directory now.' })}</td></tr>`;
   try {
-    const result = await apiFetch(`/staff?${params.toString()}`);
-    const staff = result.items || [];
-    staffPage = result.page || page;
-    staffTotal = result.total || staff.length;
-    staffHasMore = !!result.has_more;
-    updateStaffPager();
-    if (!staff.length) {
-      tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '👤', title: 'No staff found', subtitle: q ? 'Try a different search term.' : 'Add your first team member to start assigning access and tracking time.', actionLabel: canCreateStaff ? 'Add Staff' : '', action: canCreateStaff ? 'openAddModal()' : '' })}</td></tr>`;
+    const result = await apiFetch(`/users?${params.toString()}`);
+    const users = result.items || [];
+    userPage = result.page || page;
+    userTotal = result.total || users.length;
+    userHasMore = !!result.has_more;
+    updateUserPager();
+    if (!users.length) {
+      tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: 'U', title: 'No users found', subtitle: q ? 'Try a different search term.' : 'Add your first team member to start assigning access and tracking time.', actionLabel: canCreateUser ? 'Add User' : '', action: canCreateUser ? 'openAddModal()' : '' })}</td></tr>`;
       return;
     }
-    tbody.innerHTML = staff.map(s => `
+    tbody.innerHTML = users.map(u => `
     <tr>
       <td data-label="Name">
         <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0;">${s.name.charAt(0).toUpperCase()}</div>
-          <strong>${s.name}</strong>
+          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0;">${String(u.name || '?').charAt(0).toUpperCase()}</div>
+          <strong>${u.name}</strong>
         </div>
       </td>
-      <td data-label="Username"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${s.username}</code></td>
-      <td data-label="Designation" class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${s.designation || '-'}</td>
-      <td data-label="Role">${roleBadge(s.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(s.permissions || []).length} accesses</div></td>
-      <td data-label="Status"><span class="badge ${s.active ? 'badge-approved' : 'badge-draft'}">${s.active ? 'Active' : 'Inactive'}</span></td>
-      <td data-label="Action">${canEditStaff ? `<button class="btn btn-ghost btn-sm" onclick='editStaff(${JSON.stringify(s)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
+      <td data-label="Username"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${u.username}</code></td>
+      <td data-label="Designation" class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${u.designation || '-'}</td>
+      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(u.permissions || []).length} accesses</div></td>
+      <td data-label="Status"><span class="badge ${u.active ? 'badge-approved' : 'badge-draft'}">${u.active ? 'Active' : 'Inactive'}</span></td>
+      <td data-label="Action">${canEditUser ? `<button class="btn btn-ghost btn-sm" onclick='editUser(${JSON.stringify(u)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
     </tr>`).join('');
   } catch (err) {
-    staffTotal = 0;
-    staffHasMore = false;
-    updateStaffPager();
-    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '⚠', title: 'Staff directory could not load', subtitle: 'Please try again. If the issue continues, refresh the page.', actionLabel: 'Retry', action: 'loadStaff()' })}</td></tr>`;
+    userTotal = 0;
+    userHasMore = false;
+    updateUserPager();
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '!', title: 'User directory could not load', subtitle: 'Please try again. If the issue continues, refresh the page.', actionLabel: 'Retry', action: 'loadUsers()' })}</td></tr>`;
     toast(err.message, 'error');
   }
 }
 
 function openAddModal() {
-  if (!canCreateStaff) return;
+  if (!canCreateUser) return;
   document.getElementById('edit-id').value = '';
-  document.getElementById('modal-title').textContent = 'Add Staff';
-  document.getElementById('staff-form').reset();
+  document.getElementById('modal-title').textContent = 'Add User';
+  document.getElementById('user-form').reset();
   document.getElementById('f-username').readOnly = false;
   document.getElementById('active-group').style.display = 'none';
   document.getElementById('f-password').required = true;
   if (canManageAccess) renderAccessMatrix();
-  openModal('staff-modal');
+  openModal('user-modal');
 }
 
-function editStaff(s) {
-  if (!canEditStaff) return;
-  document.getElementById('edit-id').value = s.id;
-  document.getElementById('modal-title').textContent = 'Edit Staff';
-  document.getElementById('f-name').value = s.name;
-  document.getElementById('f-username').value = s.username;
+function editUser(u) {
+  if (!canEditUser) return;
+  document.getElementById('edit-id').value = u.id;
+  document.getElementById('modal-title').textContent = 'Edit User';
+  document.getElementById('f-name').value = u.name;
+  document.getElementById('f-username').value = u.username;
   document.getElementById('f-username').readOnly = true;
-  document.getElementById('f-role').value = s.role;
-  document.getElementById('f-designation').value = s.designation || '';
-  document.getElementById('f-department').value = s.department || '';
-  document.getElementById('f-email').value = s.email || '';
-  document.getElementById('f-mobile-number').value = s.mobile_number || '';
-  document.getElementById('f-active').checked = !!s.active;
+  document.getElementById('f-role').value = u.role;
+  document.getElementById('f-designation').value = u.designation || '';
+  document.getElementById('f-department').value = u.department || '';
+  document.getElementById('f-email').value = u.email || '';
+  document.getElementById('f-mobile-number').value = u.mobile_number || '';
+  document.getElementById('f-active').checked = !!u.active;
   document.getElementById('f-password').value = '';
   document.getElementById('f-password').required = false;
-  if (canManageAccess) renderAccessMatrix(s.permissions || []);
+  if (canManageAccess) renderAccessMatrix(u.permissions || []);
   document.getElementById('active-group').style.display = '';
-  openModal('staff-modal');
+  openModal('user-modal');
 }
 
-document.getElementById('staff-form').addEventListener('submit', async e => {
+document.getElementById('user-form').addEventListener('submit', async e => {
   e.preventDefault();
   const id = document.getElementById('edit-id').value;
   const payload = {
@@ -312,20 +319,27 @@ document.getElementById('staff-form').addEventListener('submit', async e => {
   };
   if (canManageAccess) payload.permissions = collectSelectedPermissions();
   const pwd = document.getElementById('f-password').value;
-  if (!id && !pwd) { toast('Password required for new staff','error'); return; }
+  if (!id && !pwd) { toast('Password required for new user', 'error'); return; }
   if (pwd) payload.password = pwd;
   try {
-    if (id) await apiFetch(`/staff/${id}`, { method:'PUT', body:payload });
-    else await apiFetch('/staff', { method:'POST', body:payload });
-    closeModal('staff-modal');
-    toast('Staff saved!','success');
-    loadStaff(id ? staffPage : 1);
-  } catch (err) { toast(err.message,'error'); }
+    if (id) await apiFetch(`/users/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/users', { method: 'POST', body: payload });
+    closeModal('user-modal');
+    toast('User saved!', 'success');
+    loadUsers(id ? userPage : 1);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+
+document.querySelectorAll('input[name="user-status"]').forEach(input => {
+  input.addEventListener('change', () => loadUsers(1));
 });
 
 function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
-loadAccessCatalog().then(() => loadStaff(staffInitialState.page || 1)).catch(err => toast(err.message,'error'));
+
+loadAccessCatalog().then(() => loadUsers(usersInitialState.page || 1)).catch(err => toast(err.message, 'error'));
 </script>
 </body>
 </html>

@@ -12,13 +12,21 @@ const MASTER_PERMISSION_GROUPS = [
   },
   {
     key: 'staff',
-    label: 'Staff Master',
+    label: 'User Master',
     permissions: [
       { key: 'staff.view', label: 'View' },
       { key: 'staff.create', label: 'Add' },
       { key: 'staff.edit', label: 'Edit' },
       { key: 'staff.delete', label: 'Delete' },
       { key: 'access.manage', label: 'Access' }
+    ]
+  },
+  {
+    key: 'firm',
+    label: 'Firm Shell',
+    permissions: [
+      { key: 'firm.dashboard.view', label: 'Firm Dashboard' },
+      { key: 'modules.view', label: 'Go to Module' }
     ]
   }
 ];
@@ -112,6 +120,8 @@ function getDefaultPermissions(role) {
     return [
       'clients.view',
       'staff.view',
+      'modules.view',
+      'firm.dashboard.view',
       'timesheets.view_own',
       'timesheets.create_own',
       'timesheets.edit_own',
@@ -128,6 +138,7 @@ function getDefaultPermissions(role) {
   }
   return [
     'clients.view',
+    'modules.view',
     'timesheets.view_own',
     'timesheets.create_own',
     'timesheets.edit_own',

@@ -82,6 +82,7 @@
           <button class="tab active" onclick="switchTab('utilization',this)">Utilization</button>
           <button class="tab" onclick="switchTab('client',this)">Client Analysis</button>
           <button class="tab" onclick="switchTab('detail',this)">Entry Detail</button>
+          <button class="tab" onclick="switchTab('unsubmitted',this)">Unsubmitted</button>
           <button class="tab" onclick="switchTab('team-watch',this)">Team Watch</button>
         </div>
 
@@ -164,6 +165,47 @@
               <table class="mobile-stack-table">
                 <thead><tr><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
                 <tbody id="detail-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-unsubmitted" style="display:none;">
+          <div class="stats-grid report-stats" style="margin-bottom:16px;">
+            <div class="stat-card indigo">
+              <div class="stat-label">Draft Entries</div>
+              <div class="stat-value" id="unsubmitted-count">0</div>
+              <div class="stat-sub">Filled in but not submitted</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-label">Total Hours</div>
+              <div class="stat-value" id="unsubmitted-hours">00:00</div>
+              <div class="stat-sub">Across all drafts in range</div>
+            </div>
+            <div class="stat-card amber">
+              <div class="stat-label">Staff Impact</div>
+              <div class="stat-value" id="unsubmitted-staff">0</div>
+              <div class="stat-sub">People with unsubmitted work</div>
+            </div>
+            <div class="stat-card red">
+              <div class="stat-label">Oldest Date</div>
+              <div class="stat-value" id="unsubmitted-oldest">-</div>
+              <div class="stat-sub">Earliest draft in the filter</div>
+            </div>
+          </div>
+
+            <div class="card">
+              <div class="card-header" style="margin-bottom:10px;">
+                <div>
+                  <div class="card-title">Unsubmitted Timesheets</div>
+                  <div class="card-subtitle">Draft entries that have been filled in, but the day has not been submitted yet.</div>
+                </div>
+                <button class="btn btn-success btn-sm" type="button" onclick="exportUnsubmittedCSV()">Export CSV</button>
+              </div>
+              <div class="table-wrapper">
+                <table class="mobile-stack-table">
+                <thead><tr><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th>Status</th></tr></thead>
+                <tbody id="unsubmitted-tbody"></tbody>
               </table>
             </div>
           </div>
@@ -341,7 +383,8 @@ let teamWatchLoadedRange = null;
 let staffDirectory = [];
 let activeReportSection = 'timesheet';
 let attendanceLoadedKey = '';
-bootReportsPage();
+let lastUnsubmittedEntries = [];
+  bootReportsPage();
 
 async function bootReportsPage() {
   await refreshSession({ force: true }).catch(() => {});
@@ -439,7 +482,7 @@ function switchSection(section, btn) {
 }
 
 function switchTab(tab, btn) {
-  ['utilization', 'client', 'detail', 'team-watch'].forEach(t => document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
+  ['utilization', 'client', 'detail', 'unsubmitted', 'team-watch'].forEach(t => document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
   document.querySelectorAll('.report-subtabs .tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
@@ -571,6 +614,10 @@ function renderInsights(utilData, clientData, detailData) {
   insights.push({ title: 'Approved coverage', body: approvedEntries ? `${approvedEntries} approved entr${approvedEntries === 1 ? 'y is' : 'ies are'} included in this reporting range.` : 'No approved entries were found in this selection.' });
   insights.push({ title: 'Non-billable load', body: nonBillableHours ? `${fmtHours(nonBillableHours)} was logged as non-billable effort.` : 'No non-billable effort was recorded in this selection.' });
   insightGrid.innerHTML = insights.map(item => `<div class="report-insight-row"><div class="report-insight-row-title">${item.title}</div><div class="report-insight-row-body">${item.body}</div></div>`).join('');
+}
+
+function csvEscapeValue(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
 }
 
 async function loadUtilization(f) {
@@ -787,6 +834,50 @@ async function loadDetailEntries(f) {
   return entries;
 }
 
+async function loadUnsubmittedEntries(f) {
+  const tbody = document.getElementById('unsubmitted-tbody');
+  const countEl = document.getElementById('unsubmitted-count');
+  const hoursEl = document.getElementById('unsubmitted-hours');
+  const staffEl = document.getElementById('unsubmitted-staff');
+  const oldestEl = document.getElementById('unsubmitted-oldest');
+
+  try {
+    let url = `/timesheets?status=draft&from=${encodeURIComponent(f.from)}&to=${encodeURIComponent(f.to)}`;
+    if (f.staff) url += `&user_id=${f.staff}`;
+    const entries = await apiFetch(url);
+    lastUnsubmittedEntries = Array.isArray(entries) ? entries : [];
+
+    const totalHours = lastUnsubmittedEntries.reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
+    const uniqueStaff = new Set(lastUnsubmittedEntries.map(entry => String(entry.user_id || ''))).size;
+    const oldest = lastUnsubmittedEntries.reduce((min, entry) => {
+      if (!entry.entry_date) return min;
+      if (!min) return entry.entry_date;
+      return entry.entry_date < min ? entry.entry_date : min;
+    }, '');
+
+    if (countEl) countEl.textContent = String(lastUnsubmittedEntries.length);
+    if (hoursEl) hoursEl.textContent = fmtHours(totalHours);
+    if (staffEl) staffEl.textContent = String(uniqueStaff);
+    if (oldestEl) oldestEl.textContent = oldest ? fmtDate(oldest) : '-';
+
+    if (!lastUnsubmittedEntries.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">-</div><div class="empty-title">No unsubmitted entries</div><div class="empty-sub">There are no filled-in draft timesheets in this date range.</div></div></td></tr>`;
+      return lastUnsubmittedEntries;
+    }
+
+    tbody.innerHTML = lastUnsubmittedEntries.map(e => `<tr><td data-label="Date">${fmtDate(e.entry_date)}</td><td data-label="Staff">${e.staff_name}</td><td data-label="Client" class="hide-mobile" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name || 'Internal'}</td><td data-label="Task" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;">${e.task_type}</td><td data-label="Hours"><strong>${fmtHours(e.hours)}</strong></td><td data-label="Status">${statusBadge(e.status)}</td></tr>`).join('');
+    return lastUnsubmittedEntries;
+  } catch (error) {
+    lastUnsubmittedEntries = [];
+    if (countEl) countEl.textContent = '0';
+    if (hoursEl) hoursEl.textContent = '00:00';
+    if (staffEl) staffEl.textContent = '0';
+    if (oldestEl) oldestEl.textContent = '-';
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">!</div><div class="empty-title">Unsubmitted entries could not load</div><div class="empty-sub">${error.message || 'Please try again in a moment.'}</div></div></td></tr>`;
+    return null;
+  }
+}
+
 function formatWatchDayHeader(date) {
   return new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
 }
@@ -821,15 +912,32 @@ function buildTeamWatchRows(entries, range, staffFilterId = '') {
     totals.set(key, (totals.get(key) || 0) + hours);
   });
 
-  const activeStaff = (staffDirectory.length
-    ? staffDirectory
-    : entries.map(entry => ({
+  const staffById = new Map();
+  staffDirectory.forEach(staff => {
+    if (staff?.id == null) return;
+    staffById.set(String(staff.id), {
+      id: staff.id,
+      name: staff.name,
+      role: staff.role,
+      designation: staff.designation || '',
+      active: staff.active
+    });
+  });
+  entries.forEach(entry => {
+    if (!entry?.user_id) return;
+    const id = String(entry.user_id);
+    if (!staffById.has(id)) {
+      staffById.set(id, {
         id: entry.user_id,
-        name: entry.staff_name,
-        role: entry.staff_role,
-        designation: ''
-      }))
-  ).filter(staff => {
+        name: entry.staff_name || 'Unknown',
+        role: entry.staff_role || 'article',
+        designation: '',
+        active: true
+      });
+    }
+  });
+
+  const activeStaff = [...staffById.values()].filter(staff => {
     const active = staff.active;
     return String(active ?? '1') !== 'false' && String(active ?? '1') !== '0';
   }).filter(staff => !staffFilterId || String(staff.id) === String(staffFilterId));
@@ -1040,19 +1148,21 @@ async function loadAll() {
       await loadAttendanceSection(true);
     } else if (activeReportSection === 'feedback') {
       await feedbackLoadReport(FEEDBACK_STATE.reportTab || 'manager_feedback');
-    } else {
-      renderLoadingState();
-      const teamWatchPromise = loadTeamWatch();
-      const [utilData, clientData, detailData] = await Promise.all([
-        loadUtilization(f),
-        loadClientReport(f),
-        loadDetailEntries(f)
-      ]);
-      if (loadId !== activeLoadId) return;
-      renderOverview(utilData || [], clientData || [], detailData || []);
-      renderInsights(utilData || [], clientData || [], detailData || []);
-      await teamWatchPromise;
-    }
+      } else {
+        renderLoadingState();
+        const teamWatchPromise = loadTeamWatch();
+        const [utilData, clientData, detailData] = await Promise.all([
+          loadUtilization(f),
+          loadClientReport(f),
+          loadDetailEntries(f)
+        ]);
+        const unsubmittedPromise = loadUnsubmittedEntries(f);
+        if (loadId !== activeLoadId) return;
+        renderOverview(utilData || [], clientData || [], detailData || []);
+        renderInsights(utilData || [], clientData || [], detailData || []);
+        await teamWatchPromise;
+        await unsubmittedPromise;
+      }
     setSyncState(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
   } catch (e) {
     if (loadId !== activeLoadId) return;
@@ -1092,6 +1202,54 @@ function exportTeamWatchCSV() {
   const staff = document.getElementById('filter-staff').value;
   if (staff) params.set('user_id', staff);
   window.open(`/api/reports/team-update-watch/export?${params.toString()}`, '_blank');
+}
+
+async function exportUnsubmittedCSV() {
+  if (!hasPermission('reports.export')) { toast('Export access required', 'error'); return; }
+  const f = getFilters();
+  if (!f.from || !f.to) {
+    toast('Please select a valid date range.', 'error');
+    return;
+  }
+  try {
+    let rows = lastUnsubmittedEntries;
+    if (!rows.length) {
+      const params = new URLSearchParams({ from: f.from, to: f.to, status: 'draft' });
+      if (f.staff) params.set('user_id', f.staff);
+      rows = await apiFetch(`/timesheets?${params.toString()}`);
+      lastUnsubmittedEntries = Array.isArray(rows) ? rows : [];
+      rows = lastUnsubmittedEntries;
+    }
+    if (!rows.length) {
+      toast('No unsubmitted entries to export.', 'info');
+      return;
+    }
+
+    const headers = ['Date', 'Staff', 'Client', 'Task', 'Hours', 'Status'];
+    const csvRows = [
+      headers.join(','),
+      ...rows.map(entry => [
+        csvEscapeValue(entry.entry_date || ''),
+        csvEscapeValue(entry.staff_name || ''),
+        csvEscapeValue(entry.client_name || 'Internal'),
+        csvEscapeValue(entry.task_type || ''),
+        csvEscapeValue(fmtHours(entry.hours)),
+        csvEscapeValue('Draft')
+      ].join(','))
+    ];
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `unsubmitted-timesheets-${f.from || 'from'}-to-${f.to || 'to'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast(error.message || 'Unable to export unsubmitted entries', 'error');
+  }
 }
 
 function openSidebar() {

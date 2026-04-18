@@ -13,12 +13,14 @@ const attendanceRoutes = require('./routes/attendance');
 const timesheetRoutes = require('./routes/timesheets');
 const reportRoutes = require('./routes/reports');
 const feedbackRoutes = require('./routes/feedback');
+const form15cbRoutes = require('./routes/form15cb');
 
 const app = express();
 const ROLE_DEFAULT_PERMISSIONS = {
   partner: [
     'clients.view','clients.create','clients.edit','clients.delete','clients.import',
     'staff.view','staff.create','staff.edit','staff.delete','access.manage',
+    'modules.view','firm.dashboard.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
     'reports.view','reports.export',
@@ -27,6 +29,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
   ],
   manager: [
     'clients.view','staff.view',
+    'modules.view','firm.dashboard.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager',
     'reports.view','reports.export',
@@ -35,6 +38,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
   ],
   article: [
     'clients.view',
+    'modules.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own',
     'attendance.view_own','attendance.create_own',
     'dashboard.view_self'
@@ -91,12 +95,14 @@ function managerOrAbove(req, res, next) {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/staff', authMiddleware, staffRoutes);
+app.use('/api/users', authMiddleware, staffRoutes);
 app.use('/api/clients', authMiddleware, clientRoutes);
 app.use('/api/master-data', authMiddleware, masterDataRoutes);
 app.use('/api/attendance', authMiddleware, attendanceRoutes);
 app.use('/api/timesheets', authMiddleware, timesheetRoutes);
 app.use('/api/reports', authMiddleware, managerOrAbove, reportRoutes);
 app.use('/api/feedback', authMiddleware, feedbackRoutes);
+app.use('/api/form15cb', authMiddleware, form15cbRoutes);
 
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

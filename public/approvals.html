@@ -129,7 +129,7 @@ function persistApprovalsViewState() {
 
 async function loadStaff() {
   try {
-    const staff = await apiFetch('/staff');
+    const staff = await apiFetch('/staff?status=active');
     const sel = document.getElementById('filter-staff');
     const relevant = staff.filter(s => normalizeRole(s.role) === 'article');
     relevant.forEach(s => sel.innerHTML += `<option value="${s.id}">${s.name}</option>`);
