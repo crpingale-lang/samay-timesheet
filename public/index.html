@@ -30,6 +30,9 @@
       <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">
         Continue
       </button>
+      <button class="btn btn-ghost" type="button" id="use-authenticator-btn" style="width:100%;justify-content:center;padding:11px;margin-top:10px;">
+        Use authenticator app
+      </button>
     </form>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
       <strong>Security:</strong> Sign in with username or email + password. You can use SMS or switch to an authenticator app.
@@ -65,13 +68,12 @@
   }
 
   passwordGroup.insertAdjacentHTML('afterend', `
-    <div class="form-group" id="otp-group" style="display:none;">
+      <div class="form-group" id="otp-group" style="display:none;">
       <label class="form-label" for="otp" id="otp-label">Verification Code</label>
       <input class="form-control" type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code">
       <div class="login-field-note" id="otp-note">We will send a code to your registered mobile number.</div>
       <div class="login-inline-actions" style="margin-top:10px;">
         <button class="btn btn-ghost btn-sm" type="button" id="resend-sms-btn" style="display:none;">Resend SMS Code</button>
-        <button class="btn btn-ghost btn-sm" type="button" id="use-authenticator-btn">Use authenticator app</button>
       </div>
     </div>
   `);
@@ -119,9 +121,12 @@
   }
 
   function setButtonLabel() {
-    document.getElementById('login-btn').textContent = loginStep === 'verify'
-      ? (authFlow === 'totp-setup' ? 'Confirm Setup' : 'Verify Code')
-      : 'Continue';
+    const btn = document.getElementById('login-btn');
+    if (loginStep === 'verify') {
+      btn.textContent = authFlow === 'totp-setup' ? 'Confirm Setup' : 'Verify Code';
+      return;
+    }
+    btn.textContent = authFlow === 'totp-setup' ? 'Set Up Authenticator' : 'Continue';
   }
 
   function maskPhoneNumber(phone) {
