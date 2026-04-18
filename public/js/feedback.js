@@ -168,6 +168,23 @@ function feedbackInjectStyles() {
     .tag-cloud{display:flex;flex-wrap:wrap;gap:8px}
     .tag{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:999px;padding:7px 12px;font-size:12px}
     .tag-count{min-width:22px;padding:2px 6px;border-radius:999px;background:var(--primary);color:#fff;text-align:center;font-size:11px;font-weight:700}
+    .response-group{margin-bottom:20px}
+    .response-group-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+    .response-group-title{font-size:14px;font-weight:700;line-height:1.4}
+    .response-group-sub{font-size:12px;color:var(--text-muted);margin-top:4px}
+    .response-group-count{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--primary-bg);color:var(--primary-dark);font-size:11px;font-weight:700;white-space:nowrap}
+    .response-list{display:grid;gap:12px}
+    .response-card{position:relative;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 16px;box-shadow:var(--shadow)}
+    .response-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--primary),var(--primary-light))}
+    .response-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px}
+    .response-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--primary-bg);color:var(--primary-dark);font-size:11px;font-weight:700;letter-spacing:.02em}
+    .response-meta{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;color:var(--text-muted);font-size:11px}
+    .response-meta span{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;background:#f8fafc;border:1px solid var(--border)}
+    .response-text{font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere}
+    .response-themes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    .response-theme{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--warning-bg);color:#92400e;font-size:11px;font-weight:700}
+    .response-theme-dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.75}
+    .response-body{padding:12px 14px;border-radius:14px;background:linear-gradient(180deg,#fff, #f8fafc);border:1px solid rgba(226,232,240,.8)}
     .empty{padding:20px 10px;color:var(--text-muted);text-align:center}
   `;
   document.head.appendChild(style);
@@ -516,6 +533,78 @@ function feedbackNormalizeValue(value) {
   return String(value || '').trim();
 }
 
+function feedbackFormatResponseDate(submittedDate, submittedAt) {
+  const raw = String(submittedAt || submittedDate || '').trim();
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    return submittedDate || raw;
+  }
+  const hasTime = Boolean(String(submittedAt || '').trim());
+  return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {})
+  });
+}
+
+function feedbackExtractThemes(text, schema) {
+  const normalized = String(text || '').toLowerCase();
+  const themeMap = schema?.type === 'article_feedback'
+    ? [
+        ['delivery', ['deadline', 'miss', 'late', 'timely', 'responsive', 'turnaround', 'work quality']],
+        ['learning', ['learn', 'feedback', 'growth', 'support', 'train', 'improve']],
+        ['teamwork', ['team', 'peer', 'senior', 'collaborat', 'communicat', 'respect']],
+        ['ownership', ['ownership', 'initiative', 'account', 'proactive', 'responsible']]
+      ]
+    : [
+        ['workload', ['workload', 'hours', 'deadline', 'pressure', 'overtime', 'busy', 'schedule']],
+        ['guidance', ['guide', 'support', 'explain', 'mentor', 'clarity', 'training']],
+        ['culture', ['culture', 'respect', 'behavio', 'communication', 'environment', 'safety']],
+        ['feedback', ['feedback', 'fair', 'transparent', 'recognize', 'motivat', 'appreciat']]
+      ];
+
+  const themes = [];
+  themeMap.forEach(([label, keywords]) => {
+    if (keywords.some(keyword => normalized.includes(keyword))) {
+      themes.push(label);
+    }
+  });
+  return themes.slice(0, 3);
+}
+
+function feedbackRenderThemeChips(themes = []) {
+  if (!themes.length) return '';
+  return `<div class="response-themes">${themes.map(theme => `
+    <span class="response-theme"><span class="response-theme-dot"></span>${feedbackEscape(theme)}</span>
+  `).join('')}</div>`;
+}
+
+function feedbackRenderResponseCard(item, index, schema) {
+  const dateLabel = feedbackFormatResponseDate(item.submitted_date, item.submitted_at);
+  const themes = feedbackExtractThemes(item.text, schema);
+  return `
+    <article class="response-card">
+      <div class="response-card-head">
+        <div>
+          <div class="response-badge">Response ${index + 1}</div>
+          ${dateLabel ? `<div class="response-group-sub">Submitted ${feedbackEscape(dateLabel)}</div>` : ''}
+        </div>
+        <div class="response-meta">
+          <span>${feedbackEscape(String(item.length || 0))} chars</span>
+          <span>${feedbackEscape(item.wordCount === 1 ? '1 word' : `${item.wordCount} words`)}</span>
+        </div>
+      </div>
+      <div class="response-body">
+        <div class="response-text">${feedbackEscape(item.text)}</div>
+      </div>
+      ${feedbackRenderThemeChips(themes)}
+    </article>
+  `;
+}
+
 function feedbackAggregateResponses(schema, responses = []) {
   const counts = {};
   const starValues = [];
@@ -552,8 +641,20 @@ function feedbackAggregateResponses(schema, responses = []) {
         }
       } else if (question.type === 'text') {
         const comments = responses
-          .map(row => feedbackNormalizeValue(row.answers?.[question.id]))
-          .filter(value => value.length > 0);
+          .map((row, index) => {
+            const text = feedbackNormalizeValue(row.answers?.[question.id]);
+            if (!text) return null;
+            return {
+              text,
+              length: text.length,
+              wordCount: text.split(/\s+/).filter(Boolean).length,
+              submitted_date: row.submitted_date || '',
+              submitted_at: row.submitted_at || '',
+              responseIndex: index + 1,
+              responseId: row.id
+            };
+          })
+          .filter(Boolean);
         if (comments.length) {
           textResponses.push({
             id: question.id,
@@ -603,13 +704,21 @@ function feedbackRenderReport(type, payload = {}) {
   const countSummary = Object.values(aggregate.counts).map(item => `
     <div style="margin-bottom:18px;">
       <div class="panel-title">${feedbackEscape(item.label)}</div>
-      <div class="tag-cloud">${item.items.map(([label, count]) => `<span class="tag">${feedbackEscape(label)} <span class="count">${count}</span></span>`).join('')}</div>
+      <div class="tag-cloud">${item.items.map(([label, count]) => `<span class="tag">${feedbackEscape(label)} <span class="tag-count">${count}</span></span>`).join('')}</div>
     </div>
   `).join('');
   const comments = aggregate.textResponses.map(item => `
-    <div style="margin-bottom:18px;">
-      <div class="panel-title">${feedbackEscape(item.label)}</div>
-      ${item.items.map(comment => `<div class="comment"><p>${feedbackEscape(comment)}</p></div>`).join('')}
+    <div class="response-group">
+      <div class="response-group-head">
+        <div>
+          <div class="response-group-title">${feedbackEscape(item.label)}</div>
+          <div class="response-group-sub">Each anonymous response is shown as its own card with date, size, and theme hints.</div>
+        </div>
+        <div class="response-group-count">${feedbackEscape(String(item.items.length))} responses</div>
+      </div>
+      <div class="response-list">
+        ${item.items.map((comment, index) => feedbackRenderResponseCard(comment, index, schema)).join('')}
+      </div>
     </div>
   `).join('');
 
