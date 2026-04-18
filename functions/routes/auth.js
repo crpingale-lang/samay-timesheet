@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { JWT_SECRET, SESSION_TTL } = require('../config');
+const TRUSTED_DEVICE_TTL_SECONDS = 24 * 60 * 60;
 const ROLE_DEFAULT_PERMISSIONS = {
   partner: [
     'clients.view','clients.create','clients.edit','clients.delete','clients.import',
@@ -147,12 +148,13 @@ function buildOtpAuthUrl({ username, secret }) {
   return `otpauth://totp/${encodeURIComponent(label)}?${params.toString()}`;
 }
 
-function createSmsChallenge({ userId, phoneNumber }) {
+function createSmsChallenge({ userId, phoneNumber, verificationCode }) {
   return jwt.sign(
     {
       purpose: 'sms-login',
       userId,
-      phoneNumber: toE164PhoneNumber(phoneNumber)
+      phoneNumber: toE164PhoneNumber(phoneNumber),
+      verificationCode: String(verificationCode || '').trim()
     },
     JWT_SECRET,
     { expiresIn: `${SMS_CHALLENGE_TTL_SECONDS}s` }
@@ -169,6 +171,73 @@ function verifySmsChallenge(token) {
   } catch {
     return null;
   }
+}
+
+function createTrustedDeviceToken({ userId, deviceId }) {
+  const normalizedDeviceId = String(deviceId || '').trim();
+  if (!normalizedDeviceId) return '';
+  return jwt.sign(
+    {
+      purpose: 'trusted-device',
+      userId,
+      deviceId: normalizedDeviceId
+    },
+    JWT_SECRET,
+    { expiresIn: `${TRUSTED_DEVICE_TTL_SECONDS}s` }
+  );
+}
+
+function verifyTrustedDeviceToken(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded?.purpose !== 'trusted-device' || !decoded?.userId || !decoded?.deviceId) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeUserAgent(value) {
+  return String(value || '').trim();
+}
+
+function trustedDeviceDocId(userId, deviceId) {
+  return `trusted_${String(userId || '').trim()}_${String(deviceId || '').trim()}`;
+}
+
+async function upsertTrustedDevice({ userId, deviceId, deviceLabel, userAgent }) {
+  const normalizedDeviceId = String(deviceId || '').trim();
+  if (!normalizedDeviceId) return null;
+  const docRef = db.collection('trusted_devices').doc(trustedDeviceDocId(userId, normalizedDeviceId));
+  const now = new Date().toISOString();
+  const snap = await docRef.get();
+  const payload = {
+    user_id: userId,
+    device_id: normalizedDeviceId,
+    device_label: String(deviceLabel || '').trim() || null,
+    user_agent: normalizeUserAgent(userAgent) || null,
+    last_used_at: now,
+    revoked_at: null,
+    revoked_by_user_id: null
+  };
+  if (!snap.exists) {
+    await docRef.set({
+      ...payload,
+      created_at: now
+    });
+    return docRef.id;
+  }
+  await docRef.set(payload, { merge: true });
+  return docRef.id;
+}
+
+async function isTrustedDeviceActive(userId, deviceId) {
+  const normalizedDeviceId = String(deviceId || '').trim();
+  if (!normalizedDeviceId) return false;
+  const snap = await db.collection('trusted_devices').doc(trustedDeviceDocId(userId, normalizedDeviceId)).get();
+  return !!(snap.exists && !snap.data()?.revoked_at);
 }
 
 function hashRecoveryCodes(codes) {
@@ -276,9 +345,12 @@ function normalizeRole(role) {
 }
 
 function ensurePermissions(role, permissions) {
-  return Array.isArray(permissions) && permissions.length
+  const normalized = Array.isArray(permissions) && permissions.length
     ? permissions
     : (ROLE_DEFAULT_PERMISSIONS[normalizeRole(role)] || []);
+  return normalized.includes('firm.dashboard.view')
+    ? normalized
+    : [...normalized, 'firm.dashboard.view'];
 }
 
 function isValidEmail(value) {
@@ -351,6 +423,9 @@ async function getAuthorizedUser(req, res) {
 router.post('/login', async (req, res) => {
   const identifier = String(req.body?.username || req.body?.identifier || '').trim();
   const password = String(req.body?.password || '');
+  const trustedDeviceToken = String(req.body?.trusted_device_token || '').trim();
+  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
+  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
 
   if (!identifier || !password) {
     return res.status(400).json({ error: 'Username or email and password required' });
@@ -374,20 +449,54 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
+    const trustedDevice = verifyTrustedDeviceToken(trustedDeviceToken);
+    const trustedDeviceMatches =
+      trustedDevice &&
+      trustedDevice.userId === foundUser.id &&
+      trustedDevice.deviceId === trustedDeviceId &&
+      await isTrustedDeviceActive(foundUser.id, trustedDeviceId);
+
+    if (trustedDeviceMatches) {
+      const userPayload = authUserPayload(foundUser.id, user);
+      const token = issueSessionToken(foundUser.id, user, userPayload.permissions);
+      console.log(`[auth/login] trusted device bypass identifier=${identifier} userId=${foundUser.id}`);
+      await upsertTrustedDevice({
+        userId: foundUser.id,
+        deviceId: trustedDeviceId,
+        deviceLabel: trustedDeviceLabel,
+        userAgent: req.headers['user-agent']
+      });
+      return res.json({
+        token,
+        user: userPayload,
+        trusted_device_token: createTrustedDeviceToken({ userId: foundUser.id, deviceId: trustedDeviceId })
+      });
+    }
+
     const phoneNumber = toE164PhoneNumber(user.mobile_number);
     if (!phoneNumber) {
       console.warn(`[auth/login] missing phone number identifier=${identifier} userId=${foundUser.id}`);
       return res.status(400).json({ error: 'User mobile number is required for SMS login' });
     }
 
-    const smsChallengeToken = createSmsChallenge({ userId: foundUser.id, phoneNumber });
+    const isLocalSmsMode = !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    const smsVerificationCode = isLocalSmsMode
+      ? String(Math.floor(100000 + Math.random() * 900000))
+      : '';
+    const smsChallengeToken = createSmsChallenge({
+      userId: foundUser.id,
+      phoneNumber,
+      verificationCode: smsVerificationCode
+    });
     console.log(`[auth/login] sms challenge issued identifier=${identifier} userId=${foundUser.id} phone=${maskPhoneNumber(phoneNumber)}`);
 
     res.json({
       sms_required: true,
+      sms_mode: isLocalSmsMode ? 'local' : 'firebase',
       sms_challenge_token: smsChallengeToken,
       phone_number: phoneNumber,
       masked_phone_number: maskPhoneNumber(phoneNumber),
+      sms_test_code: isLocalSmsMode ? smsVerificationCode : undefined,
       user: authUserPayload(foundUser.id, user)
     });
   } catch (err) {
@@ -399,8 +508,11 @@ router.post('/login', async (req, res) => {
 router.post('/complete-sms-login', async (req, res) => {
   const smsChallengeToken = String(req.body?.sms_challenge_token || '');
   const firebaseIdToken = String(req.body?.firebase_id_token || '');
+  const smsVerificationCode = String(req.body?.sms_verification_code || '').trim();
+  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
+  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
 
-  if (!smsChallengeToken || !firebaseIdToken) {
+  if (!smsChallengeToken) {
     return res.status(400).json({ error: 'Missing SMS login details' });
   }
 
@@ -411,11 +523,23 @@ router.post('/complete-sms-login', async (req, res) => {
 
   try {
     console.log(`[auth/complete-sms-login] start userId=${challenge.userId} phone=${maskPhoneNumber(challenge.phoneNumber)}`);
-    const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
-    const verifiedPhone = toE164PhoneNumber(decodedToken.phone_number || '');
-    if (!verifiedPhone || verifiedPhone !== challenge.phoneNumber) {
-      console.warn(`[auth/complete-sms-login] phone mismatch challenge=${maskPhoneNumber(challenge.phoneNumber)} token=${maskPhoneNumber(verifiedPhone)}`);
-      return res.status(401).json({ error: 'Phone verification did not match the requested account' });
+    const isLocalSmsMode = !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    let verifiedPhone = challenge.phoneNumber;
+
+    if (isLocalSmsMode) {
+      if (!smsVerificationCode || smsVerificationCode !== challenge.verificationCode) {
+        return res.status(401).json({ error: 'SMS code is invalid' });
+      }
+    } else {
+      if (!firebaseIdToken) {
+        return res.status(400).json({ error: 'Missing SMS login details' });
+      }
+      const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
+      verifiedPhone = toE164PhoneNumber(decodedToken.phone_number || '');
+      if (!verifiedPhone || verifiedPhone !== challenge.phoneNumber) {
+        console.warn(`[auth/complete-sms-login] phone mismatch challenge=${maskPhoneNumber(challenge.phoneNumber)} token=${maskPhoneNumber(verifiedPhone)}`);
+        return res.status(401).json({ error: 'Phone verification did not match the requested account' });
+      }
     }
 
     const userDoc = await db.collection('users').doc(challenge.userId).get();
@@ -436,10 +560,20 @@ router.post('/complete-sms-login', async (req, res) => {
     const userPayload = authUserPayload(userDoc.id, user);
     const token = issueSessionToken(userDoc.id, user, userPayload.permissions);
     console.log(`[auth/complete-sms-login] success userId=${userDoc.id} username=${user.username}`);
+    await upsertTrustedDevice({
+      userId: userDoc.id,
+      deviceId: trustedDeviceId,
+      deviceLabel: trustedDeviceLabel,
+      userAgent: req.headers['user-agent']
+    });
 
     res.json({
       token,
-      user: userPayload
+      user: userPayload,
+      trusted_device_token: createTrustedDeviceToken({
+        userId: userDoc.id,
+        deviceId: trustedDeviceId
+      })
     });
   } catch (err) {
     console.error('[auth/complete-sms-login] failed', err);

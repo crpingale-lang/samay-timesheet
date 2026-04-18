@@ -6,6 +6,7 @@ const db = require('../js/database');
 const { ensurePermissions } = require('../js/permissions');
 const { JWT_SECRET, SESSION_TTL } = require('../config');
 const SMS_CHALLENGE_TTL_SECONDS = 10 * 60;
+const TRUSTED_DEVICE_TTL_SECONDS = 24 * 60 * 60;
 const ONLINE_WINDOW_MS = 15 * 60 * 1000;
 
 function normalizeEmail(value) {
@@ -93,6 +94,68 @@ function verifySmsChallenge(token) {
   }
 }
 
+function createTrustedDeviceToken({ userId, deviceId }) {
+  const normalizedDeviceId = String(deviceId || '').trim();
+  if (!normalizedDeviceId) return '';
+  return jwt.sign(
+    {
+      purpose: 'trusted-device',
+      userId,
+      deviceId: normalizedDeviceId
+    },
+    JWT_SECRET,
+    { expiresIn: `${TRUSTED_DEVICE_TTL_SECONDS}s` }
+  );
+}
+
+function verifyTrustedDeviceToken(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded?.purpose !== 'trusted-device' || !decoded?.userId || !decoded?.deviceId) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeUserAgent(value) {
+  return String(value || '').trim();
+}
+
+function upsertTrustedDevice({ userId, deviceId, deviceLabel, userAgent }) {
+  const normalizedDeviceId = String(deviceId || '').trim();
+  if (!normalizedDeviceId) return null;
+  const label = String(deviceLabel || '').trim();
+  const agent = normalizeUserAgent(userAgent);
+  const existing = db.prepare('SELECT id FROM trusted_devices WHERE user_id = ? AND device_id = ?').get(userId, normalizedDeviceId);
+  if (existing) {
+    db.prepare(`
+      UPDATE trusted_devices
+      SET device_label = ?, user_agent = ?, last_used_at = datetime('now'), revoked_at = NULL, revoked_by_user_id = NULL
+      WHERE id = ?
+    `).run(label || null, agent || null, existing.id);
+    return existing.id;
+  }
+  const result = db.prepare(`
+    INSERT INTO trusted_devices (user_id, device_id, device_label, user_agent)
+    VALUES (?, ?, ?, ?)
+  `).run(userId, normalizedDeviceId, label || null, agent || null);
+  return result.lastInsertRowid;
+}
+
+function isTrustedDeviceActive(userId, deviceId) {
+  const normalizedDeviceId = String(deviceId || '').trim();
+  if (!normalizedDeviceId) return false;
+  const record = db.prepare(`
+    SELECT id
+    FROM trusted_devices
+    WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL
+  `).get(userId, normalizedDeviceId);
+  return !!record;
+}
+
 function issueSessionToken(user, permissions) {
   return jwt.sign(
     {
@@ -135,6 +198,9 @@ function getAuthorizedUser(req, res) {
 router.post('/login', (req, res) => {
   const identifier = String(req.body?.username || req.body?.identifier || '').trim();
   const password = String(req.body?.password || '');
+  const trustedDeviceToken = String(req.body?.trusted_device_token || '').trim();
+  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
+  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
   if (!identifier || !password) return res.status(400).json({ error: 'Username or email and password required' });
 
   const user = db.prepare(`
@@ -148,8 +214,30 @@ router.post('/login', (req, res) => {
   const valid = bcrypt.compareSync(password, user.password);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
+  const trustedDevice = verifyTrustedDeviceToken(trustedDeviceToken);
+  const trustedDeviceMatches =
+    trustedDevice &&
+    trustedDevice.userId === user.id &&
+    trustedDevice.deviceId === trustedDeviceId &&
+    isTrustedDeviceActive(user.id, trustedDeviceId);
+
   const isLocalSmsMode = process.env.NODE_ENV !== 'production';
   const userPayload = authUserPayload(user);
+  if (trustedDeviceMatches) {
+    const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
+    const token = issueSessionToken(user, userPayload.permissions);
+    upsertTrustedDevice({
+      userId: user.id,
+      deviceId: trustedDeviceId,
+      deviceLabel: trustedDeviceLabel,
+      userAgent: req.headers['user-agent']
+    });
+    return res.json({
+      token,
+      user: authUserPayload(updatedUser),
+      trusted_device_token: createTrustedDeviceToken({ userId: user.id, deviceId: trustedDeviceId })
+    });
+  }
   if (isLocalSmsMode) {
     const smsVerificationCode = String(Math.floor(100000 + Math.random() * 900000));
     const smsChallengeToken = createSmsChallenge({
@@ -171,6 +259,12 @@ router.post('/login', (req, res) => {
 
   const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
   const token = issueSessionToken(user, userPayload.permissions);
+  upsertTrustedDevice({
+    userId: user.id,
+    deviceId: trustedDeviceId,
+    deviceLabel: trustedDeviceLabel,
+    userAgent: req.headers['user-agent']
+  });
 
   res.json({
     token,
@@ -182,6 +276,8 @@ router.post('/login', (req, res) => {
 router.post('/complete-sms-login', (req, res) => {
   const smsChallengeToken = String(req.body?.sms_challenge_token || '');
   const smsVerificationCode = String(req.body?.sms_verification_code || '').trim();
+  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
+  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
 
   if (!smsChallengeToken || !smsVerificationCode) {
     return res.status(400).json({ error: 'Missing SMS login details' });
@@ -204,9 +300,19 @@ router.post('/complete-sms-login', (req, res) => {
   const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
   const userPayload = authUserPayload(updatedUser);
   const token = issueSessionToken(user, userPayload.permissions);
+  upsertTrustedDevice({
+    userId: user.id,
+    deviceId: trustedDeviceId,
+    deviceLabel: trustedDeviceLabel,
+    userAgent: req.headers['user-agent']
+  });
   return res.json({
     token,
-    user: userPayload
+    user: userPayload,
+    trusted_device_token: createTrustedDeviceToken({
+      userId: user.id,
+      deviceId: trustedDeviceId
+    })
   });
 });
 

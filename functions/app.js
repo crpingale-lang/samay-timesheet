@@ -54,9 +54,12 @@ function normalizeRole(role) {
 }
 
 function ensurePermissions(role, permissions) {
-  return Array.isArray(permissions) && permissions.length
+  const normalized = Array.isArray(permissions) && permissions.length
     ? permissions
     : (ROLE_DEFAULT_PERMISSIONS[normalizeRole(role)] || []);
+  return normalized.includes('firm.dashboard.view')
+    ? normalized
+    : [...normalized, 'firm.dashboard.view'];
 }
 
 async function authMiddleware(req, res, next) {

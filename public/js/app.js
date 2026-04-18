@@ -5,6 +5,8 @@ const LOCAL_CACHE_PREFIX = 'ts_cache:';
 const SESSION_LAST_ACTIVITY_KEY = 'ts_last_activity';
 const SELECTED_MODULE_KEY = 'ts_selected_module';
 const AUTH_NOTICE_KEY = 'ts_auth_notice';
+const TRUSTED_DEVICE_ID_KEY = 'ts_trusted_device_id';
+const TRUSTED_DEVICE_TOKEN_KEY = 'ts_trusted_device_token';
 const SESSION_REFRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 const SESSION_ACTIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const SESSION_REFRESH_CHECK_MS = 60 * 1000;
@@ -165,7 +167,10 @@ let sessionRefreshPromise = null;
 function inferPermissions(user) {
   if (!user || typeof user !== 'object') return [];
   if (Array.isArray(user.permissions) && user.permissions.length) return user.permissions;
-  return ROLE_DEFAULT_PERMISSIONS[user.role] || [];
+  const permissions = ROLE_DEFAULT_PERMISSIONS[user.role] || [];
+  return permissions.includes('firm.dashboard.view')
+    ? permissions
+    : [...permissions, 'firm.dashboard.view'];
 }
 function safeUserName(user) {
   if (!user || typeof user !== 'object') return 'User';
@@ -224,6 +229,41 @@ function clearSelectedModule() {
   localStorage.removeItem(SELECTED_MODULE_KEY);
 }
 
+function getTrustedDeviceId() {
+  let deviceId = String(localStorage.getItem(TRUSTED_DEVICE_ID_KEY) || '').trim();
+  if (deviceId) return deviceId;
+  deviceId = (window.crypto?.randomUUID?.() || `device_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+  try {
+    localStorage.setItem(TRUSTED_DEVICE_ID_KEY, deviceId);
+  } catch {}
+  return deviceId;
+}
+
+function getTrustedDeviceToken() {
+  return String(localStorage.getItem(TRUSTED_DEVICE_TOKEN_KEY) || '').trim();
+}
+
+function setTrustedDeviceToken(token) {
+  const value = String(token || '').trim();
+  if (!value) {
+    localStorage.removeItem(TRUSTED_DEVICE_TOKEN_KEY);
+    return '';
+  }
+  localStorage.setItem(TRUSTED_DEVICE_TOKEN_KEY, value);
+  return value;
+}
+
+function getTrustedDeviceLabel() {
+  const ua = String(navigator.userAgent || '').trim();
+  const platform = String(navigator.userAgentData?.platform || navigator.platform || '').trim();
+  let browser = 'Browser';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser = 'Chrome';
+  else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = 'Safari';
+  return `${browser}${platform ? ` on ${platform}` : ''}`;
+}
+
 function setAuthNotice(message) {
   const text = String(message || '').trim();
   if (!text) {
@@ -280,7 +320,7 @@ function getDefaultLandingPage() {
   if (hasPermission('reports.view') || hasPermission('feedback.view')) return '/reports.html';
   if (hasPermission('attendance.view_reports') || hasPermission('attendance.view_own') || hasPermission('attendance.create_own')) return '/attendance.html';
   if (hasPermission('clients.view')) return '/clients.html';
-  if (hasPermission('staff.view')) return '/staff.html';
+  if (hasPermission('staff.view')) return '/users.html';
   return '/';
 }
 

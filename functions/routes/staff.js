@@ -156,6 +156,7 @@ function ensurePermissions(role, permissions) {
     article: [
       'clients.view',
       'modules.view',
+      'firm.dashboard.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','attendance.view_own','attendance.create_own','dashboard.view_self'
     ]
   };
@@ -221,6 +222,102 @@ router.get('/access-catalog', async (req, res) => {
     return res.status(403).json({ error: 'Access management permission required' });
   }
   res.json({ groups: APP_PERMISSION_GROUPS });
+});
+
+router.get('/trusted-devices', async (req, res) => {
+  if (!(req.user.permissions || []).includes('access.manage')) {
+    return res.status(403).json({ error: 'Access management permission required' });
+  }
+
+  try {
+    const query = String(req.query.q || '').trim().toLowerCase();
+    const statusFilter = String(req.query.status || 'active').trim().toLowerCase();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 25, 1), 100);
+    const [trustedDevicesSnap, usersMap] = await Promise.all([
+      db.collection('trusted_devices').get(),
+      getUsersMap()
+    ]);
+
+    const rows = trustedDevicesSnap.docs.map(doc => {
+      const data = doc.data() || {};
+      const user = usersMap.get(data.user_id) || {};
+      return {
+        id: doc.id,
+        user_id: data.user_id,
+        device_id: data.device_id || '',
+        device_label: data.device_label || '',
+        user_agent: data.user_agent || '',
+        created_at: data.created_at || '',
+        last_used_at: data.last_used_at || '',
+        revoked_at: data.revoked_at || null,
+        revoked_by_user_id: data.revoked_by_user_id || null,
+        name: user.name || '',
+        username: user.username || '',
+        role: user.role || '',
+        active: !data.revoked_at
+      };
+    }).sort((a, b) => String(b.last_used_at || b.created_at || '').localeCompare(String(a.last_used_at || a.created_at || '')));
+
+    const filtered = query
+      ? rows.filter(device => [
+        device.name,
+        device.username,
+        device.device_label,
+        device.device_id,
+        device.user_agent,
+        device.role
+      ].join(' ').toLowerCase().includes(query))
+      : rows;
+    const statusFiltered = statusFilter === 'revoked'
+      ? filtered.filter(device => !!device.revoked_at)
+      : statusFilter === 'all'
+        ? filtered
+        : filtered.filter(device => !device.revoked_at);
+    const activeCount = filtered.filter(device => !device.revoked_at).length;
+    const revokedCount = filtered.filter(device => !!device.revoked_at).length;
+
+    const start = (page - 1) * pageSize;
+    const items = statusFiltered.slice(start, start + pageSize);
+    res.json({
+      items,
+      total: statusFiltered.length,
+      summary: {
+        total: filtered.length,
+        active: activeCount,
+        revoked: revokedCount
+      },
+      page,
+      page_size: pageSize,
+      has_more: start + items.length < statusFiltered.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/trusted-devices/:id/revoke', async (req, res) => {
+  if (!(req.user.permissions || []).includes('access.manage')) {
+    return res.status(403).json({ error: 'Access management permission required' });
+  }
+
+  try {
+    const docRef = db.collection('trusted_devices').doc(String(req.params.id || '').trim());
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+    if (snap.data()?.revoked_at) {
+      return res.json({ success: true });
+    }
+    await docRef.set({
+      revoked_at: new Date().toISOString(),
+      revoked_by_user_id: req.user.id
+    }, { merge: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/', async (req, res) => {

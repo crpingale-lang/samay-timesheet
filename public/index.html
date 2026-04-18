@@ -28,11 +28,11 @@
       </div>
       <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none;background:var(--danger-bg);padding:8px 12px;border-radius:6px;border:1px solid #fecaca;"></div>
       <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">
-        Continue to SMS Code
+        Continue
       </button>
     </form>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
-      <strong>Security:</strong> Sign in with username or email + password, then verify with SMS code and choose your module
+      <strong>Security:</strong> Sign in with username or email + password. This device will stay trusted for 24 hours after SMS verification.
     </div>
   </div>
 </div>
@@ -106,7 +106,7 @@
   function setButtonLabel() {
     document.getElementById('login-btn').textContent = loginStep === 'verify'
       ? 'Verify SMS Code'
-      : 'Continue to SMS Code';
+      : 'Continue';
   }
 
   function maskPhoneNumber(phone) {
@@ -203,7 +203,10 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: document.getElementById('username').value.trim(),
-        password: document.getElementById('password').value
+        password: document.getElementById('password').value,
+        trusted_device_id: getTrustedDeviceId(),
+        trusted_device_token: getTrustedDeviceToken(),
+        trusted_device_label: getTrustedDeviceLabel()
       })
     });
 
@@ -212,6 +215,9 @@
       throw new Error(data.error || 'Unable to start SMS login');
     }
     if (data.token && data.user) {
+      if (data.trusted_device_token) {
+        setTrustedDeviceToken(data.trusted_device_token);
+      }
       setSession(data.token, data.user);
       resetLoginStep();
       window.location.replace(getDefaultLandingPage());
@@ -276,7 +282,7 @@
 
     try {
       if (loginStep === 'request') {
-        btn.textContent = 'Sending SMS...';
+        btn.textContent = 'Checking access...';
         await requestSmsCode();
         return;
       }
@@ -292,7 +298,9 @@
         if (useLocalSmsFlow || smsMode === 'local') {
           payload = {
             sms_challenge_token: smsChallengeToken,
-            sms_verification_code: otp
+            sms_verification_code: otp,
+            trusted_device_id: getTrustedDeviceId(),
+            trusted_device_label: getTrustedDeviceLabel()
           };
         } else {
           if (!confirmationResult) {
@@ -302,7 +310,9 @@
           const firebaseIdToken = await confirmation.user.getIdToken(true);
           payload = {
             sms_challenge_token: smsChallengeToken,
-            firebase_id_token: firebaseIdToken
+            firebase_id_token: firebaseIdToken,
+            trusted_device_id: getTrustedDeviceId(),
+            trusted_device_label: getTrustedDeviceLabel()
           };
         }
 
@@ -316,6 +326,9 @@
           throw new Error(completeData.error || 'Unable to complete SMS login');
         }
 
+        if (completeData.trusted_device_token) {
+          setTrustedDeviceToken(completeData.trusted_device_token);
+        }
         setSession(completeData.token, completeData.user);
         resetLoginStep();
         window.location.replace(getDefaultLandingPage());

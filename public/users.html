@@ -2,14 +2,80 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Users - Samay</title>
+  <title>Access Management - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
   <style>
-    .user-status-filter{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .page-hero{border:1px solid var(--border);border-radius:22px;padding:22px;background:linear-gradient(135deg,rgba(67,56,202,.07),rgba(255,255,255,.98) 58%,rgba(59,130,246,.06));box-shadow:0 18px 50px rgba(15,23,42,.05)}
+    .page-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+    .page-hero-kicker{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--primary)}
+    .page-hero-title{margin:8px 0 0;font-size:32px;line-height:1.05;letter-spacing:-.03em}
+    .page-hero-copy{margin:10px 0 0;color:var(--text-muted);max-width:72ch;font-size:14px;line-height:1.55}
+    .page-hero-note{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid rgba(67,56,202,.16);border-radius:999px;background:rgba(67,56,202,.05);color:var(--primary);font-size:12px;font-weight:700;white-space:nowrap}
+    .page-hero-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+    .page-hero-card{border:1px solid var(--border);border-radius:16px;padding:14px 16px;background:rgba(255,255,255,.82)}
+    .page-hero-card .k{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+    .page-hero-card .v{font-size:22px;font-weight:800;line-height:1.1;margin-top:6px}
+    .page-hero-card .s{margin-top:6px;font-size:12px;color:var(--text-muted);line-height:1.4}
+    .access-section{margin-top:18px}
+    .access-section.card{overflow:hidden}
+    .access-section--devices{border:1px solid rgba(67,56,202,.12);background:linear-gradient(180deg,rgba(67,56,202,.03),rgba(255,255,255,.98))}
     .pill-toggle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--text-muted);cursor:pointer;background:var(--bg)}
     .pill-toggle input{margin:0}
+    .access-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .access-section-kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+    .access-section-title{margin:2px 0 0;font-size:24px;line-height:1.1;letter-spacing:-.02em}
+    .access-section-copy{margin:8px 0 0;color:var(--text-muted);max-width:68ch;font-size:14px;line-height:1.5}
+    .section-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .section-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg);font-size:12px;font-weight:700;color:var(--text-muted)}
+    .section-chip strong{color:var(--text)}
+    .device-header{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.85fr);gap:16px;align-items:start}
+    .device-intro{padding:18px;border:1px solid rgba(67,56,202,.12);border-radius:18px;background:linear-gradient(180deg,rgba(67,56,202,.06),rgba(255,255,255,.98))}
+    .device-summary-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+    .device-summary-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:rgba(255,255,255,.9)}
+    .device-summary-card .k{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+    .device-summary-card .v{font-size:24px;font-weight:800;line-height:1.1;margin-top:6px}
+    .device-summary-card .s{margin-top:6px;font-size:12px;color:var(--text-muted);line-height:1.4}
+    .device-policy{border:1px solid var(--border);border-radius:16px;padding:16px;background:var(--bg)}
+    .device-policy-title{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+    .device-policy-copy{margin:8px 0 0;color:var(--text-muted);font-size:13px;line-height:1.55}
+    .device-policy-list{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:10px}
+    .device-policy-list li{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--text-muted);line-height:1.45}
+    .device-policy-bullet{width:20px;height:20px;border-radius:50%;background:rgba(67,56,202,.1);color:var(--primary);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;margin-top:1px}
+    .device-filter-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px}
+    .device-row-meta{display:flex;flex-direction:column;gap:2px}
+    .device-device-name{font-weight:700}
+    .device-device-sub{font-size:12px;color:var(--text-muted);line-height:1.4}
+    .device-status{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
+    .device-status.active{background:#ecfdf5;color:#065f46}
+    .device-status.revoked{background:#fef2f2;color:#991b1b}
+    .device-dot{width:7px;height:7px;border-radius:999px;background:currentColor;display:inline-block}
+    .device-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+    .trusted-device-table thead th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);background:rgba(67,56,202,.03)}
+    .trusted-device-table tbody td{padding-top:14px;padding-bottom:14px;vertical-align:top}
+    .trusted-device-table tbody tr{transition:background-color .16s ease}
+    .trusted-device-table tbody tr:hover{background:rgba(67,56,202,.03)}
+    .trusted-device-table .device-name-line{display:flex;align-items:center;gap:10px}
+    .trusted-device-table .device-avatar{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,var(--primary),var(--primary-light));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+    .trusted-device-table .device-id{display:inline-flex;align-items:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 8px;border-radius:999px;background:var(--primary-bg);color:var(--primary);font-size:11px;font-weight:700}
+    .trusted-device-table .device-device-sub code{font:inherit}
+    .table-caption{margin-top:10px;font-size:12px;color:var(--text-muted);line-height:1.45}
+    @media (max-width: 760px){
+      .page-hero{padding:18px}
+      .page-hero-title{font-size:24px}
+      .page-hero-grid{grid-template-columns:1fr}
+      .device-header{grid-template-columns:1fr}
+      .device-summary-row{grid-template-columns:1fr}
+      .device-filter-row{align-items:stretch}
+      .device-actions{justify-content:flex-start}
+      .trusted-device-table thead{display:none}
+      .trusted-device-table tbody tr{display:block;border-top:1px solid var(--border);padding:12px 0}
+      .trusted-device-table tbody td{display:block;padding:8px 0;border:none}
+      .trusted-device-table tbody td[data-label="Action"]{padding-top:10px}
+      .trusted-device-table tbody td::before{content:attr(data-label);display:block;margin-bottom:4px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+      .trusted-device-table .device-name-line{align-items:flex-start}
+    }
   </style>
 </head>
 <body>
@@ -20,20 +86,47 @@
     <header class="topbar">
       <div style="display:flex;align-items:center;gap:10px;">
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
-        <div class="topbar-title">Users</div>
+        <div class="topbar-title">Access Management</div>
       </div>
       <button class="btn btn-primary btn-sm" id="add-user-btn" onclick="openAddModal()">+ Add User</button>
     </header>
 
     <div class="page-content">
-      <div class="badge-flow" style="margin-bottom:14px;">
-        <span style="font-size:12px;color:var(--text-muted);font-weight:600;">Hierarchy:</span>
-        <span class="badge badge-partner">Partner</span>
-        <span style="font-size:12px;color:var(--text-muted);">-></span>
-        <span class="badge badge-manager">Manager</span>
-        <span style="font-size:12px;color:var(--text-muted);">-></span>
-        <span class="badge badge-article">Article</span>
-      </div>
+      <section class="page-hero">
+        <div class="page-hero-top">
+          <div>
+            <div class="page-hero-kicker">Access Management</div>
+            <h1 class="page-hero-title">Control who can sign in, what they can see, and which devices stay trusted.</h1>
+            <p class="page-hero-copy">
+              Use this screen to manage users, permissions, and trusted browsers in one place.
+              Firm dashboard access stays universal, while left-panel access and admin controls remain role-aware.
+            </p>
+          </div>
+          <div class="page-hero-note">Admin-only access controls</div>
+        </div>
+        <div class="page-hero-grid">
+          <div class="page-hero-card">
+            <div class="k">User Access</div>
+            <div class="v">Roles & permissions</div>
+            <div class="s">Search users, edit access, and keep module visibility aligned to role.</div>
+          </div>
+          <div class="page-hero-card">
+            <div class="k">Trusted Devices</div>
+            <div class="v">24-hour trust window</div>
+            <div class="s">Review remembered browsers and revoke them if the trust trail changes.</div>
+          </div>
+          <div class="page-hero-card">
+            <div class="k">Firm Shell</div>
+            <div class="v">Always available</div>
+            <div class="s">Every signed-in user reaches the firm dashboard first, then their allowed modules.</div>
+          </div>
+        </div>
+        <div class="section-chips" aria-label="Access scope">
+          <span class="section-chip"><strong>Firm dashboard</strong> for all users</span>
+          <span class="section-chip"><strong>Left panel</strong> varies by role</span>
+          <span class="section-chip"><strong>Device trust</strong> managed by admins</span>
+        </div>
+      </section>
 
       <div class="card">
         <div class="card-header">
@@ -66,6 +159,80 @@
           </div>
         </div>
       </div>
+
+      <section class="card access-section access-section--devices" id="trusted-devices-section" style="display:none;">
+        <div class="access-section-head">
+          <div>
+            <div class="access-section-kicker">Access Management</div>
+            <h2 class="access-section-title">Trusted Devices</h2>
+            <p class="access-section-copy">
+              Browsers that have already completed SMS verification appear here. Admins can review the device trail and revoke trust if a device should stop skipping SMS.
+            </p>
+          </div>
+          <div class="device-filter-row">
+            <div class="user-status-filter" id="device-status-filter">
+              <label class="pill-toggle"><input type="radio" name="device-status" value="active" checked> Active</label>
+              <label class="pill-toggle"><input type="radio" name="device-status" value="revoked"> Revoked</label>
+              <label class="pill-toggle"><input type="radio" name="device-status" value="all"> All</label>
+            </div>
+            <span id="device-count" class="list-count"></span>
+          </div>
+        </div>
+        <div class="device-header">
+          <div class="device-intro">
+            <div class="device-summary-row">
+              <div class="device-summary-card">
+                <div class="k">Trusted</div>
+                <div class="v" id="device-summary-total">0</div>
+                <div class="s">All remembered browsers currently stored in the system.</div>
+              </div>
+              <div class="device-summary-card">
+                <div class="k">Active</div>
+                <div class="v" id="device-summary-active">0</div>
+                <div class="s">Devices that can skip SMS while their trust token is valid.</div>
+              </div>
+              <div class="device-summary-card">
+                <div class="k">Revoked</div>
+                <div class="v" id="device-summary-revoked">0</div>
+                <div class="s">Devices the admin has removed from the trusted list.</div>
+              </div>
+            </div>
+          </div>
+          <div class="device-policy">
+            <div class="device-policy-title">Access policy</div>
+            <p class="device-policy-copy">
+              Trusted devices are a security exception, not a permanent exemption. Review them when a user changes browser, workstation, or reporting responsibility.
+            </p>
+            <ul class="device-policy-list">
+              <li><span class="device-policy-bullet">1</span><span>Revoke trust to force the next sign-in back through SMS verification.</span></li>
+              <li><span class="device-policy-bullet">2</span><span>Use the status filter to isolate active, revoked, or all records.</span></li>
+              <li><span class="device-policy-bullet">3</span><span>The user table above still handles role and permission assignment.</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="table-caption">Device records are ordered by the most recent use, so the newest sign-ins stay visible near the top of the list.</div>
+        <div class="table-wrapper" style="margin-top:16px;">
+          <table class="mobile-stack-table trusted-device-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Device</th>
+                <th>Last Used</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="trusted-devices-tbody"></tbody>
+          </table>
+        </div>
+        <div class="list-pagination">
+          <span id="device-page-meta" class="list-page-meta"></span>
+          <div class="list-pagination-actions">
+            <button class="btn btn-ghost btn-sm" id="device-prev-btn" onclick="changeDevicePage(-1)">Previous</button>
+            <button class="btn btn-ghost btn-sm" id="device-next-btn" onclick="changeDevicePage(1)">Next</button>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -130,6 +297,10 @@ const canCreateUser = hasPermission('staff.create');
 const canEditUser = hasPermission('staff.edit');
 const canManageAccess = hasPermission('access.manage');
 let accessCatalog = [];
+let devicePage = 1;
+let deviceTotal = 0;
+let deviceHasMore = false;
+let deviceSummary = { total: 0, active: 0, revoked: 0 };
 const REQUIRED_ACCESS_GROUPS = [
   {
     key: 'attendance',
@@ -190,6 +361,133 @@ function renderAccessMatrix(selected = []) {
     const input = tbody.querySelector(`[data-permission="${permission}"]`);
     if (input) input.checked = true;
   });
+}
+
+function getDeviceStatusFilter() {
+  return document.querySelector('input[name="device-status"]:checked')?.value || 'active';
+}
+
+function persistDeviceViewState(page = devicePage) {
+  writeViewState('trusted-devices', {
+    status: getDeviceStatusFilter(),
+    page
+  });
+}
+
+const deviceInitialState = readViewState('trusted-devices') || {};
+document.querySelectorAll('input[name="device-status"]').forEach(input => {
+  input.checked = (deviceInitialState.status || 'active') === input.value;
+});
+
+function formatDeviceTime(value) {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Never';
+  return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function shortDeviceName(device) {
+  return device.device_label || device.user_agent || device.device_id || 'Trusted device';
+}
+
+function shortDeviceId(deviceId) {
+  const value = String(deviceId || '').trim();
+  if (!value) return 'No device id';
+  if (value.length <= 18) return value;
+  return `${value.slice(0, 8)}...${value.slice(-6)}`;
+}
+
+function updateDevicePager() {
+  const start = deviceTotal ? ((devicePage - 1) * 25) + 1 : 0;
+  const end = deviceTotal ? Math.min(devicePage * 25, deviceTotal) : 0;
+  const statusLabel = getDeviceStatusFilter();
+  const totalLabel = statusLabel === 'active' ? 'active devices' : statusLabel === 'revoked' ? 'revoked devices' : 'devices';
+  document.getElementById('device-count').textContent = `${deviceTotal} ${totalLabel}`;
+  document.getElementById('device-page-meta').textContent = deviceTotal ? `Showing ${start}-${end} of ${deviceTotal}` : 'No devices found';
+  document.getElementById('device-prev-btn').disabled = devicePage <= 1;
+  document.getElementById('device-next-btn').disabled = !deviceHasMore;
+  document.getElementById('device-summary-total').textContent = deviceSummary.total ?? deviceTotal;
+  document.getElementById('device-summary-active').textContent = deviceSummary.active ?? 0;
+  document.getElementById('device-summary-revoked').textContent = deviceSummary.revoked ?? 0;
+}
+
+function changeDevicePage(delta) {
+  const nextPage = devicePage + delta;
+  if (nextPage < 1) return;
+  if (delta > 0 && !deviceHasMore) return;
+  loadTrustedDevices(nextPage);
+}
+
+async function revokeTrustedDevice(id) {
+  if (!canManageAccess) return;
+  if (!confirm('Revoke trust for this device? The user will need SMS again on the next login.')) return;
+  try {
+    await apiFetch(`/users/trusted-devices/${id}/revoke`, { method: 'POST' });
+    toast('Device revoked', 'success');
+    loadTrustedDevices(devicePage);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function loadTrustedDevices(page = 1) {
+  if (!canManageAccess) return;
+  const q = '';
+  const status = getDeviceStatusFilter();
+  persistDeviceViewState(page);
+  const params = new URLSearchParams({ page: String(page), page_size: '25' });
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  const tbody = document.getElementById('trusted-devices-tbody');
+  tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⏳', title: 'Loading trusted devices', subtitle: 'Refreshing the admin device list now.' })}</td></tr>`;
+  try {
+    const result = await apiFetch(`/users/trusted-devices?${params.toString()}`);
+    const devices = result.items || [];
+    devicePage = result.page || page;
+    deviceTotal = result.total || devices.length;
+    deviceHasMore = !!result.has_more;
+    deviceSummary = result.summary || deviceSummary;
+    updateDevicePager();
+    if (!devices.length) {
+      tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '🔒', title: 'No trusted devices found', subtitle: 'Devices that complete SMS login will show up here.', actionLabel: '', action: '' })}</td></tr>`;
+      document.getElementById('trusted-devices-section').style.display = '';
+      return;
+    }
+    tbody.innerHTML = devices.map(device => `
+      <tr>
+        <td data-label="User">
+          <div class="device-name-line">
+            <div class="device-avatar">${String(device.name || '?').charAt(0).toUpperCase()}</div>
+            <div class="device-row-meta">
+              <div class="device-device-name">${device.name || 'Unknown user'}</div>
+              <div class="device-device-sub">${device.username || ''}${device.role ? ` • ${device.role}` : ''}</div>
+            </div>
+          </div>
+        </td>
+        <td data-label="Device">
+          <div class="device-row-meta">
+            <div class="device-device-name">${shortDeviceName(device)}</div>
+            <div class="device-device-sub"><span class="device-id" title="${device.device_id || ''}">${shortDeviceId(device.device_id)}</span></div>
+          </div>
+        </td>
+        <td data-label="Last Used" style="font-size:12.5px;color:var(--text-muted);">${formatDeviceTime(device.last_used_at || device.created_at)}</td>
+        <td data-label="Status"><span class="device-status ${device.revoked_at ? 'revoked' : 'active'}"><span class="device-dot"></span>${device.revoked_at ? 'Revoked' : 'Active'}</span></td>
+        <td data-label="Action">
+          <div class="device-actions">
+            ${device.revoked_at ? '<span style="color:var(--text-faint);font-size:12px;">No action</span>' : `<button class="btn btn-danger-ghost btn-sm" onclick="revokeTrustedDevice('${device.id}')">Revoke</button>`}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    document.getElementById('trusted-devices-section').style.display = '';
+  } catch (err) {
+    deviceTotal = 0;
+    deviceHasMore = false;
+    deviceSummary = { total: 0, active: 0, revoked: 0 };
+    updateDevicePager();
+    tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⚠', title: 'Trusted devices could not load', subtitle: 'Please try again in a moment.', actionLabel: 'Retry', action: 'loadTrustedDevices()' })}</td></tr>`;
+    toast(err.message, 'error');
+  }
 }
 
 function collectSelectedPermissions() {
@@ -336,10 +634,17 @@ document.querySelectorAll('input[name="user-status"]').forEach(input => {
   input.addEventListener('change', () => loadUsers(1));
 });
 
+document.querySelectorAll('input[name="device-status"]').forEach(input => {
+  input.addEventListener('change', () => loadTrustedDevices(1));
+});
+
 function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
 
-loadAccessCatalog().then(() => loadUsers(usersInitialState.page || 1)).catch(err => toast(err.message, 'error'));
+loadAccessCatalog()
+  .then(() => loadUsers(usersInitialState.page || 1))
+  .then(() => canManageAccess ? loadTrustedDevices(deviceInitialState.page || 1) : null)
+  .catch(err => toast(err.message, 'error'));
 </script>
 </body>
 </html>
