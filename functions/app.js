@@ -13,7 +13,12 @@ const attendanceRoutes = require('./routes/attendance');
 const timesheetRoutes = require('./routes/timesheets');
 const reportRoutes = require('./routes/reports');
 const feedbackRoutes = require('./routes/feedback');
-const form15cbRoutes = require('./routes/form15cb');
+let form15cbRoutes = null;
+try {
+  form15cbRoutes = require('./routes/form15cb');
+} catch (err) {
+  console.warn('Form 15CB routes unavailable:', err.message);
+}
 
 const app = express();
 const ROLE_DEFAULT_PERMISSIONS = {
@@ -102,7 +107,9 @@ app.use('/api/attendance', authMiddleware, attendanceRoutes);
 app.use('/api/timesheets', authMiddleware, timesheetRoutes);
 app.use('/api/reports', authMiddleware, managerOrAbove, reportRoutes);
 app.use('/api/feedback', authMiddleware, feedbackRoutes);
-app.use('/api/form15cb', authMiddleware, form15cbRoutes);
+if (form15cbRoutes) {
+  app.use('/api/form15cb', authMiddleware, form15cbRoutes);
+}
 
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
