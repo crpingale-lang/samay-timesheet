@@ -811,7 +811,7 @@ function buildTeamWatchRows(entries, range, staffFilterId = '') {
 
   const totals = new Map();
   entries.forEach(entry => {
-    if (!entry || entry.status !== 'approved') return;
+    if (!entry || entry.status === 'rejected') return;
     if (staffFilterId && String(entry.user_id || '') !== String(staffFilterId)) return;
     const date = String(entry.entry_date || '').trim();
     if (!date || !dayKeys.includes(date)) return;
@@ -908,7 +908,6 @@ async function loadTeamWatch() {
   const params = new URLSearchParams();
   params.set('from', range.from);
   params.set('to', range.to);
-  params.set('status', 'approved');
   const mainFilters = getFilters();
   if (mainFilters.staff) params.set('user_id', mainFilters.staff);
   const tbody = document.getElementById('team-watch-tbody');

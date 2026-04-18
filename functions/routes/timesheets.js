@@ -779,10 +779,13 @@ router.get('/stats', async (req, res) => {
   }
 
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const today = currentIndiaDateTimeParts().date;
+    const parts = today.split('-').map(Number);
+    const weekStart = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    const weekday = weekStart.getUTCDay();
+    const diff = weekday === 0 ? -6 : 1 - weekday;
+    weekStart.setUTCDate(weekStart.getUTCDate() + diff);
+    const weekStartStr = formatIsoDate(weekStart);
     const userId = req.user.id;
 
     const userEntriesSnap = await db.collection('timesheets').where('user_id', '==', userId).get();

@@ -693,10 +693,8 @@ router.post('/review', (req, res) => {
 router.get('/stats', (req, res) => {
   if (!requirePermission(req, res, 'dashboard.view_self')) return;
 
-  const today = new Date().toISOString().split('T')[0];
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const today = currentIndiaDateTimeParts().date;
+  const { from: weekStartStr } = weekBoundsForDate(today);
   const userId = req.user.id;
 
   const todayHours = db.prepare('SELECT COALESCE(SUM(hours),0) as h FROM timesheet_entries WHERE entry_date=? AND user_id = ?').get(today, userId);
