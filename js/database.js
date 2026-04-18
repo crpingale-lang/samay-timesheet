@@ -62,6 +62,21 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS trusted_devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    device_id TEXT NOT NULL,
+    device_label TEXT,
+    user_agent TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    last_used_at TEXT DEFAULT (datetime('now')),
+    revoked_at TEXT,
+    revoked_by_user_id INTEGER,
+    UNIQUE(user_id, device_id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (revoked_by_user_id) REFERENCES users(id)
+  );
+
   CREATE TABLE IF NOT EXISTS clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -225,6 +240,26 @@ if (!userCols.includes('last_login_at')) {
 }
 if (!userCols.includes('last_activity_at')) {
   db.exec("ALTER TABLE users ADD COLUMN last_activity_at TEXT");
+}
+
+const trustedDeviceCols = db.prepare("PRAGMA table_info(trusted_devices)").all().map(c => c.name);
+if (!trustedDeviceCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trusted_devices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      device_id TEXT NOT NULL,
+      device_label TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_used_at TEXT DEFAULT (datetime('now')),
+      revoked_at TEXT,
+      revoked_by_user_id INTEGER,
+      UNIQUE(user_id, device_id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (revoked_by_user_id) REFERENCES users(id)
+    );
+  `);
 }
 
 const feedbackCols = db.prepare("PRAGMA table_info(feedback_submissions)").all().map(c => c.name);

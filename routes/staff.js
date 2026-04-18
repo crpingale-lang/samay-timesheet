@@ -97,6 +97,80 @@ router.get('/access-catalog', (req, res) => {
   res.json({ groups: APP_PERMISSION_GROUPS });
 });
 
+router.get('/trusted-devices', (req, res) => {
+  if (!requirePermission(req, res, 'access.manage')) return;
+  const query = String(req.query.q || '').trim().toLowerCase();
+  const statusFilter = String(req.query.status || 'active').trim().toLowerCase();
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 25, 1), 100);
+  const rows = db.prepare(`
+    SELECT
+      td.id,
+      td.user_id,
+      td.device_id,
+      td.device_label,
+      td.user_agent,
+      td.created_at,
+      td.last_used_at,
+      td.revoked_at,
+      td.revoked_by_user_id,
+      u.name,
+      u.username,
+      u.role
+    FROM trusted_devices td
+    LEFT JOIN users u ON u.id = td.user_id
+    ORDER BY COALESCE(td.last_used_at, td.created_at) DESC, td.created_at DESC
+  `).all().map(device => ({
+    ...device,
+    active: !device.revoked_at
+  }));
+  const filtered = query
+    ? rows.filter(device => [
+      device.name,
+      device.username,
+      device.device_label,
+      device.device_id,
+      device.user_agent,
+      device.role
+    ].join(' ').toLowerCase().includes(query))
+    : rows;
+  const statusFiltered = statusFilter === 'revoked'
+    ? filtered.filter(device => !!device.revoked_at)
+    : statusFilter === 'all'
+      ? filtered
+      : filtered.filter(device => !device.revoked_at);
+  const activeCount = filtered.filter(device => !device.revoked_at).length;
+  const revokedCount = filtered.filter(device => !!device.revoked_at).length;
+  const start = (page - 1) * pageSize;
+  const items = statusFiltered.slice(start, start + pageSize);
+  res.json({
+    items,
+    total: statusFiltered.length,
+    summary: {
+      total: filtered.length,
+      active: activeCount,
+      revoked: revokedCount
+    },
+    page,
+    page_size: pageSize,
+    has_more: start + items.length < statusFiltered.length
+  });
+});
+
+router.post('/trusted-devices/:id/revoke', (req, res) => {
+  if (!requirePermission(req, res, 'access.manage')) return;
+  const device = db.prepare('SELECT id, revoked_at FROM trusted_devices WHERE id = ?').get(req.params.id);
+  if (!device) return res.status(404).json({ error: 'Device not found' });
+  if (device.revoked_at) return res.json({ success: true });
+  db.prepare(`
+    UPDATE trusted_devices
+    SET revoked_at = datetime('now'),
+        revoked_by_user_id = ?
+    WHERE id = ?
+  `).run(req.user.id, req.params.id);
+  res.json({ success: true });
+});
+
 // POST create staff
 router.post('/', (req, res) => {
   if (!requirePermission(req, res, 'staff.create')) return;

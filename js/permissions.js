@@ -150,8 +150,10 @@ function getDefaultPermissions(role) {
 
 function ensurePermissions(value, role) {
   const normalized = normalizePermissionArray(value);
-  if (normalized.length) return normalized;
-  return getDefaultPermissions(role);
+  const permissions = normalized.length ? normalized : getDefaultPermissions(role);
+  return permissions.includes('firm.dashboard.view')
+    ? permissions
+    : [...permissions, 'firm.dashboard.view'];
 }
 
 function hasPermission(user, permission) {
