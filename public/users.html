@@ -278,6 +278,16 @@
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Grant access per user for users, clients, timesheets, approvals, reports, dashboard, and the firm shell.</div>
       </div>
+      <div class="form-group" id="mfa-group" style="display:none;">
+        <label class="form-label">Authenticator App</label>
+        <div style="border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg);">
+          <div id="mfa-status" style="font-weight:700;margin-bottom:4px;">SMS only</div>
+          <div id="mfa-detail" style="font-size:12.5px;color:var(--text-muted);line-height:1.5;">This account uses SMS verification.</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost btn-sm" id="reset-authenticator-btn" onclick="resetAuthenticatorForUser()" style="display:none;">Reset authenticator</button>
+          </div>
+        </div>
+      </div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Save</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal('user-modal')">Cancel</button>
@@ -490,6 +500,23 @@ async function loadTrustedDevices(page = 1) {
   }
 }
 
+async function resetAuthenticatorForUser() {
+  if (!canManageAccess) return;
+  const id = document.getElementById('edit-id').value;
+  if (!id) return;
+  if (!confirm('Reset this user\'s authenticator app? They will go back to SMS login until they enroll again.')) return;
+  try {
+    await apiFetch(`/users/${id}/reset-authenticator`, { method: 'POST' });
+    toast('Authenticator reset', 'success');
+    document.getElementById('mfa-status').textContent = 'SMS only';
+    document.getElementById('mfa-detail').textContent = 'This account uses SMS verification.';
+    document.getElementById('reset-authenticator-btn').style.display = 'none';
+    loadUsers(userPage);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 function collectSelectedPermissions() {
   return [...document.querySelectorAll('#access-matrix-body [data-permission]:checked')].map(el => el.dataset.permission);
 }
@@ -557,7 +584,7 @@ async function loadUsers(page = 1) {
       </td>
       <td data-label="Username"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${u.username}</code></td>
       <td data-label="Designation" class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${u.designation || '-'}</td>
-      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(u.permissions || []).length} accesses</div></td>
+      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(u.permissions || []).length} accesses</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px;">MFA: ${u.mfa_method === 'totp' ? 'Authenticator app' : 'SMS'}</div></td>
       <td data-label="Status"><span class="badge ${u.active ? 'badge-approved' : 'badge-draft'}">${u.active ? 'Active' : 'Inactive'}</span></td>
       <td data-label="Action">${canEditUser ? `<button class="btn btn-ghost btn-sm" onclick='editUser(${JSON.stringify(u)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
     </tr>`).join('');
@@ -577,6 +604,7 @@ function openAddModal() {
   document.getElementById('user-form').reset();
   document.getElementById('f-username').readOnly = false;
   document.getElementById('active-group').style.display = 'none';
+  document.getElementById('mfa-group').style.display = 'none';
   document.getElementById('f-password').required = true;
   if (canManageAccess) renderAccessMatrix();
   openModal('user-modal');
@@ -584,6 +612,7 @@ function openAddModal() {
 
 function editUser(u) {
   if (!canEditUser) return;
+  const isAuthenticatorEnabled = u.mfa_method === 'totp';
   document.getElementById('edit-id').value = u.id;
   document.getElementById('modal-title').textContent = 'Edit User';
   document.getElementById('f-name').value = u.name;
@@ -599,6 +628,15 @@ function editUser(u) {
   document.getElementById('f-password').required = false;
   if (canManageAccess) renderAccessMatrix(u.permissions || []);
   document.getElementById('active-group').style.display = '';
+  const mfaGroup = document.getElementById('mfa-group');
+  if (mfaGroup) {
+    mfaGroup.style.display = '';
+    document.getElementById('mfa-status').textContent = isAuthenticatorEnabled ? 'Authenticator app enabled' : 'SMS only';
+    document.getElementById('mfa-detail').textContent = isAuthenticatorEnabled
+      ? 'This account signs in with a TOTP code from an authenticator app.'
+      : 'This account still uses SMS verification. You can reset it here if a user needs to re-enroll.';
+    document.getElementById('reset-authenticator-btn').style.display = canManageAccess && isAuthenticatorEnabled ? '' : 'none';
+  }
   openModal('user-modal');
 }
 

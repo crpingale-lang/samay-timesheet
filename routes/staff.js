@@ -65,7 +65,7 @@ function validateUniqueContactFields({ email, mobileNumber, excludeUserId = null
 // GET all staff
 router.get('/', (req, res) => {
   if (!requirePermission(req, res, 'staff.view')) return;
-  const staff = db.prepare("SELECT id, name, username, role, permissions, email, mobile_number, designation, department, active, created_at FROM users ORDER BY CASE role WHEN 'partner' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END, name").all()
+  const staff = db.prepare("SELECT id, name, username, role, permissions, mfa_method, email, mobile_number, designation, department, active, created_at FROM users ORDER BY CASE role WHEN 'partner' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END, name").all()
     .map(user => ({ ...user, permissions: ensurePermissions(user.permissions, user.role) }));
   const query = String(req.query.q || '').trim().toLowerCase();
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -168,6 +168,20 @@ router.post('/trusted-devices/:id/revoke', (req, res) => {
         revoked_by_user_id = ?
     WHERE id = ?
   `).run(req.user.id, req.params.id);
+  res.json({ success: true });
+});
+
+router.post('/:id/reset-authenticator', (req, res) => {
+  if (!requirePermission(req, res, 'access.manage')) return;
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  db.prepare(`
+    UPDATE users
+    SET mfa_method = 'sms',
+        mfa_secret = NULL,
+        mfa_confirmed_at = NULL
+    WHERE id = ?
+  `).run(req.params.id);
   res.json({ success: true });
 });
 
