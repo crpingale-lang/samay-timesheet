@@ -28,11 +28,11 @@
       </div>
       <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none;background:var(--danger-bg);padding:8px 12px;border-radius:6px;border:1px solid #fecaca;"></div>
       <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">
-        Send SMS Code ->
+        Continue to SMS Code
       </button>
     </form>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
-      <strong>Security:</strong> Username or email + password + SMS code, then choose your module
+      <strong>Security:</strong> Sign in with username or email + password, then verify with SMS code and choose your module
     </div>
   </div>
 </div>
@@ -51,9 +51,17 @@
   let smsChallengeToken = '';
   let confirmationResult = null;
   let phoneNumber = '';
+  let smsMode = 'firebase';
+  let smsTestCode = '';
   let firebaseReady = false;
   let recaptchaVerifier = null;
   const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const useLocalSmsFlow = isLocalDev;
+
+  const authNotice = consumeAuthNotice();
+  if (authNotice) {
+    setLoginError(authNotice);
+  }
 
   passwordGroup.insertAdjacentHTML('afterend', `
     <div class="form-group" id="otp-group" style="display:none;">
@@ -97,8 +105,8 @@
 
   function setButtonLabel() {
     document.getElementById('login-btn').textContent = loginStep === 'verify'
-      ? 'Verify SMS Code ->'
-      : 'Send SMS Code ->';
+      ? 'Verify SMS Code'
+      : 'Continue to SMS Code';
   }
 
   function maskPhoneNumber(phone) {
@@ -124,6 +132,9 @@
   }
 
   function ensureFirebaseApp() {
+    if (!window.firebase) {
+      throw new Error('Firebase browser SDK did not load. Use the local SMS test flow or check network access.');
+    }
     if (firebaseReady) return firebase.auth();
     const config = loadFirebaseConfig();
     if (!firebase.apps.length) {
@@ -132,6 +143,9 @@
     const auth = firebase.auth();
     if (isLocalDev) {
       auth.settings.appVerificationDisabledForTesting = true;
+      if (typeof auth.useEmulator === 'function') {
+        auth.useEmulator('http://localhost:9099');
+      }
     }
     firebaseReady = true;
     return auth;
@@ -209,6 +223,18 @@
 
     smsChallengeToken = data.sms_challenge_token;
     phoneNumber = data.phone_number;
+    smsMode = data.sms_mode || 'firebase';
+    smsTestCode = data.sms_test_code || '';
+
+    if (useLocalSmsFlow || smsMode === 'local') {
+      confirmationResult = null;
+      showOtpStep(maskPhoneNumber(data.phone_number || phoneNumber) || data.masked_phone_number || 'your registered phone');
+      otpNote.textContent = smsTestCode
+        ? `Local test mode: enter code ${smsTestCode}.`
+        : 'Local test mode: enter the code shown by the server.';
+      return;
+    }
+
     const auth = ensureFirebaseApp();
     const verifier = ensureRecaptcha(auth);
     try {
@@ -257,23 +283,33 @@
 
       if (loginStep === 'verify') {
         btn.textContent = 'Verifying...';
-        if (!confirmationResult) {
-          throw new Error('Please request a new SMS code');
-        }
         const otp = otpInput.value.trim();
         if (!otp) {
           throw new Error('Enter the SMS code');
         }
 
-        const confirmation = await confirmationResult.confirm(otp);
-        const firebaseIdToken = await confirmation.user.getIdToken(true);
+        let payload;
+        if (useLocalSmsFlow || smsMode === 'local') {
+          payload = {
+            sms_challenge_token: smsChallengeToken,
+            sms_verification_code: otp
+          };
+        } else {
+          if (!confirmationResult) {
+            throw new Error('Please request a new SMS code');
+          }
+          const confirmation = await confirmationResult.confirm(otp);
+          const firebaseIdToken = await confirmation.user.getIdToken(true);
+          payload = {
+            sms_challenge_token: smsChallengeToken,
+            firebase_id_token: firebaseIdToken
+          };
+        }
+
         const completeResponse = await fetch('/api/auth/complete-sms-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sms_challenge_token: smsChallengeToken,
-            firebase_id_token: firebaseIdToken
-          })
+          body: JSON.stringify(payload)
         });
         const completeData = await completeResponse.json().catch(() => ({}));
         if (!completeResponse.ok) {
@@ -304,7 +340,7 @@
     smsCopy.textContent = 'Firebase web config is missing. Add /firebase-config.js before testing SMS login.';
   } else if (isLocalDev) {
     smsInfo.classList.add('open');
-    smsCopy.textContent = 'Local dev mode is on. Use Firebase Auth test phone numbers in the console to avoid sending real SMS while you test.';
+    smsCopy.textContent = 'Local dev mode is on. The app will use a local test code instead of the Firebase browser SDK.';
   }
 </script>
 </body>

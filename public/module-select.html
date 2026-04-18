@@ -16,8 +16,7 @@
           <div class="module-gate-kicker">Workspace switch</div>
           <h1 class="module-gate-title" id="module-select-title">Choose the module to open</h1>
           <p class="module-gate-subtitle">
-            Samay now starts with a module selector so the right workspace opens after sign-in.
-            Pick Timesheet for the current app, move into UDIN Tracker when it is ready, or open the Form 15CB Converter for TDS certificate processing.
+            Pick the workspace you want to open next. Timesheet is live, UDIN Tracker is coming soon, and Form 15CB Converter is ready for TDS certificate processing.
           </p>
 
           <div class="module-gate-highlights" aria-label="Module summary">
@@ -25,7 +24,7 @@
               <div class="module-gate-highlight-icon" aria-hidden="true">T</div>
               <div>
                 <strong>Timesheet</strong>
-                <span>Open the live work log, approvals, reports, and the current practice dashboard.</span>
+                <span>Open the live work log, approvals, reports, and dashboard.</span>
               </div>
             </div>
             <div class="module-gate-highlight">
@@ -39,7 +38,7 @@
               <div class="module-gate-highlight-icon" aria-hidden="true" style="background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 10px 24px rgba(5,150,105,0.22);">F</div>
               <div>
                 <strong>Form 15CB Converter</strong>
-                <span>Convert 15CB XML to Form 146 JSON with master data, historical comparison, and validation.</span>
+                <span>Convert 15CB XML to Form 146 JSON with master data and validation.</span>
               </div>
             </div>
           </div>
@@ -76,17 +75,17 @@
               <span id="module-meta-status-text">Waiting for selection</span>
             </div>
           </div>
-          <section class="firm-login-report" id="firm-login-report" hidden aria-labelledby="firm-login-report-title">
-            <div class="firm-login-report-head">
+          <details class="firm-login-report module-select-details" id="firm-login-report">
+            <summary>
               <div>
                 <div class="module-select-label">Firm report</div>
                 <div class="firm-login-report-title" id="firm-login-report-title">User login and activity snapshot</div>
                 <div class="firm-login-report-copy">
-                  Live access summary for permitted firm roles before any module is opened.
+                  Open for a live access summary before you continue.
                 </div>
               </div>
               <div class="firm-login-report-badge" id="firm-login-report-badge">Loading</div>
-            </div>
+            </summary>
             <div class="firm-login-report-stats" id="firm-login-report-stats">
               <div class="firm-login-report-stat">
                 <span>Total users</span>
@@ -117,7 +116,7 @@
                 </tbody>
               </table>
             </div>
-          </section>
+          </details>
           <div class="module-gate-actions" style="margin-top:18px;">
             <button class="btn btn-primary" type="button" id="continue-module-btn" disabled>Continue</button>
             <button class="btn btn-ghost" type="button" onclick="logout()">Logout</button>
