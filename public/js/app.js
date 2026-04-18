@@ -247,7 +247,10 @@ function redirectToLogin(message) {
 function getModuleLandingPage(moduleKey = getSelectedModule()) {
   switch (String(moduleKey || '').trim().toLowerCase()) {
     case 'timesheet':
-      return getDefaultLandingPage();
+      if (hasPermission('dashboard.view_self')) return '/dashboard.html';
+      if (hasPermission('timesheets.view_own')) return '/timesheet.html';
+      if (hasPermission('firm.dashboard.view')) return '/firm-dashboard.html';
+      return '/timesheet.html';
     case 'udin':
     case 'udin-tracker':
       return '/udin-coming-soon.html';
