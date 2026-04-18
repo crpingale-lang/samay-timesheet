@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timesheet Masters - Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
+        <div>
+          <div class="topbar-title">Timesheet Masters</div>
+          <div style="font-size:12px;color:var(--text-muted);">Holiday, shift and client site configuration</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/timesheet.html" class="btn btn-ghost btn-sm"><span class="btn-symbol" aria-hidden="true">&#8592;</span><span class="btn-label">Log Time</span></a>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="alert alert-info" style="margin-bottom:16px;">
+        Holidays are stored as configurable master data and shown in `DD/MM/YYYY` format. Client sites are what make a client selectable in timesheet entry, and their shift defaults drive the add-entry modal.
+      </div>
+
+      <div class="proto-tabs" style="margin-bottom:18px;">
+        <button class="proto-tab active" id="tab-holidays" onclick="switchTab('holidays')">Holidays</button>
+        <button class="proto-tab" id="tab-sites" onclick="switchTab('sites')">Client Sites</button>
+        <button class="proto-tab" id="tab-shifts" onclick="switchTab('shifts')">Shifts</button>
+      </div>
+
+      <section id="section-holidays">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Holiday Master</div>
+              <div class="card-subtitle">Use this list for holiday-aware reporting, team watch, and future attendance logic.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-outline btn-sm" type="button" onclick="openHolidayImport()">Import Excel / CSV</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="resetHolidayForm()">Clear</button>
+            </div>
+          </div>
+          <form id="holiday-form" class="master-form">
+            <input type="hidden" id="holiday-id">
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Date (DD/MM/YYYY)</label><input class="form-control" type="text" id="holiday-date" placeholder="26/01/2026"></div>
+              <div class="form-group"><label class="form-label">Title</label><input class="form-control" type="text" id="holiday-title" placeholder="Republic Day"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Type</label><input class="form-control" type="text" id="holiday-type" placeholder="holiday / restricted / office-closed"></div>
+              <div class="form-group"><label class="form-label">Notes</label><input class="form-control" type="text" id="holiday-notes" placeholder="Optional note"></div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="holiday-active" checked><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;" id="holiday-save-btn">Save Holiday</button>
+            </div>
+          </form>
+          <div class="table-wrapper" style="margin-top:14px;">
+            <table class="mobile-stack-table">
+              <thead><tr><th>Date</th><th>Title</th><th>Type</th><th class="hide-mobile">Notes</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="holidays-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-sites" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Client Sites</div>
+              <div class="card-subtitle">Only clients with at least one configured site show up in the timesheet client picker.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="fillCurrentLocation()">Use Current Location</button>
+              <button class="btn btn-outline btn-sm" type="button" onclick="openMapSearch()">Search on Maps</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="resetClientSiteForm()">Clear</button>
+            </div>
+          </div>
+          <form id="client-site-form" class="master-form">
+            <input type="hidden" id="client-site-id">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Client</label>
+                <select class="form-control" id="client-site-client"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Site Name</label>
+                <input class="form-control" type="text" id="client-site-name" placeholder="Head Office / Branch / Factory">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" type="number" step="0.000001" id="client-site-latitude" placeholder="19.076090"></div>
+              <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" type="number" step="0.000001" id="client-site-longitude" placeholder="72.877426"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Shift</label>
+                <select class="form-control" id="client-site-shift"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Radius (metres)</label>
+                <input class="form-control" type="number" min="1" step="1" id="client-site-radius" value="50">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Shift Start</label><input class="form-control" type="text" id="client-site-shift-start" placeholder="10:00"></div>
+              <div class="form-group"><label class="form-label">Shift End</label><input class="form-control" type="text" id="client-site-shift-end" placeholder="18:30"></div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="client-site-active" checked><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;" id="client-site-save-btn">Save Client Site</button>
+            </div>
+          </form>
+          <div class="table-wrapper" style="margin-top:14px;">
+            <table class="mobile-stack-table">
+              <thead><tr><th>Client</th><th>Site</th><th>Coords</th><th class="hide-mobile">Shift</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="client-sites-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-shifts" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Shift Master</div>
+              <div class="card-subtitle">New client sites default to 10:00 to 18:30 unless you change the shift here.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="resetShiftForm()">Clear</button>
+            </div>
+          </div>
+          <form id="shift-form" class="master-form">
+            <input type="hidden" id="shift-id">
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Shift Label</label><input class="form-control" type="text" id="shift-label" placeholder="General Day Shift"></div>
+              <div class="form-group"><label class="form-label">Shift Code</label><input class="form-control" type="text" id="shift-code" placeholder="Auto generated if blank"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Start Time</label><input class="form-control" type="text" id="shift-start" placeholder="10:00"></div>
+              <div class="form-group"><label class="form-label">End Time</label><input class="form-control" type="text" id="shift-end" placeholder="18:30"></div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row"><label class="toggle-label">Default for New Clients</label><label class="toggle"><input type="checkbox" id="shift-default"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="shift-active" checked><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;" id="shift-save-btn">Save Shift</button>
+            </div>
+          </form>
+          <div class="table-wrapper" style="margin-top:14px;">
+            <table class="mobile-stack-table">
+              <thead><tr><th>Label</th><th>Code</th><th>Times</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="shifts-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="holiday-import-modal">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header">
+      <div class="modal-title">Import Holidays</div>
+      <button class="modal-close" onclick="closeModal('holiday-import-modal')" aria-label="Close import modal">&times;</button>
+    </div>
+    <div class="alert alert-info" style="margin-bottom:12px;">
+      Upload an Excel file (`.xlsx` / `.xls`) or paste CSV-style rows with columns like <strong>Date, Title, Type, Notes, Active</strong>. Dates can be `DD/MM/YYYY` or `YYYY-MM-DD`.
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="holiday-import-file">Excel / CSV File</label>
+      <input class="form-control" type="file" id="holiday-import-file" accept=".xlsx,.xls,.csv,.txt">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="holiday-import-text">Or paste rows</label>
+      <textarea class="form-control" id="holiday-import-text" rows="8" placeholder="Date,Title,Type,Notes,Active&#10;26/01/2026,Republic Day,holiday,National holiday,1"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" type="button" style="flex:1;justify-content:center;" onclick="importHolidayRows()">Import</button>
+      <button class="btn btn-ghost" type="button" onclick="closeModal('holiday-import-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <a class="bottom-nav-item" href="/dashboard.html"><span class="bn-icon" aria-hidden="true">&#8962;</span>Home</a>
+    <a class="bottom-nav-item" href="/timesheet.html"><span class="bn-icon" aria-hidden="true">&#9716;</span>Log</a>
+    <a class="bottom-nav-item" href="/my-timesheets.html"><span class="bn-icon" aria-hidden="true">&#9636;</span>Mine</a>
+  </div>
+</nav>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!hasPermission('timesheets.masters.view')) window.location.href = '/timesheet.html';
+document.getElementById('sidebar-el').innerHTML = TIMESHEET_SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+let timesheetMasters = { holidays: [], shifts: [], client_sites: [], configured_clients: [] };
+let activeTab = 'holidays';
+let clientsStore = [];
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('section-holidays').style.display = tab === 'holidays' ? '' : 'none';
+  document.getElementById('section-sites').style.display = tab === 'sites' ? '' : 'none';
+  document.getElementById('section-shifts').style.display = tab === 'shifts' ? '' : 'none';
+  document.getElementById('tab-holidays').classList.toggle('active', tab === 'holidays');
+  document.getElementById('tab-sites').classList.toggle('active', tab === 'sites');
+  document.getElementById('tab-shifts').classList.toggle('active', tab === 'shifts');
+}
+
+function parseFlexibleDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const match = /^(\d{2})[\/-](\d{2})[\/-](\d{4})$/.exec(raw);
+  if (!match) return '';
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function formatDisplayDate(isoDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(isoDate || ''))) return '-';
+  const [year, month, day] = isoDate.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function isTrue(value) {
+  return value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true';
+}
+
+function delimitedRows(text) {
+  const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const first = lines[0];
+  const delimiter = first.includes('\t') ? '\t' : (first.includes(';') ? ';' : ',');
+  const headers = first.split(delimiter).map(cell => cell.trim().toLowerCase());
+  const hasHeader = headers.some(h => /date|title|name|type|note|active/.test(h));
+  const startIndex = hasHeader ? 1 : 0;
+  const dataRows = [];
+  for (let i = startIndex; i < lines.length; i += 1) {
+    const cols = lines[i].split(delimiter).map(cell => cell.trim());
+    dataRows.push({ cols, headers });
+  }
+  return { rows: dataRows, headers, hasHeader };
+}
+
+function holidayRowFromInput(row, headers) {
+  const normalized = {};
+  row.cols.forEach((value, index) => {
+    const key = headers[index] || `col_${index}`;
+    normalized[key] = value;
+  });
+  return {
+    holiday_date: normalized.date || normalized.holiday_date || normalized.holiday || normalized.col_0 || '',
+    title: normalized.title || normalized.name || normalized.col_1 || '',
+    holiday_type: normalized.type || normalized.holiday_type || normalized.col_2 || 'holiday',
+    notes: normalized.notes || normalized.description || normalized.col_3 || '',
+    active: normalized.active || normalized.status || normalized.col_4 || '1'
+  };
+}
+
+function showHolidayError(message) {
+  toast(message, 'error');
+}
+
+function resetHolidayForm() {
+  document.getElementById('holiday-id').value = '';
+  document.getElementById('holiday-form').reset();
+  document.getElementById('holiday-active').checked = true;
+  document.getElementById('holiday-save-btn').textContent = 'Save Holiday';
+}
+
+function resetShiftForm() {
+  document.getElementById('shift-id').value = '';
+  document.getElementById('shift-form').reset();
+  document.getElementById('shift-start').value = '10:00';
+  document.getElementById('shift-end').value = '18:30';
+  document.getElementById('shift-active').checked = true;
+  document.getElementById('shift-save-btn').textContent = 'Save Shift';
+}
+
+function resetClientSiteForm() {
+  document.getElementById('client-site-id').value = '';
+  document.getElementById('client-site-form').reset();
+  document.getElementById('client-site-radius').value = '50';
+  document.getElementById('client-site-active').checked = true;
+  document.getElementById('client-site-shift-start').value = '10:00';
+  document.getElementById('client-site-shift-end').value = '18:30';
+  document.getElementById('client-site-save-btn').textContent = 'Save Client Site';
+}
+
+function setHolidayForm(row) {
+  document.getElementById('holiday-id').value = row.id || '';
+  document.getElementById('holiday-date').value = row.holiday_date_display || formatDisplayDate(row.holiday_date || '');
+  document.getElementById('holiday-title').value = row.title || '';
+  document.getElementById('holiday-type').value = row.holiday_type || '';
+  document.getElementById('holiday-notes').value = row.notes || '';
+  document.getElementById('holiday-active').checked = isTrue(row.active);
+  document.getElementById('holiday-save-btn').textContent = row.id ? 'Save Changes' : 'Save Holiday';
+}
+
+function setShiftForm(row) {
+  document.getElementById('shift-id').value = row.id || '';
+  document.getElementById('shift-label').value = row.label || '';
+  document.getElementById('shift-code').value = row.shift_code || '';
+  document.getElementById('shift-start').value = row.start_time || '10:00';
+  document.getElementById('shift-end').value = row.end_time || '18:30';
+  document.getElementById('shift-default').checked = isTrue(row.default_for_new_clients);
+  document.getElementById('shift-active').checked = isTrue(row.active);
+  document.getElementById('shift-save-btn').textContent = row.id ? 'Save Changes' : 'Save Shift';
+}
+
+function setSiteForm(row) {
+  document.getElementById('client-site-id').value = row.id || '';
+  document.getElementById('client-site-client').value = row.client_id || '';
+  document.getElementById('client-site-name').value = row.site_name || '';
+  document.getElementById('client-site-latitude').value = row.latitude ?? '';
+  document.getElementById('client-site-longitude').value = row.longitude ?? '';
+  document.getElementById('client-site-shift').value = row.shift_id || '';
+  document.getElementById('client-site-shift-start').value = row.shift_start || '10:00';
+  document.getElementById('client-site-shift-end').value = row.shift_end || '18:30';
+  document.getElementById('client-site-radius').value = row.radius_meters || 50;
+  document.getElementById('client-site-active').checked = isTrue(row.active);
+  document.getElementById('client-site-save-btn').textContent = row.id ? 'Save Changes' : 'Save Client Site';
+}
+
+function renderHolidayRows() {
+  const tbody = document.getElementById('holidays-tbody');
+  if (!timesheetMasters.holidays.length) {
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '🗓', title: 'No holidays configured', subtitle: 'Add dates here so future timesheet views can respect them.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = timesheetMasters.holidays.map(row => `
+    <tr>
+      <td data-label="Date"><strong>${row.holiday_date_display || formatDisplayDate(row.holiday_date)}</strong></td>
+      <td data-label="Title">${row.title}</td>
+      <td data-label="Type">${row.holiday_type || '-'}</td>
+      <td data-label="Notes" class="hide-mobile">${row.notes || '-'}</td>
+      <td data-label="Status">${row.active ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
+      <td data-label="Action">
+        <button class="btn btn-ghost btn-sm" type="button" onclick='setHolidayForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:"smooth"})'>Edit</button>
+        <button class="btn btn-danger btn-sm" type="button" onclick="deleteHoliday('${row.id}')">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderShiftRows() {
+  const tbody = document.getElementById('shifts-tbody');
+  if (!timesheetMasters.shifts.length) {
+    tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⏱', title: 'No shifts configured', subtitle: 'Create a shift so client sites can inherit default start and end times.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = timesheetMasters.shifts.map(row => `
+    <tr>
+      <td data-label="Label">${row.label}</td>
+      <td data-label="Code">${row.shift_code}</td>
+      <td data-label="Times">${row.start_time} - ${row.end_time}${row.default_for_new_clients ? ' • default' : ''}</td>
+      <td data-label="Status">${row.active ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
+      <td data-label="Action">
+        <button class="btn btn-ghost btn-sm" type="button" onclick='setShiftForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:"smooth"})'>Edit</button>
+        <button class="btn btn-danger btn-sm" type="button" onclick="deleteShift('${row.id}')">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderSiteRows() {
+  const tbody = document.getElementById('client-sites-tbody');
+  if (!timesheetMasters.client_sites.length) {
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '📍', title: 'No client sites configured', subtitle: 'Add a site and shift so the client becomes available in timesheets.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = timesheetMasters.client_sites.map(row => `
+    <tr>
+      <td data-label="Client">${row.client_name} [${row.client_code}]</td>
+      <td data-label="Site">${row.site_name}</td>
+      <td data-label="Coords">${Number(row.latitude).toFixed(6)}, ${Number(row.longitude).toFixed(6)}</td>
+      <td data-label="Shift" class="hide-mobile">${row.shift_start} - ${row.shift_end}${row.shift_label ? ` • ${row.shift_label}` : ''}</td>
+      <td data-label="Status">${row.active ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
+      <td data-label="Action">
+        <button class="btn btn-ghost btn-sm" type="button" onclick='setSiteForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:"smooth"})'>Edit</button>
+        <button class="btn btn-danger btn-sm" type="button" onclick="deleteSite('${row.id}')">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function populateClientSelects() {
+  const siteSelect = document.getElementById('client-site-client');
+  siteSelect.innerHTML = '<option value="">Select client</option>' + clientsStore
+    .filter(client => client.active)
+    .map(client => `<option value="${client.id}">${client.name} [${client.code}]</option>`)
+    .join('');
+
+  const shiftSelect = document.getElementById('client-site-shift');
+  shiftSelect.innerHTML = '<option value="">Default / custom</option>' + timesheetMasters.shifts
+    .filter(shift => shift.active)
+    .map(shift => `<option value="${shift.id}">${shift.label} (${shift.start_time}-${shift.end_time})</option>`)
+    .join('');
+}
+
+function syncShiftFieldsFromSelection() {
+  const shiftId = document.getElementById('client-site-shift').value;
+  const shift = timesheetMasters.shifts.find(item => String(item.id) === String(shiftId));
+  if (!shift) return;
+  document.getElementById('client-site-shift-start').value = shift.start_time || '10:00';
+  document.getElementById('client-site-shift-end').value = shift.end_time || '18:30';
+}
+
+async function loadMasters() {
+  timesheetMasters = await ensureTimesheetMastersLoaded(true);
+  clientsStore = await apiFetch('/clients');
+  renderHolidayRows();
+  renderShiftRows();
+  renderSiteRows();
+  populateClientSelects();
+}
+
+function openHolidayImport() {
+  document.getElementById('holiday-import-text').value = '';
+  document.getElementById('holiday-import-file').value = '';
+  openModal('holiday-import-modal');
+}
+
+async function importHolidayRows() {
+  const fileInput = document.getElementById('holiday-import-file');
+  const text = document.getElementById('holiday-import-text').value.trim();
+  if (!fileInput.files.length && !text) {
+    showHolidayError('Choose an Excel file or paste holiday rows first');
+    return;
+  }
+  try {
+    const formData = new FormData();
+    if (fileInput.files.length) {
+      formData.append('file', fileInput.files[0]);
+    }
+    if (text) {
+      formData.append('text', text);
+    }
+    formData.append('update_existing', 'true');
+    await apiFetch('/timesheet-masters/holidays/import', { method: 'POST', body: formData });
+    closeModal('holiday-import-modal');
+    toast('Holidays imported successfully', 'success');
+    await loadMasters();
+  } catch (error) {
+    showHolidayError(error.message || 'Unable to import holidays');
+  }
+}
+
+async function saveHoliday(event) {
+  event.preventDefault();
+  const payload = {
+    holiday_date: document.getElementById('holiday-date').value,
+    title: document.getElementById('holiday-title').value,
+    holiday_type: document.getElementById('holiday-type').value,
+    notes: document.getElementById('holiday-notes').value,
+    active: document.getElementById('holiday-active').checked
+  };
+  const id = document.getElementById('holiday-id').value;
+  try {
+    if (id) await apiFetch(`/timesheet-masters/holidays/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/timesheet-masters/holidays', { method: 'POST', body: payload });
+    toast('Holiday saved', 'success');
+    resetHolidayForm();
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to save holiday', 'error');
+  }
+}
+
+async function deleteHoliday(id) {
+  if (!confirm('Delete this holiday?')) return;
+  try {
+    await apiFetch(`/timesheet-masters/holidays/${id}`, { method: 'DELETE' });
+    toast('Holiday deleted', 'success');
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to delete holiday', 'error');
+  }
+}
+
+async function saveShift(event) {
+  event.preventDefault();
+  const payload = {
+    label: document.getElementById('shift-label').value,
+    shift_code: document.getElementById('shift-code').value,
+    start_time: document.getElementById('shift-start').value,
+    end_time: document.getElementById('shift-end').value,
+    default_for_new_clients: document.getElementById('shift-default').checked,
+    active: document.getElementById('shift-active').checked
+  };
+  const id = document.getElementById('shift-id').value;
+  try {
+    if (id) await apiFetch(`/timesheet-masters/shifts/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/timesheet-masters/shifts', { method: 'POST', body: payload });
+    toast('Shift saved', 'success');
+    resetShiftForm();
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to save shift', 'error');
+  }
+}
+
+async function deleteShift(id) {
+  if (!confirm('Delete this shift?')) return;
+  try {
+    await apiFetch(`/timesheet-masters/shifts/${id}`, { method: 'DELETE' });
+    toast('Shift deleted', 'success');
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to delete shift', 'error');
+  }
+}
+
+async function saveClientSite(event) {
+  event.preventDefault();
+  const payload = {
+    client_id: document.getElementById('client-site-client').value,
+    site_name: document.getElementById('client-site-name').value,
+    latitude: document.getElementById('client-site-latitude').value,
+    longitude: document.getElementById('client-site-longitude').value,
+    shift_id: document.getElementById('client-site-shift').value,
+    shift_start: document.getElementById('client-site-shift-start').value,
+    shift_end: document.getElementById('client-site-shift-end').value,
+    radius_meters: document.getElementById('client-site-radius').value,
+    active: document.getElementById('client-site-active').checked
+  };
+  const id = document.getElementById('client-site-id').value;
+  try {
+    if (id) await apiFetch(`/timesheet-masters/client-sites/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/timesheet-masters/client-sites', { method: 'POST', body: payload });
+    toast('Client site saved', 'success');
+    resetClientSiteForm();
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to save client site', 'error');
+  }
+}
+
+async function deleteSite(id) {
+  if (!confirm('Delete this client site?')) return;
+  try {
+    await apiFetch(`/timesheet-masters/client-sites/${id}`, { method: 'DELETE' });
+    toast('Client site deleted', 'success');
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to delete client site', 'error');
+  }
+}
+
+function openMapSearch() {
+  const query = document.getElementById('client-site-name').value || document.getElementById('client-site-client').selectedOptions[0]?.textContent || '';
+  const url = `https://www.google.com/maps/search/${encodeURIComponent(query || 'office location')}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function fillCurrentLocation() {
+  if (!navigator.geolocation) {
+    toast('Geolocation is unavailable in this browser', 'error');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(position => {
+    document.getElementById('client-site-latitude').value = Number(position.coords.latitude).toFixed(6);
+    document.getElementById('client-site-longitude').value = Number(position.coords.longitude).toFixed(6);
+    toast('Coordinates captured', 'success');
+  }, error => {
+    toast(error.message || 'Unable to capture coordinates', 'error');
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+}
+
+document.getElementById('holiday-form').addEventListener('submit', saveHoliday);
+document.getElementById('shift-form').addEventListener('submit', saveShift);
+document.getElementById('client-site-form').addEventListener('submit', saveClientSite);
+document.getElementById('client-site-shift').addEventListener('change', syncShiftFieldsFromSelection);
+
+loadMasters().catch(error => toast(error.message || 'Unable to load masters', 'error'));
+</script>
+</body>
+</html>

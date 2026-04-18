@@ -573,7 +573,7 @@ function renderLoadingState() {
   document.getElementById('team-watch-on-track').textContent = '0';
   document.getElementById('team-watch-short-days').textContent = '0';
   document.getElementById('team-watch-missing-days').textContent = '0';
-  document.getElementById('team-watch-note').textContent = 'Select a range up to 31 days. Any day below 06:00 is highlighted in amber and a blank day is flagged in red.';
+  document.getElementById('team-watch-note').textContent = 'Select a range up to 31 days. Holidays are excluded from missing-day counts, days below 06:00 are highlighted in amber, and blank working days are flagged in red.';
 }
 
 function renderOverview(utilData, clientData, detailData) {
@@ -884,6 +884,9 @@ function formatWatchDayHeader(date) {
 
 function teamWatchCellHtml(day) {
   const hours = parseFloat(day.hours) || 0;
+  if (day.status === 'holiday') {
+    return `<span class="team-watch-cell team-watch-cell-good" title="${day.date}: Holiday">Holiday<small>Off</small></span>`;
+  }
   if (day.status === 'missing') {
     return `<span class="team-watch-cell team-watch-cell-missing" title="${day.date}">No update</span>`;
   }
@@ -1041,7 +1044,7 @@ async function loadTeamWatch() {
     document.getElementById('team-watch-on-track').textContent = String(summary.on_track_members || 0);
     document.getElementById('team-watch-short-days').textContent = String(shortDayCount);
     document.getElementById('team-watch-missing-days').textContent = String(missingDayCount);
-    document.getElementById('team-watch-note').textContent = `${rangeLabel}. Days below 06:00 are amber and missing days are red.`;
+    document.getElementById('team-watch-note').textContent = `${rangeLabel}. Holidays are excluded, days below 06:00 are amber and missing working days are red.`;
 
     const headers = days.map(day => `<th>${formatWatchDayHeader(day.date)}</th>`).join('');
     document.getElementById('team-watch-head-row').innerHTML = `
@@ -1095,7 +1098,7 @@ async function loadTeamWatch() {
       document.getElementById('team-watch-on-track').textContent = String(summary.on_track_members || 0);
       document.getElementById('team-watch-short-days').textContent = String(shortDayCount);
       document.getElementById('team-watch-missing-days').textContent = String(missingDayCount);
-      document.getElementById('team-watch-note').textContent = `${rangeLabel}. Days below 06:00 are amber and missing days are red.`;
+      document.getElementById('team-watch-note').textContent = `${rangeLabel}. Holidays are excluded, days below 06:00 are amber and missing working days are red.`;
 
       const headers = days.map(day => `<th>${formatWatchDayHeader(day.date)}</th>`).join('');
       document.getElementById('team-watch-head-row').innerHTML = `

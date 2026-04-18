@@ -543,15 +543,16 @@ function bootContactCatchupGate() {
 // API fetch wrapper
 async function apiFetch(path, options = {}) {
   const token = getToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const res = await fetch(API + path, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: 'Bearer ' + token } : {}),
       ...(options.headers || {})
     },
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
+    body: options.body ? (isFormData ? options.body : (typeof options.body === 'string' ? options.body : JSON.stringify(options.body))) : undefined
+  });
   if (res.status === 401) {
     clearSession();
     redirectToLogin('Your session expired or the server rejected your session. Please sign in again.');
@@ -922,6 +923,14 @@ let MASTER_DATA = {
   work_classifications: []
 };
 
+const TIMESHEET_MASTER_CACHE_KEY = 'ts_timesheet_master_cache';
+let TIMESHEET_MASTER_DATA = {
+  holidays: [],
+  shifts: [],
+  client_sites: [],
+  configured_clients: []
+};
+
 try {
   const cached = JSON.parse(localStorage.getItem(MASTER_DATA_CACHE_KEY) || 'null');
   if (cached?.work_categories && cached?.work_classifications) {
@@ -952,6 +961,50 @@ async function ensureMasterDataLoaded(force = false) {
   const data = await apiFetch('/master-data');
   setMasterData(data);
   return MASTER_DATA;
+}
+
+function setTimesheetMasterData(data = {}) {
+  TIMESHEET_MASTER_DATA = {
+    holidays: Array.isArray(data.holidays) ? data.holidays : [],
+    shifts: Array.isArray(data.shifts) ? data.shifts : [],
+    client_sites: Array.isArray(data.client_sites) ? data.client_sites : [],
+    configured_clients: Array.isArray(data.configured_clients) ? data.configured_clients : []
+  };
+  try {
+    localStorage.setItem(TIMESHEET_MASTER_CACHE_KEY, JSON.stringify(TIMESHEET_MASTER_DATA));
+  } catch {}
+}
+
+try {
+  const cached = JSON.parse(localStorage.getItem(TIMESHEET_MASTER_CACHE_KEY) || 'null');
+  if (cached?.holidays && cached?.shifts && cached?.client_sites && cached?.configured_clients) {
+    TIMESHEET_MASTER_DATA = cached;
+  }
+} catch {}
+
+async function ensureTimesheetMastersLoaded(force = false) {
+  if (!force && TIMESHEET_MASTER_DATA.holidays.length && TIMESHEET_MASTER_DATA.shifts.length && TIMESHEET_MASTER_DATA.client_sites.length) {
+    return TIMESHEET_MASTER_DATA;
+  }
+  const data = await apiFetch('/timesheet-masters');
+  setTimesheetMasterData(data);
+  return TIMESHEET_MASTER_DATA;
+}
+
+function getTimesheetHolidays() {
+  return TIMESHEET_MASTER_DATA.holidays || [];
+}
+
+function getTimesheetShifts() {
+  return TIMESHEET_MASTER_DATA.shifts || [];
+}
+
+function getTimesheetClientSites() {
+  return TIMESHEET_MASTER_DATA.client_sites || [];
+}
+
+function getConfiguredTimesheetClients() {
+  return TIMESHEET_MASTER_DATA.configured_clients || [];
 }
 
 function getWorkCategories(includeInactive = false) {
@@ -1204,6 +1257,40 @@ function SIDEBAR_HTML() {
       <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
       <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
       <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
+      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
+      <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
+      <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
+      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
+      <span class="nav-section-label" data-permissions="firm.dashboard.view,modules.view">Firm</span>
+      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
+      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">-</div>
+          <div class="user-role" id="sidebar-user-role">-</div>
+        </div>
+        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
+      </div>
+    </div>`;
+}
+
+function TIMESHEET_SIDEBAR_HTML() {
+  return `
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">CA</div>
+        <div><div class="logo-text">Samay</div><div class="logo-sub">Practice Management</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Workspace</span>
+      <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
+      <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
+      <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
+      <a class="nav-item nav-item-timesheet-masters" data-page="timesheet-masters.html" href="/timesheet-masters.html" data-permissions="timesheets.masters.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Timesheet Masters</span></a>
       <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
       <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
