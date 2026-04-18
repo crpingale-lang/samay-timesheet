@@ -57,6 +57,8 @@ db.exec(`
     designation TEXT,
     department TEXT,
     active INTEGER NOT NULL DEFAULT 1,
+    last_login_at TEXT,
+    last_activity_at TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
 
@@ -217,6 +219,12 @@ if (!userCols.includes('email')) {
 }
 if (!userCols.includes('mobile_number')) {
   db.exec("ALTER TABLE users ADD COLUMN mobile_number TEXT");
+}
+if (!userCols.includes('last_login_at')) {
+  db.exec("ALTER TABLE users ADD COLUMN last_login_at TEXT");
+}
+if (!userCols.includes('last_activity_at')) {
+  db.exec("ALTER TABLE users ADD COLUMN last_activity_at TEXT");
 }
 
 const feedbackCols = db.prepare("PRAGMA table_info(feedback_submissions)").all().map(c => c.name);
