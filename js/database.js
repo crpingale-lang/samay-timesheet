@@ -52,6 +52,9 @@ db.exec(`
     password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'article',
     permissions TEXT NOT NULL DEFAULT '[]',
+    mfa_method TEXT NOT NULL DEFAULT 'sms',
+    mfa_secret TEXT,
+    mfa_confirmed_at TEXT,
     email TEXT,
     mobile_number TEXT,
     designation TEXT,
@@ -229,6 +232,15 @@ const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
 if (!userCols.includes('permissions')) {
   db.exec("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'");
 }
+if (!userCols.includes('mfa_method')) {
+  db.exec("ALTER TABLE users ADD COLUMN mfa_method TEXT NOT NULL DEFAULT 'sms'");
+}
+if (!userCols.includes('mfa_secret')) {
+  db.exec("ALTER TABLE users ADD COLUMN mfa_secret TEXT");
+}
+if (!userCols.includes('mfa_confirmed_at')) {
+  db.exec("ALTER TABLE users ADD COLUMN mfa_confirmed_at TEXT");
+}
 if (!userCols.includes('email')) {
   db.exec("ALTER TABLE users ADD COLUMN email TEXT");
 }
@@ -241,6 +253,7 @@ if (!userCols.includes('last_login_at')) {
 if (!userCols.includes('last_activity_at')) {
   db.exec("ALTER TABLE users ADD COLUMN last_activity_at TEXT");
 }
+db.exec("UPDATE users SET mfa_method='sms' WHERE mfa_method IS NULL OR mfa_method = ''");
 
 const trustedDeviceCols = db.prepare("PRAGMA table_info(trusted_devices)").all().map(c => c.name);
 if (!trustedDeviceCols.length) {

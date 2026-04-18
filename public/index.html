@@ -32,7 +32,7 @@
       </button>
     </form>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
-      <strong>Security:</strong> Sign in with username or email + password. This device will stay trusted for 24 hours after SMS verification.
+      <strong>Security:</strong> Sign in with username or email + password. You can use SMS or switch to an authenticator app.
     </div>
   </div>
 </div>
@@ -48,7 +48,8 @@
   const loginFooter = document.getElementById('login-footer');
   const passwordGroup = document.getElementById('password').closest('.form-group');
   let loginStep = 'request';
-  let smsChallengeToken = '';
+  let authFlow = 'sms';
+  let mfaToken = '';
   let confirmationResult = null;
   let phoneNumber = '';
   let smsMode = 'firebase';
@@ -65,32 +66,46 @@
 
   passwordGroup.insertAdjacentHTML('afterend', `
     <div class="form-group" id="otp-group" style="display:none;">
-      <label class="form-label" for="otp">SMS Code</label>
+      <label class="form-label" for="otp" id="otp-label">Verification Code</label>
       <input class="form-control" type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code">
-      <div class="login-field-note" id="otp-note">We will send an SMS code to your registered mobile number.</div>
+      <div class="login-field-note" id="otp-note">We will send a code to your registered mobile number.</div>
       <div class="login-inline-actions" style="margin-top:10px;">
         <button class="btn btn-ghost btn-sm" type="button" id="resend-sms-btn" style="display:none;">Resend SMS Code</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="use-authenticator-btn">Use authenticator app</button>
       </div>
     </div>
   `);
 
   const smsInfo = document.createElement('div');
   smsInfo.className = 'login-mfa-panel';
-  smsInfo.id = 'sms-info';
+  smsInfo.id = 'mfa-info';
   smsInfo.setAttribute('aria-live', 'polite');
   smsInfo.innerHTML = `
-    <div class="login-step-label">SMS Login</div>
+    <div class="login-step-label" id="mfa-step-label">SMS Login</div>
     <div class="login-mfa-title" id="sms-title"></div>
     <div class="login-mfa-copy" id="sms-copy"></div>
+    <div class="login-secret-box" id="totp-secret-box" style="display:none;">
+      <div class="login-field-note" style="margin-bottom:8px;">Authenticator setup secret</div>
+      <div class="login-secret-code" id="totp-secret" style="word-break:break-all;"></div>
+      <button class="btn btn-ghost btn-sm" type="button" id="copy-totp-secret-btn" style="margin-top:10px;">Copy secret</button>
+      <div class="login-field-note" id="totp-uri" style="margin-top:10px;word-break:break-all;"></div>
+    </div>
   `;
   loginCard.insertBefore(smsInfo, loginFooter);
 
   const smsCopy = document.getElementById('sms-copy');
   const smsTitle = document.getElementById('sms-title');
+  const mfaStepLabel = document.getElementById('mfa-step-label');
   const otpGroup = document.getElementById('otp-group');
   const otpInput = document.getElementById('otp');
   const otpNote = document.getElementById('otp-note');
   const resendSmsBtn = document.getElementById('resend-sms-btn');
+  const useAuthenticatorBtn = document.getElementById('use-authenticator-btn');
+  const otpLabel = document.getElementById('otp-label');
+  const totpSecretBox = document.getElementById('totp-secret-box');
+  const totpSecretEl = document.getElementById('totp-secret');
+  const totpUriEl = document.getElementById('totp-uri');
+  const copyTotpSecretBtn = document.getElementById('copy-totp-secret-btn');
 
   function setLoginError(message) {
     const errEl = document.getElementById('login-error');
@@ -105,7 +120,7 @@
 
   function setButtonLabel() {
     document.getElementById('login-btn').textContent = loginStep === 'verify'
-      ? 'Verify SMS Code'
+      ? (authFlow === 'totp-setup' ? 'Confirm Setup' : 'Verify Code')
       : 'Continue';
   }
 
@@ -164,21 +179,44 @@
     return recaptchaVerifier;
   }
 
-  function showOtpStep(message) {
+  function showOtpStep(message, { flow = 'sms', secret = '', uri = '' } = {}) {
     loginStep = 'verify';
+    authFlow = flow;
     otpGroup.style.display = '';
-    resendSmsBtn.style.display = '';
+    resendSmsBtn.style.display = flow === 'sms' ? '' : 'none';
     smsInfo.classList.add('open');
-    smsTitle.textContent = `SMS sent to ${message}`;
-    smsCopy.textContent = '';
-    otpNote.textContent = 'Enter the 6-digit code.';
+    otpLabel.textContent = flow === 'totp-setup' ? 'Authenticator Code' : 'Verification Code';
+    smsTitle.textContent = flow === 'totp-setup'
+      ? 'Set up an authenticator app'
+      : flow === 'totp'
+        ? 'Authenticator code required'
+        : `SMS sent to ${message}`;
+    smsCopy.textContent = flow === 'totp-setup'
+      ? 'Scan the secret below in your authenticator app, then enter the 6-digit code to confirm.'
+      : flow === 'totp'
+        ? 'Open your authenticator app and enter the 6-digit code.'
+        : '';
+    otpNote.textContent = flow === 'totp-setup'
+      ? 'Enter the 6-digit code from your authenticator app to finish setup.'
+      : 'Enter the 6-digit code.';
+    totpSecretBox.style.display = flow === 'totp-setup' ? '' : 'none';
+    if (flow === 'totp-setup') {
+      totpSecretEl.textContent = secret;
+      totpUriEl.textContent = uri;
+      mfaStepLabel.textContent = 'Authenticator App';
+    } else {
+      totpSecretEl.textContent = '';
+      totpUriEl.textContent = '';
+      mfaStepLabel.textContent = 'SMS Login';
+    }
     setButtonLabel();
     otpInput.focus();
   }
 
   function resetLoginStep() {
     loginStep = 'request';
-    smsChallengeToken = '';
+    authFlow = 'sms';
+    mfaToken = '';
     confirmationResult = null;
     phoneNumber = '';
     otpGroup.style.display = 'none';
@@ -186,7 +224,12 @@
     smsInfo.classList.remove('open');
     smsTitle.textContent = '';
     smsCopy.textContent = '';
+    totpSecretBox.style.display = 'none';
+    totpSecretEl.textContent = '';
+    totpUriEl.textContent = '';
     otpInput.value = '';
+    otpLabel.textContent = 'Verification Code';
+    mfaStepLabel.textContent = 'SMS Login';
     setButtonLabel();
   }
 
@@ -197,7 +240,7 @@
     toast(`${label} copied to clipboard`, 'success');
   }
 
-  async function requestSmsCode({ resend = false } = {}) {
+  async function requestMfaStart({ setupAuthenticator = false } = {}) {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -206,13 +249,14 @@
         password: document.getElementById('password').value,
         trusted_device_id: getTrustedDeviceId(),
         trusted_device_token: getTrustedDeviceToken(),
-        trusted_device_label: getTrustedDeviceLabel()
+        trusted_device_label: getTrustedDeviceLabel(),
+        authenticator_setup: setupAuthenticator
       })
     });
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(data.error || 'Unable to start SMS login');
+      throw new Error(data.error || 'Unable to start login');
     }
     if (data.token && data.user) {
       if (data.trusted_device_token) {
@@ -223,18 +267,38 @@
       window.location.replace(getDefaultLandingPage());
       return;
     }
+    if (data.mfa_method === 'totp-setup') {
+      if (!data.mfa_token || !data.totp_secret || !data.otpauth_uri) {
+        throw new Error('Authenticator setup was not initialized correctly');
+      }
+      mfaToken = data.mfa_token;
+      showOtpStep('', {
+        flow: 'totp-setup',
+        secret: data.totp_secret,
+        uri: data.otpauth_uri
+      });
+      return;
+    }
+    if (data.mfa_method === 'totp') {
+      if (!data.mfa_token) {
+        throw new Error('Authenticator login was not initialized correctly');
+      }
+      mfaToken = data.mfa_token;
+      showOtpStep('', { flow: 'totp' });
+      return;
+    }
     if (!data.sms_required || !data.sms_challenge_token || !data.phone_number) {
       throw new Error('SMS login was not initialized correctly');
     }
 
-    smsChallengeToken = data.sms_challenge_token;
+    mfaToken = data.sms_challenge_token;
     phoneNumber = data.phone_number;
     smsMode = data.sms_mode || 'firebase';
     smsTestCode = data.sms_test_code || '';
 
     if (useLocalSmsFlow || smsMode === 'local') {
       confirmationResult = null;
-      showOtpStep(maskPhoneNumber(data.phone_number || phoneNumber) || data.masked_phone_number || 'your registered phone');
+      showOtpStep(maskPhoneNumber(data.phone_number || phoneNumber) || data.masked_phone_number || 'your registered phone', { flow: 'sms' });
       otpNote.textContent = smsTestCode
         ? `Local test mode: enter code ${smsTestCode}.`
         : 'Local test mode: enter the code shown by the server.';
@@ -249,13 +313,14 @@
       resetRecaptcha();
       throw err;
     }
-    showOtpStep(maskPhoneNumber(data.phone_number || phoneNumber) || data.masked_phone_number || 'your registered phone');
+    showOtpStep(maskPhoneNumber(data.phone_number || phoneNumber) || data.masked_phone_number || 'your registered phone', { flow: 'sms' });
   }
 
   setButtonLabel();
 
   resendSmsBtn.addEventListener('click', async () => {
     if (loginStep !== 'verify') return;
+    if (authFlow !== 'sms') return;
     const btn = document.getElementById('login-btn');
     setLoginError('');
     resendSmsBtn.disabled = true;
@@ -263,7 +328,7 @@
     btn.textContent = 'Resending...';
     otpInput.value = '';
     try {
-      await requestSmsCode({ resend: true });
+      await requestMfaStart();
     } catch (err) {
       setLoginError(err.message);
       resetRecaptcha();
@@ -272,6 +337,32 @@
       btn.disabled = false;
       setButtonLabel();
     }
+  });
+
+  useAuthenticatorBtn.addEventListener('click', () => {
+    setLoginError('');
+    if (loginStep === 'verify') {
+      resetLoginStep();
+    }
+    authFlow = 'totp-setup';
+    smsInfo.classList.add('open');
+    mfaStepLabel.textContent = 'Authenticator App';
+    smsTitle.textContent = 'Set up an authenticator app';
+    smsCopy.textContent = 'Click Continue to generate a secret, then scan or enter it in your authenticator app.';
+    otpGroup.style.display = 'none';
+    otpInput.value = '';
+    otpNote.textContent = 'You will be prompted to confirm the setup with a 6-digit code.';
+    resendSmsBtn.style.display = 'none';
+    totpSecretBox.style.display = 'none';
+    otpLabel.textContent = 'Verification Code';
+    setButtonLabel();
+    document.getElementById('password').focus();
+  });
+
+  copyTotpSecretBtn.addEventListener('click', async () => {
+    const secret = totpSecretEl.textContent.trim();
+    if (!secret) return;
+    await copyText(secret, 'Authenticator secret');
   });
 
   loginForm.addEventListener('submit', async e => {
@@ -283,21 +374,30 @@
     try {
       if (loginStep === 'request') {
         btn.textContent = 'Checking access...';
-        await requestSmsCode();
+        await requestMfaStart({ setupAuthenticator: authFlow === 'totp-setup' });
         return;
       }
 
       if (loginStep === 'verify') {
-        btn.textContent = 'Verifying...';
+        btn.textContent = authFlow === 'totp-setup' ? 'Confirming...' : 'Verifying...';
         const otp = otpInput.value.trim();
         if (!otp) {
-          throw new Error('Enter the SMS code');
+          throw new Error('Enter the verification code');
         }
 
         let payload;
-        if (useLocalSmsFlow || smsMode === 'local') {
+        let completeUrl = '/api/auth/complete-sms-login';
+        if (authFlow === 'totp' || authFlow === 'totp-setup') {
+          completeUrl = '/api/auth/complete-totp-login';
           payload = {
-            sms_challenge_token: smsChallengeToken,
+            mfa_token: mfaToken,
+            totp_code: otp,
+            trusted_device_id: getTrustedDeviceId(),
+            trusted_device_label: getTrustedDeviceLabel()
+          };
+        } else if (useLocalSmsFlow || smsMode === 'local') {
+          payload = {
+            sms_challenge_token: mfaToken,
             sms_verification_code: otp,
             trusted_device_id: getTrustedDeviceId(),
             trusted_device_label: getTrustedDeviceLabel()
@@ -309,21 +409,21 @@
           const confirmation = await confirmationResult.confirm(otp);
           const firebaseIdToken = await confirmation.user.getIdToken(true);
           payload = {
-            sms_challenge_token: smsChallengeToken,
+            sms_challenge_token: mfaToken,
             firebase_id_token: firebaseIdToken,
             trusted_device_id: getTrustedDeviceId(),
             trusted_device_label: getTrustedDeviceLabel()
           };
         }
 
-        const completeResponse = await fetch('/api/auth/complete-sms-login', {
+        const completeResponse = await fetch(completeUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         const completeData = await completeResponse.json().catch(() => ({}));
         if (!completeResponse.ok) {
-          throw new Error(completeData.error || 'Unable to complete SMS login');
+          throw new Error(completeData.error || 'Unable to complete login');
         }
 
         if (completeData.trusted_device_token) {
