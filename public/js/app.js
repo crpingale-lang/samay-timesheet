@@ -9,6 +9,7 @@ const SESSION_REFRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
 const SESSION_ACTIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const SESSION_REFRESH_CHECK_MS = 60 * 1000;
 const SESSION_ACTIVITY_WRITE_THROTTLE_MS = 60 * 1000;
+const SESSION_ACTIVITY_SYNC_THROTTLE_MS = 2 * 60 * 1000;
 
 const ROLE_DEFAULT_PERMISSIONS = {
   partner: [
@@ -22,6 +23,8 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'staff.edit',
     'staff.delete',
     'access.manage',
+    'modules.view',
+    'firm.dashboard.view',
     'timesheets.view_own',
     'timesheets.create_own',
     'timesheets.edit_own',
@@ -42,6 +45,8 @@ const ROLE_DEFAULT_PERMISSIONS = {
   manager: [
     'clients.view',
     'staff.view',
+    'modules.view',
+    'firm.dashboard.view',
     'timesheets.view_own',
     'timesheets.create_own',
     'timesheets.edit_own',
@@ -58,6 +63,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
   ],
   article: [
     'clients.view',
+    'modules.view',
     'timesheets.view_own',
     'timesheets.create_own',
     'timesheets.edit_own',
@@ -96,6 +102,45 @@ function hasUsableSession() {
   return !!(getToken() && getUser() && !isTokenExpired());
 }
 let lastSessionActivityWriteMs = 0;
+let lastSessionActivitySyncMs = 0;
+let sessionActivitySyncPromise = null;
+
+async function syncSessionActivityToServer({ force = false } = {}) {
+  const token = getToken();
+  if (!token || !getUser() || isTokenExpired(token)) return false;
+  const now = Date.now();
+  if (!force && (now - lastSessionActivitySyncMs) < SESSION_ACTIVITY_SYNC_THROTTLE_MS) return false;
+  if (sessionActivitySyncPromise) return sessionActivitySyncPromise;
+
+  lastSessionActivitySyncMs = now;
+  sessionActivitySyncPromise = fetch(`${API}/auth/activity-ping`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    keepalive: true
+  }).then(async res => {
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        setAuthNotice('Your session expired. Please sign in again.');
+      }
+      return false;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (data?.user) {
+      const nextUser = { ...getUser(), ...data.user };
+      setSession(token, nextUser, { recordActivity: false });
+    }
+    return true;
+  }).catch(() => false).finally(() => {
+    sessionActivitySyncPromise = null;
+  });
+
+  return sessionActivitySyncPromise;
+}
+
 function recordSessionActivity() {
   const now = Date.now();
   if ((now - lastSessionActivityWriteMs) < SESSION_ACTIVITY_WRITE_THROTTLE_MS) return;
@@ -103,6 +148,7 @@ function recordSessionActivity() {
   try {
     localStorage.setItem(SESSION_LAST_ACTIVITY_KEY, String(now));
   } catch {}
+  void syncSessionActivityToServer();
 }
 function getLastSessionActivityMs() {
   const value = parseInt(localStorage.getItem(SESSION_LAST_ACTIVITY_KEY) || '0', 10);
@@ -205,6 +251,8 @@ function getModuleLandingPage(moduleKey = getSelectedModule()) {
     case 'udin':
     case 'udin-tracker':
       return '/udin-coming-soon.html';
+    case 'form15cb':
+      return '/form15cb.html';
     default:
       return getDefaultLandingPage();
   }
@@ -212,13 +260,18 @@ function getModuleLandingPage(moduleKey = getSelectedModule()) {
 
 function getDefaultLandingPage() {
   const selectedModule = getSelectedModule();
-  if (!selectedModule) return '/module-select.html';
+  if (!selectedModule) {
+    if (hasPermission('firm.dashboard.view')) return '/firm-dashboard.html';
+    return '/module-select.html';
+  }
   if (selectedModule === 'timesheet') {
     if (hasPermission('dashboard.view_self')) return '/dashboard.html';
     if (hasPermission('timesheets.view_own')) return '/timesheet.html';
     return '/';
   }
   if (selectedModule === 'udin' || selectedModule === 'udin-tracker') return '/udin-coming-soon.html';
+  if (selectedModule === 'form15cb') return '/form15cb.html';
+  if (hasPermission('firm.dashboard.view')) return '/firm-dashboard.html';
   if (hasPermission('dashboard.view_self')) return '/dashboard.html';
   if (hasPermission('timesheets.view_own')) return '/timesheet.html';
   if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) return '/approvals.html';
@@ -229,11 +282,13 @@ function getDefaultLandingPage() {
   return '/';
 }
 
-function setSession(token, user) {
+function setSession(token, user, { recordActivity = true } = {}) {
   const normalizedUser = user ? { ...user, permissions: inferPermissions(user) } : user;
   localStorage.setItem('ts_token', token);
   localStorage.setItem('ts_user', JSON.stringify(normalizedUser));
-  recordSessionActivity();
+  if (recordActivity) {
+    recordSessionActivity();
+  }
 }
 function updateSessionUser(patch = {}) {
   const user = getUser();
@@ -925,6 +980,99 @@ function roleBadge(role) {
   return `<span class="badge ${map[role]||'badge-article'}">${role}</span>`;
 }
 
+function canViewFirmActivityReport(user = getUser()) {
+  return !!(user && (
+    hasPermission('firm.dashboard.view') ||
+    hasPermission('reports.view') ||
+    hasPermission('access.manage')
+  ));
+}
+
+function formatFirmActivityTimestamp(value) {
+  if (!value) return 'Not recorded';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not recorded';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata'
+  }).format(date);
+}
+
+function renderFirmActivitySummary(summary = {}, users = []) {
+  return {
+    totalUsers: String(summary.total_users ?? users.length ?? 0),
+    onlineUsers: String(summary.online_users ?? users.filter(user => user.is_online).length),
+    offlineUsers: String(summary.offline_users ?? users.filter(user => !user.is_online).length)
+  };
+}
+
+function renderFirmActivityRows(users = []) {
+  if (!users.length) {
+    return `<tr><td colspan="5">${renderEmptyState({ icon: '👥', title: 'No firm activity yet', subtitle: 'Login and activity data will appear here after users start signing in.' })}</td></tr>`;
+  }
+
+  return users.map(user => `
+    <tr>
+      <td data-label="User">
+        <div style="font-weight:700;">${escapeHtml(user.name || user.username || 'User')}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${escapeHtml(user.username || '')}</div>
+      </td>
+      <td data-label="Role">${roleBadge(user.role || 'article')}</td>
+      <td data-label="Status">${user.is_online ? '<span class="badge badge-online">Online</span>' : '<span class="badge badge-offline">Offline</span>'}</td>
+      <td data-label="Last Login">${formatFirmActivityTimestamp(user.last_login_at)}</td>
+      <td data-label="Last Activity">${formatFirmActivityTimestamp(user.last_activity_at)}</td>
+    </tr>
+  `).join('');
+}
+
+async function fetchFirmActivitySummary() {
+  return apiFetch('/reports/firm-login-summary');
+}
+
+function applyFirmActivityReport({
+  badgeEl,
+  totalEl,
+  onlineEl,
+  offlineEl,
+  bodyEl
+}, data = {}) {
+  if (!bodyEl) return;
+  const users = Array.isArray(data.users) ? data.users : [];
+  const summary = renderFirmActivitySummary(data.summary || {}, users);
+  if (badgeEl) badgeEl.textContent = users.length ? 'Live access' : 'No activity';
+  if (totalEl) totalEl.textContent = summary.totalUsers;
+  if (onlineEl) onlineEl.textContent = summary.onlineUsers;
+  if (offlineEl) offlineEl.textContent = summary.offlineUsers;
+  bodyEl.innerHTML = renderFirmActivityRows(users);
+}
+
+async function loadFirmActivityReport(elements = {}) {
+  const {
+    badgeEl,
+    totalEl,
+    onlineEl,
+    offlineEl,
+    bodyEl
+  } = elements;
+
+  if (!bodyEl || !canViewFirmActivityReport()) return false;
+  bodyEl.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⏳', title: 'Loading firm activity', subtitle: 'Fetching the latest login and activity snapshot.' })}</td></tr>`;
+  try {
+    const data = await fetchFirmActivitySummary();
+    applyFirmActivityReport({ badgeEl, totalEl, onlineEl, offlineEl, bodyEl }, data);
+    return true;
+  } catch (err) {
+    if (badgeEl) badgeEl.textContent = 'Unavailable';
+    bodyEl.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⚠', title: 'Could not load firm activity', subtitle: err.message || 'The access report is temporarily unavailable.' })}</td></tr>`;
+    return false;
+  }
+}
+
 function localISODate(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -977,7 +1125,7 @@ function buildSidebar() {
 
 function injectModuleSwitcher() {
   const current = window.location.pathname.split('/').pop() || 'index.html';
-  if (['module-select.html', 'index.html'].includes(current)) return;
+  if (['module-select.html', 'firm-dashboard.html', 'index.html'].includes(current)) return;
 
   const actions = document.querySelector('.topbar-actions');
   const topbar = document.querySelector('.topbar');
@@ -1018,9 +1166,67 @@ function SIDEBAR_HTML() {
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
       <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
       <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
-      <span class="nav-section-label" data-permissions="clients.view,staff.view">Admin</span>
+      <span class="nav-section-label" data-permissions="firm.dashboard.view,modules.view">Firm</span>
+      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
+      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">-</div>
+          <div class="user-role" id="sidebar-user-role">-</div>
+        </div>
+        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
+      </div>
+    </div>`;
+}
+
+// Sidebar HTML for Form 15CB module
+function FORM15CB_SIDEBAR_HTML() {
+  return `
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">CA</div>
+        <div><div class="logo-text">Samay</div><div class="logo-sub">Form 15CB</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Form 15CB</span>
+      <a class="nav-item nav-item-form15cb-dashboard" data-page="form15cb.html" href="/form15cb.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
+      <a class="nav-item nav-item-form15cb-convert" data-page="form15cb-convert.html" href="/form15cb-convert.html"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Convert 15CB</span></a>
+      <a class="nav-item nav-item-form15cb-transactions" data-page="form15cb-transactions.html" href="/form15cb-transactions.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Transactions</span></a>
+      <span class="nav-section-label">Masters</span>
+      <a class="nav-item nav-item-form15cb-masters" data-page="form15cb-masters.html" href="/form15cb-masters.html"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Masters</span></a>
+      <span class="nav-section-label">Settings</span>
+      <a class="nav-item" href="/module-select.html"><span class="nav-icon" aria-hidden="true">⇦</span><span class="nav-label">Switch Module</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">-</div>
+          <div class="user-role" id="sidebar-user-role">-</div>
+        </div>
+        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
+      </div>
+    </div>`;
+}
+
+function FIRM_SIDEBAR_HTML() {
+  return `
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">CA</div>
+        <div><div class="logo-text">Samay</div><div class="logo-sub">Firm Control</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Firm</span>
+      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
+      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
+      <a class="nav-item nav-item-users" data-page="users.html" href="/users.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Users</span></a>
       <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>
-      <a class="nav-item nav-item-staff" data-page="staff.html" href="/staff.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Staff</span></a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-pill">

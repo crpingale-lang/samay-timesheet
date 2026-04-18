@@ -129,7 +129,7 @@
 <script src="/js/app.js"></script>
 <script>
 requirePermission('clients.view');
-document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+document.getElementById('sidebar-el').innerHTML = FIRM_SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 

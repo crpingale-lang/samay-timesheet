@@ -35,6 +35,15 @@ function isValidMobileNumber(value) {
   return digits.length >= 10 && digits.length <= 15;
 }
 
+function normalizeStatusFilter(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['active', 'inactive', 'all'].includes(normalized) ? normalized : '';
+}
+
+function isActiveUser(value) {
+  return value === true || value === 1 || value === '1' || String(value).trim().toLowerCase() === 'true';
+}
+
 function validateUniqueContactFields({ email, mobileNumber, excludeUserId = null }) {
   if (email) {
     const existingEmail = excludeUserId
@@ -62,18 +71,24 @@ router.get('/', (req, res) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const pageSize = Math.min(Math.max(parseInt(req.query.page_size, 10) || 50, 1), 200);
   const wantsPagedResponse = !!(req.query.page || req.query.page_size || req.query.q);
+  const statusFilter = normalizeStatusFilter(req.query.status);
   const filtered = query
     ? staff.filter(user => [user.name, user.username, user.role, user.designation, user.department, user.email, user.mobile_number].join(' ').toLowerCase().includes(query))
     : staff;
-  if (!wantsPagedResponse) return res.json(filtered);
+  const statusFiltered = statusFilter === 'active'
+    ? filtered.filter(user => isActiveUser(user.active))
+    : statusFilter === 'inactive'
+      ? filtered.filter(user => !isActiveUser(user.active))
+      : filtered;
+  if (!wantsPagedResponse) return res.json(statusFiltered);
   const start = (page - 1) * pageSize;
-  const items = filtered.slice(start, start + pageSize);
+  const items = statusFiltered.slice(start, start + pageSize);
   res.json({
     items,
-    total: filtered.length,
+    total: statusFiltered.length,
     page,
     page_size: pageSize,
-    has_more: start + items.length < filtered.length
+    has_more: start + items.length < statusFiltered.length
   });
 });
 

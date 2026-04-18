@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firm Dashboard - Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+  <style>
+    .firm-hero{display:grid;grid-template-columns:1.3fr .9fr;gap:16px}
+    .firm-panel{background:linear-gradient(180deg,rgba(79,70,229,.08),rgba(79,70,229,.03));border:1px solid rgba(79,70,229,.15);border-radius:18px;padding:22px}
+    .firm-panel h1{margin:0 0 10px;font-size:30px;line-height:1.05}
+    .firm-panel p{margin:0;color:var(--text-muted);max-width:62ch}
+    .firm-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
+    .firm-action{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:16px;padding:16px;background:var(--bg-card);text-decoration:none;color:inherit;min-height:140px}
+    .firm-action strong{font-size:15px}
+    .firm-action span{color:var(--text-muted);font-size:13px;line-height:1.5}
+    .firm-chip-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+    .firm-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:8px 12px;background:var(--bg-card);font-size:12px;color:var(--text-muted)}
+    .firm-stat{display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid var(--border);border-radius:16px;background:var(--bg-card)}
+    .firm-stat .k{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em}
+    .firm-stat .v{font-size:26px;font-weight:800;line-height:1}
+    .firm-login-report-filters{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px;border-radius:14px;background:rgba(248,250,252,.9);border:1px solid rgba(226,232,240,.9)}
+    .firm-login-report-filter-copy{font-size:12px;color:var(--text-muted);line-height:1.5;max-width:54ch}
+    .firm-login-report-filter-note{margin-top:10px;font-size:12px;color:var(--text-faint)}
+    .firm-login-report-filter-field{min-width:220px}
+    .firm-login-report-filter-field .form-control{min-width:220px}
+    @media (max-width: 960px){.firm-hero,.firm-quick-grid{grid-template-columns:1fr}}
+    @media (max-width: 640px){.firm-login-report-filters{align-items:stretch}.firm-login-report-filter-field,.firm-login-report-filter-field .form-control{min-width:0;width:100%}}
+  </style>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
+        <div class="topbar-title">Firm Dashboard</div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/module-select.html" class="btn btn-primary btn-sm">Go to Module</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="firm-hero">
+        <section class="firm-panel">
+          <div class="badge badge-partner" style="margin-bottom:10px;">Firm Control Center</div>
+          <h1>Manage the firm before opening a module.</h1>
+          <p>
+            This space sits above the module selector so user and client masters can be governed centrally.
+            Use the quick actions below to move into module selection or open the shared masters.
+          </p>
+
+          <div class="firm-quick-grid">
+            <a class="firm-action" href="/module-select.html">
+              <strong>Go to Module</strong>
+              <span>Open the module chooser for timesheet, 15CB, or any future workspace.</span>
+            </a>
+            <a class="firm-action" href="/users.html" data-permissions="staff.view">
+              <strong>Users</strong>
+              <span>Manage active users by default, then reveal inactive users only when you need them.</span>
+            </a>
+            <a class="firm-action" href="/clients.html" data-permissions="clients.view">
+              <strong>Clients</strong>
+              <span>Maintain the firm-wide client master that modules like timesheet consume.</span>
+            </a>
+          </div>
+        </section>
+
+        <aside class="firm-panel">
+          <div class="firm-stat">
+            <div class="k">Session</div>
+            <div class="v" id="firm-user-name">-</div>
+            <div style="font-size:13px;color:var(--text-muted);" id="firm-user-role">-</div>
+          </div>
+          <div class="firm-chip-row">
+            <span class="firm-chip">Shared user master</span>
+            <span class="firm-chip">Shared client master</span>
+            <span class="firm-chip">Module selector</span>
+          </div>
+          <div class="firm-chip-row" id="firm-stats">
+            <span class="firm-chip">Users: loading...</span>
+            <span class="firm-chip">Clients: loading...</span>
+          </div>
+        </aside>
+      </div>
+
+      <section class="firm-login-report" style="margin-top:16px;" aria-labelledby="firm-dashboard-activity-title">
+        <div class="firm-login-report-head">
+          <div>
+            <div class="module-select-label">Firm report</div>
+            <div class="firm-login-report-title" id="firm-dashboard-activity-title">User login and activity snapshot</div>
+            <div class="firm-login-report-copy">
+              The same access-driven view from module selection, now available directly inside the firm dashboard.
+            </div>
+          </div>
+          <div class="firm-login-report-badge" id="firm-dashboard-activity-badge">Loading</div>
+        </div>
+        <div class="firm-login-report-filters">
+          <div>
+            <div class="firm-login-report-filter-copy">
+              Narrow the activity list to the people partners care about most.
+            </div>
+            <div class="firm-login-report-filter-note" id="firm-dashboard-activity-note">
+              Showing all active users.
+            </div>
+          </div>
+          <div class="form-group firm-login-report-filter-field" style="margin:0;">
+            <label class="form-label" for="firm-dashboard-activity-filter">View</label>
+            <select class="form-control" id="firm-dashboard-activity-filter">
+              <option value="all">All users</option>
+              <option value="online">Online only</option>
+              <option value="recent">Recently active</option>
+            </select>
+          </div>
+        </div>
+        <div class="firm-login-report-stats">
+          <div class="firm-login-report-stat">
+            <span>Total users</span>
+            <strong id="firm-dashboard-total-users">0</strong>
+          </div>
+          <div class="firm-login-report-stat">
+            <span>Online now</span>
+            <strong id="firm-dashboard-online-users">0</strong>
+          </div>
+          <div class="firm-login-report-stat">
+            <span>Offline</span>
+            <strong id="firm-dashboard-offline-users">0</strong>
+          </div>
+        </div>
+        <div class="table-wrapper firm-login-report-table-wrap">
+          <table class="mobile-stack-table firm-login-report-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody id="firm-dashboard-activity-body">
+              <tr><td colspan="5"><div class="empty-state"><div class="empty-icon">⏳</div>Loading firm activity…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!hasPermission('firm.dashboard.view')) {
+  window.location.replace(getDefaultLandingPage());
+} else {
+  document.getElementById('sidebar-el').innerHTML = FIRM_SIDEBAR_HTML();
+  buildSidebar();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+  const user = getUser();
+  document.getElementById('firm-user-name').textContent = safeUserName(user);
+  document.getElementById('firm-user-role').textContent = String(user?.role || '').charAt(0).toUpperCase() + String(user?.role || '').slice(1);
+
+  const activityFilterEl = document.getElementById('firm-dashboard-activity-filter');
+  const activityNoteEl = document.getElementById('firm-dashboard-activity-note');
+  const activityBadgeEl = document.getElementById('firm-dashboard-activity-badge');
+  const activityTotalEl = document.getElementById('firm-dashboard-total-users');
+  const activityOnlineEl = document.getElementById('firm-dashboard-online-users');
+  const activityOfflineEl = document.getElementById('firm-dashboard-offline-users');
+  const activityBodyEl = document.getElementById('firm-dashboard-activity-body');
+  let firmActivitySnapshot = { summary: {}, users: [] };
+
+  function activityFilterLabel(value) {
+    if (value === 'online') return 'Online only';
+    if (value === 'recent') return 'Recently active';
+    return 'All users';
+  }
+
+  function getRecentActivityWindowMs() {
+    return 24 * 60 * 60 * 1000;
+  }
+
+  function filterFirmActivityUsers(users = []) {
+    const filter = String(activityFilterEl?.value || 'all');
+    const now = Date.now();
+    return users.filter(user => {
+      if (filter === 'online') return !!user.is_online;
+      if (filter === 'recent') {
+        const lastActivity = user.last_activity_at ? new Date(user.last_activity_at).getTime() : 0;
+        return Number.isFinite(lastActivity) && (now - lastActivity) <= getRecentActivityWindowMs();
+      }
+      return true;
+    });
+  }
+
+  function renderFirmActivityDashboard() {
+    if (!activityBodyEl) return;
+    const filteredUsers = filterFirmActivityUsers(Array.isArray(firmActivitySnapshot.users) ? firmActivitySnapshot.users : []);
+    const summary = renderFirmActivitySummary({}, filteredUsers);
+    if (activityBadgeEl) activityBadgeEl.textContent = activityFilterLabel(activityFilterEl?.value);
+    if (activityTotalEl) activityTotalEl.textContent = summary.totalUsers;
+    if (activityOnlineEl) activityOnlineEl.textContent = summary.onlineUsers;
+    if (activityOfflineEl) activityOfflineEl.textContent = summary.offlineUsers;
+    if (activityNoteEl) {
+      const filter = String(activityFilterEl?.value || 'all');
+      if (filter === 'online') {
+        activityNoteEl.textContent = 'Showing only users with activity in the last 15 minutes.';
+      } else if (filter === 'recent') {
+        activityNoteEl.textContent = 'Showing users who were active in the last 24 hours.';
+      } else {
+        activityNoteEl.textContent = 'Showing all active users.';
+      }
+    }
+    activityBodyEl.innerHTML = renderFirmActivityRows(filteredUsers);
+  }
+
+  if (activityFilterEl) {
+    activityFilterEl.addEventListener('change', renderFirmActivityDashboard);
+  }
+
+  if (hasPermission('firm.dashboard.view') || hasPermission('reports.view') || hasPermission('access.manage')) {
+    void (async () => {
+      try {
+        activityBodyEl.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⏳', title: 'Loading firm activity', subtitle: 'Fetching the latest login and activity snapshot.' })}</td></tr>`;
+        firmActivitySnapshot = await fetchFirmActivitySummary();
+        renderFirmActivityDashboard();
+      } catch (err) {
+        if (activityBadgeEl) activityBadgeEl.textContent = 'Unavailable';
+        activityBodyEl.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⚠', title: 'Could not load firm activity', subtitle: err.message || 'The access report is temporarily unavailable.' })}</td></tr>`;
+      }
+    })();
+  } else {
+    const report = document.querySelector('.firm-login-report');
+    if (report) report.hidden = true;
+  }
+
+  async function loadFirmStats() {
+    const chips = [];
+    try {
+      const [users, clients] = await Promise.all([
+        apiFetch('/users?status=all&page_size=1'),
+        apiFetch('/clients?page_size=1')
+      ]);
+      chips.push(`Users: ${users.total || 0}`);
+      chips.push(`Clients: ${clients.total || 0}`);
+    } catch (err) {
+      chips.push('Users: unavailable');
+      chips.push('Clients: unavailable');
+    }
+    document.getElementById('firm-stats').innerHTML = chips.map(text => `<span class="firm-chip">${text}</span>`).join('');
+  }
+
+  loadFirmStats();
+}
+
+function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+</script>
+</body>
+</html>

@@ -1,14 +1,16 @@
-const CACHE_NAME = 'ca-timesheet-v6';
+const CACHE_NAME = 'ca-timesheet-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/module-select.html',
+  '/firm-dashboard.html',
   '/udin-coming-soon.html',
   '/dashboard.html',
   '/timesheet.html',
   '/my-timesheets.html',
   '/approvals.html',
   '/clients.html',
+  '/users.html',
   '/staff.html',
   '/reports.html',
   '/css/style.css',

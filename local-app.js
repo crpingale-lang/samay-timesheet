@@ -55,6 +55,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/staff', authMiddleware, staffRoutes);
+app.use('/api/users', authMiddleware, staffRoutes);
 app.use('/api/clients', authMiddleware, clientRoutes);
 app.use('/api/master-data', authMiddleware, masterDataRoutes);
 app.use('/api/timesheets', authMiddleware, timesheetRoutes);
