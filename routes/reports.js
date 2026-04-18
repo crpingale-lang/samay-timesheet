@@ -84,6 +84,14 @@ function currentIndiaDate() {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+function getHolidayDateSet(from, to) {
+  return new Set(db.prepare(`
+    SELECT holiday_date
+    FROM timesheet_holidays
+    WHERE active = 1 AND holiday_date BETWEEN ? AND ?
+  `).all(from, to).map(row => row.holiday_date));
+}
+
 function formatWatchLabel(isoDate) {
   return new Intl.DateTimeFormat('en-IN', {
     weekday: 'short',
@@ -226,6 +234,7 @@ router.get('/team-update-watch', (req, res) => {
     dayKeys.push(cursor);
     if (cursor === to) break;
   }
+  const holidayDates = getHolidayDateSet(from, to);
 
   const users = db.prepare(`
     SELECT id, name, role, designation, active
@@ -239,6 +248,8 @@ router.get('/team-update-watch', (req, res) => {
     designation: user.designation || '',
     active: !!user.active
   }));
+
+  const userById = new Map(users.map(user => [String(user.id), user]));
 
   const totals = new Map();
   const queryParams = [from, to];
@@ -263,19 +274,36 @@ router.get('/team-update-watch', (req, res) => {
     totals.set(key, (totals.get(key) || 0) + hours);
   }
 
-  const rows = users.map(user => {
+  for (const row of entries) {
+    const id = String(row.user_id || '');
+    if (!id || userById.has(id) || row.status === 'rejected') continue;
+    userById.set(id, {
+      id: row.user_id,
+      name: row.staff_name || 'Unknown',
+      role: normalizeRole(row.staff_role) || 'article',
+      designation: '',
+      active: true
+    });
+  }
+
+  const rows = [...userById.values()].map(user => {
     const days = dayKeys.map(date => {
+      if (holidayDates.has(date)) {
+        return { date, hours: 0, status: 'holiday' };
+      }
       const hours = totals.get(`${user.id}:${date}`) || 0;
       const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
       return { date, hours, status };
     });
     const totalHours = days.reduce((sum, day) => sum + day.hours, 0);
+    const holidayDays = days.filter(day => day.status === 'holiday').length;
     return {
       ...user,
       total_hours: Number(totalHours.toFixed(2)),
       updated_days: days.filter(day => day.hours > 0).length,
       short_days: days.filter(day => day.status === 'short').length,
       missing_days: days.filter(day => day.status === 'missing').length,
+      holiday_days: holidayDays,
       days
     };
   });
@@ -298,6 +326,7 @@ router.get('/team-update-watch', (req, res) => {
     acc.on_track_members += row.short_days === 0 && row.missing_days === 0 ? 1 : 0;
     acc.short_day_count += row.short_days;
     acc.missing_day_count += row.missing_days;
+    acc.holiday_day_count += row.holiday_days || 0;
     acc.total_hours += row.total_hours;
     return acc;
   }, {
@@ -306,6 +335,7 @@ router.get('/team-update-watch', (req, res) => {
     on_track_members: 0,
     short_day_count: 0,
     missing_day_count: 0,
+    holiday_day_count: 0,
     total_hours: 0
   });
 
@@ -393,16 +423,21 @@ router.get('/team-update-watch/export', (req, res) => {
 
   const rows = users.map(user => {
     const days = dayKeys.map(date => {
+      if (holidayDates.has(date)) {
+        return { date, hours: 0, status: 'holiday' };
+      }
       const hours = totals.get(`${user.id}:${date}`) || 0;
       const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
       return { date, hours, status };
     });
+    const holidayDays = days.filter(day => day.status === 'holiday').length;
     return {
       ...user,
       total_hours: Number(days.reduce((sum, day) => sum + day.hours, 0).toFixed(2)),
       updated_days: days.filter(day => day.hours > 0).length,
       short_days: days.filter(day => day.status === 'short').length,
       missing_days: days.filter(day => day.status === 'missing').length,
+      holiday_days: holidayDays,
       days
     };
   }).sort((a, b) => {
@@ -439,6 +474,7 @@ router.get('/team-update-watch/export', (req, res) => {
       row.short_days,
       row.missing_days,
       ...row.days.map(day => {
+        if (day.status === 'holiday') return csvEscape('Holiday');
         if (day.status === 'missing') return csvEscape('No update');
         if (day.status === 'short') return csvEscape(`${day.hours.toFixed(2)} short`);
         return csvEscape(day.hours.toFixed(2));

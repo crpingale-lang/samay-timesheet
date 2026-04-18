@@ -89,7 +89,7 @@
 <script>
 requireAuth();
 if (!hasPermission('timesheets.view_own')) window.location.href = '/dashboard.html';
-document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+document.getElementById('sidebar-el').innerHTML = TIMESHEET_SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) document.getElementById('bn-approvals').style.display='';

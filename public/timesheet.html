@@ -28,6 +28,7 @@
 
     <div class="page-content proto-page">
       <div class="proto-caption" style="display:none;">Architected dual-view timesheet system with daily entries feeding weekly aggregation</div>
+      <div class="alert alert-info" id="holiday-banner" style="display:none;margin-bottom:16px;"></div>
 
       <div class="proto-tabs" style="margin-bottom:18px;">
         <button class="proto-tab active" id="tab-daily" onclick="switchView('daily')">Daily Timesheet</button>
@@ -43,15 +44,15 @@
                 <input class="form-control" type="date" id="selected-date-input" onchange="handleDateInput(this.value)">
               </div>
               <div class="proto-date-nav-slot">
-                <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(-1)">&larr; Prev</button>
+                <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" aria-label="Previous day" title="Previous day" onclick="moveSelectedDay(-1)"><span class="btn-symbol" aria-hidden="true">&larr;</span></button>
               </div>
               <div class="proto-date-nav-slot">
-                <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" onclick="moveSelectedDay(1)">Next &rarr;</button>
+                <button class="btn btn-ghost btn-sm proto-date-nav-btn" type="button" aria-label="Next day" title="Next day" onclick="moveSelectedDay(1)"><span class="btn-symbol" aria-hidden="true">&rarr;</span></button>
               </div>
               <div class="proto-date-readable" id="selected-date-readable"></div>
             </div>
             <div class="proto-toolbar-actions">
-              <button class="btn btn-primary" type="button" onclick="openAddModal()">+ Add Entry</button>
+              <button class="btn btn-primary" type="button" id="add-entry-btn" onclick="openAddModal()">+ Add Entry</button>
               <button class="btn btn-outline" type="button" id="save-day-btn" onclick="saveDayState()">Save Day</button>
             </div>
           </div>
@@ -299,7 +300,7 @@
 <script>
 requireAuth();
 if (!hasPermission('timesheets.view_own')) window.location.href = '/dashboard.html';
-document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+document.getElementById('sidebar-el').innerHTML = TIMESHEET_SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) document.getElementById('bn-approvals').style.display = '';
@@ -329,6 +330,7 @@ const FALLBACK_WORK_CATEGORIES = [
 ];
 
 document.getElementById('selected-date-input').value = selectedDate;
+document.getElementById('selected-date-input').max = todayStr;
 document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
 function readTimesheetUrlState() {
@@ -372,6 +374,7 @@ function populateMasterDataSelects() {
 document.getElementById('modal-client-search').addEventListener('input', e => {
   const match = allClientsStore.find(c => `${c.name} [${c.code}]` === e.target.value);
   document.getElementById('modal-client-search').dataset.clientId = match ? match.id : '';
+  if (match) applyClientShiftDefaults(match.id, { force: !document.getElementById('modal-start-time').value || !document.getElementById('modal-end-time').value });
   renderModalTimeline();
 });
 
@@ -563,6 +566,10 @@ function futureTimeError(dateStr, timeValue, label) {
   return null;
 }
 
+function isFutureDate(dateStr) {
+  return !!dateStr && dateStr > todayStr;
+}
+
 function weekRangeFromAnchor(anchor) {
   const start = toDateObj(anchor);
   const diff = start.getDay() === 0 ? -6 : 1 - start.getDay();
@@ -676,7 +683,16 @@ function renderDailyRows() {
   const tbody = document.getElementById('daily-rows');
   const entries = getSelectedDayEntries();
   if (!entries.length) {
-    tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '🕒', title: `No entries for ${fmtDayLabel(selectedDate)}`, subtitle: 'Start this day with your first time entry, or move to another date if you are reviewing a different day.', actionLabel: 'Add Entry', action: 'openAddModal()' })}</td></tr>`;
+    const futureDay = isFutureDate(selectedDate);
+    tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({
+      icon: '🕒',
+      title: `No entries for ${fmtDayLabel(selectedDate)}`,
+      subtitle: futureDay
+        ? 'This is a future date, so new entries are disabled until that day arrives.'
+        : 'Start this day with your first time entry, or move to another date if you are reviewing a different day.',
+      actionLabel: futureDay ? '' : 'Add Entry',
+      action: futureDay ? '' : 'openAddModal()'
+    })}</td></tr>`;
     return;
   }
   tbody.innerHTML = entries.map(entry => `
@@ -708,6 +724,17 @@ function renderDaySummary() {
   const stats = dayStats(entries);
   const rejectedCount = entries.filter(entry => entry.status === 'rejected').length;
   const dayLabel = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+  const holiday = getTimesheetHolidays().find(item => item.active && item.holiday_date === selectedDate);
+  const holidayBanner = document.getElementById('holiday-banner');
+  if (holidayBanner) {
+    if (holiday) {
+      holidayBanner.style.display = '';
+      holidayBanner.textContent = `Holiday: ${holiday.title}${holiday.holiday_type ? ` (${holiday.holiday_type})` : ''}. The timesheet remains available for any work done on this day.`;
+    } else {
+      holidayBanner.style.display = 'none';
+      holidayBanner.textContent = '';
+    }
+  }
   document.getElementById('day-summary').innerHTML = `
     <div class="proto-day-summary-card">
       <div class="proto-day-summary-label">Selected Day</div>
@@ -736,8 +763,16 @@ function syncDayActionState() {
   const stats = dayStats(entries);
   const rejectedCount = entries.filter(entry => entry.status === 'rejected').length;
   const submittableCount = stats.drafts + rejectedCount;
+  const addBtn = document.getElementById('add-entry-btn');
   const submitBtn = document.getElementById('submit-day-btn');
   const saveBtn = document.getElementById('save-day-btn');
+  const futureDay = isFutureDate(selectedDate);
+  if (addBtn) {
+    addBtn.disabled = futureDay || !hasPermission('timesheets.create_own');
+    addBtn.title = futureDay
+      ? 'You can only add entries up to today'
+      : 'Add a new entry for the selected day';
+  }
   submitBtn.disabled = !submittableCount;
   submitBtn.textContent = submittableCount ? `Submit Day Drafts (${submittableCount})` : 'No Drafts to Submit';
   saveBtn.textContent = stats.count ? 'Review Day' : 'Plan Day';
@@ -974,8 +1009,8 @@ function renderTimeline(containerId, dateStr, draftEntry = null, excludedId = nu
   const isModalTimeline = containerId === 'modal-day-timeline';
   const laneCount = Math.max(segments.reduce((max, segment) => Math.max(max, segment.lane + 1), 0), 1);
   const isMobileTimeline = window.matchMedia('(max-width: 768px)').matches;
-  const laneHeight = isMobileTimeline ? 22 : 18;
-  const laneGap = isMobileTimeline ? 8 : 6;
+  const laneHeight = isMobileTimeline ? 34 : 36;
+  const laneGap = isMobileTimeline ? 6 : 8;
   const barHtml = segments.map(segment => {
     const top = segment.lane * (laneHeight + laneGap);
     const left = timelineLeftPercent(segment.startMinutes);
@@ -1054,6 +1089,7 @@ function renderWeeklySummary() {
 
 function renderAll() {
   document.getElementById('selected-date-input').value = selectedDate;
+  document.getElementById('selected-date-input').max = todayStr;
   document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
   renderDayStrip();
   renderDaySummary();
@@ -1068,6 +1104,23 @@ function clientDisplay(entry) {
   if (!entry?.client_id) return '';
   const client = allClientsStore.find(c => c.id == entry.client_id);
   return client ? `${client.name} [${client.code}]` : '';
+}
+
+function getConfiguredClientSite(clientId) {
+  return getTimesheetClientSites().find(site => String(site.client_id) === String(clientId) && site.active);
+}
+
+function applyClientShiftDefaults(clientId, { force = false } = {}) {
+  const site = getConfiguredClientSite(clientId);
+  if (!site) return;
+  const startInput = document.getElementById('modal-start-time');
+  const endInput = document.getElementById('modal-end-time');
+  if (force || !startInput.value) startInput.value = site.shift_start || '10:00';
+  if (force || !endInput.value) endInput.value = site.shift_end || '18:30';
+  initializeModalTimeField('modal-start-time');
+  initializeModalTimeField('modal-end-time');
+  syncModalHoursFromTime();
+  renderModalTimeline();
 }
 
 function renderWorkedWithOptions(selected = selectedWorkedWith) {
@@ -1178,6 +1231,9 @@ function prefillModal(entry = null) {
     el.disabled = locked || !!entry?.collaboration_source_entry_id;
   });
   applyModalTimeInputLimits();
+  if (!locked && !entry?.id && entry?.client_id) {
+    applyClientShiftDefaults(entry.client_id);
+  }
   updateModalGuidance();
   renderModalTimeline();
 }
@@ -1203,6 +1259,10 @@ function applyPendingEditFromSession() {
 
 function openAddModal() {
   if (!hasPermission('timesheets.create_own')) { toast('Create access required', 'error'); return; }
+  if (isFutureDate(selectedDate)) {
+    toast('Future dates cannot be logged yet', 'error');
+    return;
+  }
   prefillModal();
   openModal('entry-modal');
 }
@@ -1403,8 +1463,10 @@ function saveDayState() {
 
 async function loadClients() {
   try {
+    await ensureTimesheetMastersLoaded();
     const clients = await apiFetch('/clients');
-    allClientsStore = clients.filter(c => c.active);
+    const configuredClientIds = new Set(getConfiguredTimesheetClients().map(client => String(client.id)));
+    allClientsStore = clients.filter(c => c.active && configuredClientIds.has(String(c.id)));
     document.getElementById('client-list').innerHTML = allClientsStore.map(c => `<option value="${c.name} [${c.code}]">`).join('');
     bootMobileListPickers(document.getElementById('entry-modal'));
   } catch (e) {
@@ -1493,6 +1555,7 @@ function closeSidebar() {
 async function initPage() {
   try {
     await ensureMasterDataLoaded();
+    await ensureTimesheetMastersLoaded();
   } catch (e) {
     console.warn('Master data unavailable, using cached labels if present', e);
     toast('Master data could not be refreshed', 'info');
@@ -1503,7 +1566,7 @@ async function initPage() {
   syncTimesheetUrlState();
   applyPendingEditFromSession();
   await loadEntries();
-  loadClients();
+  await loadClients();
   loadCollaborators();
   loadCollaborationRequests();
 }

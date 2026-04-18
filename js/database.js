@@ -174,6 +174,47 @@ db.exec(`
     UNIQUE(category, key)
   );
 
+  CREATE TABLE IF NOT EXISTS timesheet_holidays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    holiday_date TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    holiday_type TEXT NOT NULL DEFAULT 'holiday',
+    notes TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS timesheet_shifts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shift_code TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    start_time TEXT NOT NULL DEFAULT '10:00',
+    end_time TEXT NOT NULL DEFAULT '18:30',
+    active INTEGER NOT NULL DEFAULT 1,
+    default_for_new_clients INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS timesheet_client_sites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    site_name TEXT NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    shift_id INTEGER,
+    shift_start TEXT NOT NULL DEFAULT '10:00',
+    shift_end TEXT NOT NULL DEFAULT '18:30',
+    radius_meters INTEGER NOT NULL DEFAULT 50,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(client_id, site_name),
+    FOREIGN KEY (client_id) REFERENCES clients(id),
+    FOREIGN KEY (shift_id) REFERENCES timesheet_shifts(id)
+  );
+
   CREATE TABLE IF NOT EXISTS feedback_submissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     feedback_type TEXT NOT NULL,
@@ -300,6 +341,62 @@ if (!feedbackCols.includes('submitted_at')) {
   db.exec("ALTER TABLE feedback_submissions ADD COLUMN submitted_at TEXT DEFAULT (datetime('now'))");
 }
 
+const holidayCols = db.prepare("PRAGMA table_info(timesheet_holidays)").all().map(c => c.name);
+if (!holidayCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS timesheet_holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      holiday_date TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      holiday_type TEXT NOT NULL DEFAULT 'holiday',
+      notes TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+
+const shiftCols = db.prepare("PRAGMA table_info(timesheet_shifts)").all().map(c => c.name);
+if (!shiftCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS timesheet_shifts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_code TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      start_time TEXT NOT NULL DEFAULT '10:00',
+      end_time TEXT NOT NULL DEFAULT '18:30',
+      active INTEGER NOT NULL DEFAULT 1,
+      default_for_new_clients INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+
+const siteCols = db.prepare("PRAGMA table_info(timesheet_client_sites)").all().map(c => c.name);
+if (!siteCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS timesheet_client_sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      site_name TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      shift_id INTEGER,
+      shift_start TEXT NOT NULL DEFAULT '10:00',
+      shift_end TEXT NOT NULL DEFAULT '18:30',
+      radius_meters INTEGER NOT NULL DEFAULT 50,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(client_id, site_name),
+      FOREIGN KEY (client_id) REFERENCES clients(id),
+      FOREIGN KEY (shift_id) REFERENCES timesheet_shifts(id)
+    );
+  `);
+}
+
 const users = db.prepare("SELECT id, role, permissions FROM users").all();
 const updatePermissions = db.prepare("UPDATE users SET permissions = ? WHERE id = ?");
 for (const user of users) {
@@ -347,6 +444,14 @@ for (const [category, items] of Object.entries(DEFAULT_MASTER_DATA)) {
   for (const item of items) {
     insertMasterData.run(category, item.key, item.label, item.short_label || null, item.sort_order || 0);
   }
+}
+
+const shiftCount = db.prepare("SELECT COUNT(*) as cnt FROM timesheet_shifts").get();
+if (shiftCount.cnt === 0) {
+  db.prepare(`
+    INSERT INTO timesheet_shifts (shift_code, label, start_time, end_time, active, default_for_new_clients)
+    VALUES (?, ?, ?, ?, 1, 1)
+  `).run('GEN-1000', 'General Day Shift', '10:00', '18:30');
 }
 
 module.exports = db;

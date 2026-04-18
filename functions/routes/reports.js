@@ -82,6 +82,20 @@ function currentIndiaDate() {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+async function getHolidayDateSet(from, to) {
+  const snap = await db.collection('timesheet_holidays')
+    .where('active', '==', true)
+    .where('holiday_date', '>=', from)
+    .where('holiday_date', '<=', to)
+    .get();
+  const dates = new Set();
+  snap.forEach(doc => {
+    const data = doc.data();
+    if (data?.holiday_date) dates.add(data.holiday_date);
+  });
+  return dates;
+}
+
 function formatWatchLabel(isoDate) {
   return new Intl.DateTimeFormat('en-IN', {
     weekday: 'short',
@@ -197,6 +211,7 @@ router.get('/team-update-watch', async (req, res) => {
       dayKeys.push(cursor);
       if (cursor === to) break;
     }
+    const holidayDates = await getHolidayDateSet(from, to);
 
     const usersMap = await getUsersMap();
     const users = [];
@@ -213,6 +228,7 @@ router.get('/team-update-watch', async (req, res) => {
         active
       });
     });
+    const usersById = new Map(users.map(user => [String(user.id), user]));
 
     const timesheetSnap = await db.collection('timesheets')
       .where('entry_date', '>=', from)
@@ -232,8 +248,25 @@ router.get('/team-update-watch', async (req, res) => {
       dailyTotals.set(key, (dailyTotals.get(key) || 0) + hours);
     });
 
-    const rows = users.map(user => {
+    timesheetSnap.forEach(doc => {
+      const row = doc.data();
+      if (!row || row.status === 'rejected') return;
+      const id = String(row.user_id || '');
+      if (!id || usersById.has(id)) return;
+      usersById.set(id, {
+        id: row.user_id,
+        name: row.staff_name || 'Unknown',
+        role: normalizeRole(row.staff_role) || 'article',
+        designation: '',
+        active: true
+      });
+    });
+
+    const rows = [...usersById.values()].map(user => {
       const days = dayKeys.map(date => {
+        if (holidayDates.has(date)) {
+          return { date, hours: 0, status: 'holiday' };
+        }
         const hours = dailyTotals.get(`${user.id}:${date}`) || 0;
         const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
         return { date, hours, status };
@@ -243,6 +276,7 @@ router.get('/team-update-watch', async (req, res) => {
       const updatedDays = days.filter(day => day.hours > 0).length;
       const shortDays = days.filter(day => day.status === 'short').length;
       const missingDays = days.filter(day => day.status === 'missing').length;
+      const holidayDays = days.filter(day => day.status === 'holiday').length;
 
       return {
         ...user,
@@ -250,6 +284,7 @@ router.get('/team-update-watch', async (req, res) => {
         updated_days: updatedDays,
         short_days: shortDays,
         missing_days: missingDays,
+        holiday_days: holidayDays,
         days
       };
     });
@@ -338,6 +373,7 @@ router.get('/team-update-watch/export', async (req, res) => {
       dayKeys.push(cursor);
       if (cursor === to) break;
     }
+    const holidayDates = await getHolidayDateSet(from, to);
 
     const usersMap = await getUsersMap();
     const users = [];
@@ -374,6 +410,9 @@ router.get('/team-update-watch/export', async (req, res) => {
 
     const rows = users.map(user => {
       const days = dayKeys.map(date => {
+        if (holidayDates.has(date)) {
+          return { date, hours: 0, status: 'holiday' };
+        }
         const hours = dailyTotals.get(`${user.id}:${date}`) || 0;
         const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
         return { date, hours, status };
@@ -385,6 +424,7 @@ router.get('/team-update-watch/export', async (req, res) => {
         updated_days: days.filter(day => day.hours > 0).length,
         short_days: days.filter(day => day.status === 'short').length,
         missing_days: days.filter(day => day.status === 'missing').length,
+        holiday_days: days.filter(day => day.status === 'holiday').length,
         days
       };
     }).sort((a, b) => {

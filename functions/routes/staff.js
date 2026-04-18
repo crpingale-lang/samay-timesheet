@@ -55,6 +55,17 @@ const APP_PERMISSION_GROUPS = [
     ]
   },
   {
+    key: 'timesheet_masters',
+    label: 'Timesheet Masters',
+    permissions: [
+      { key: 'timesheets.masters.view', label: 'View' },
+      { key: 'timesheets.masters.create', label: 'Add' },
+      { key: 'timesheets.masters.edit', label: 'Edit' },
+      { key: 'timesheets.masters.delete', label: 'Delete' },
+      { key: 'timesheets.masters.import', label: 'Import' }
+    ]
+  },
+  {
     key: 'attendance',
     label: 'Attendance',
     permissions: [
