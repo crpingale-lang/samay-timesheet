@@ -28,10 +28,10 @@
       </div>
       <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none;background:var(--danger-bg);padding:8px 12px;border-radius:6px;border:1px solid #fecaca;"></div>
       <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">
-        Continue
+        Set Up Authenticator
       </button>
-      <button class="btn btn-ghost" type="button" id="use-authenticator-btn" style="width:100%;justify-content:center;padding:11px;margin-top:10px;">
-        Use authenticator app
+      <button class="btn btn-ghost" type="button" id="use-sms-btn" style="width:100%;justify-content:center;padding:11px;margin-top:10px;">
+        Use SMS instead
       </button>
     </form>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
@@ -51,7 +51,7 @@
   const loginFooter = document.getElementById('login-footer');
   const passwordGroup = document.getElementById('password').closest('.form-group');
   let loginStep = 'request';
-  let authFlow = 'sms';
+  let authFlow = 'totp-setup';
   let mfaToken = '';
   let confirmationResult = null;
   let phoneNumber = '';
@@ -102,7 +102,7 @@
   const otpInput = document.getElementById('otp');
   const otpNote = document.getElementById('otp-note');
   const resendSmsBtn = document.getElementById('resend-sms-btn');
-  const useAuthenticatorBtn = document.getElementById('use-authenticator-btn');
+  const useSmsBtn = document.getElementById('use-sms-btn');
   const otpLabel = document.getElementById('otp-label');
   const totpSecretBox = document.getElementById('totp-secret-box');
   const totpSecretEl = document.getElementById('totp-secret');
@@ -344,19 +344,19 @@
     }
   });
 
-  useAuthenticatorBtn.addEventListener('click', () => {
+  useSmsBtn.addEventListener('click', () => {
     setLoginError('');
     if (loginStep === 'verify') {
       resetLoginStep();
     }
-    authFlow = 'totp-setup';
+    authFlow = 'sms';
     smsInfo.classList.add('open');
-    mfaStepLabel.textContent = 'Authenticator App';
-    smsTitle.textContent = 'Set up an authenticator app';
-    smsCopy.textContent = 'Click Continue to generate a secret, then scan or enter it in your authenticator app.';
+    mfaStepLabel.textContent = 'SMS Login';
+    smsTitle.textContent = 'Sign in with SMS';
+    smsCopy.textContent = 'Click Continue to receive a code on your registered mobile number.';
     otpGroup.style.display = 'none';
     otpInput.value = '';
-    otpNote.textContent = 'You will be prompted to confirm the setup with a 6-digit code.';
+    otpNote.textContent = 'You will be prompted to enter the 6-digit SMS code.';
     resendSmsBtn.style.display = 'none';
     totpSecretBox.style.display = 'none';
     otpLabel.textContent = 'Verification Code';
@@ -378,7 +378,7 @@
 
     try {
       if (loginStep === 'request') {
-        btn.textContent = 'Checking access...';
+        btn.textContent = authFlow === 'totp-setup' ? 'Setting up...' : 'Checking access...';
         await requestMfaStart({ setupAuthenticator: authFlow === 'totp-setup' });
         return;
       }
