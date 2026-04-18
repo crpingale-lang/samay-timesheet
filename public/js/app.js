@@ -262,19 +262,18 @@ function getModuleLandingPage(moduleKey = getSelectedModule()) {
 }
 
 function getDefaultLandingPage() {
+  if (hasPermission('firm.dashboard.view')) return '/firm-dashboard.html';
+
   const selectedModule = getSelectedModule();
   if (!selectedModule) {
-    if (hasPermission('firm.dashboard.view')) return '/firm-dashboard.html';
     return '/module-select.html';
   }
   if (selectedModule === 'timesheet') {
     if (hasPermission('dashboard.view_self')) return '/dashboard.html';
     if (hasPermission('timesheets.view_own')) return '/timesheet.html';
-    return '/';
   }
   if (selectedModule === 'udin' || selectedModule === 'udin-tracker') return '/udin-coming-soon.html';
   if (selectedModule === 'form15cb') return '/form15cb.html';
-  if (hasPermission('firm.dashboard.view')) return '/firm-dashboard.html';
   if (hasPermission('dashboard.view_self')) return '/dashboard.html';
   if (hasPermission('timesheets.view_own')) return '/timesheet.html';
   if (hasPermission('approvals.view_manager_queue') || hasPermission('approvals.view_partner_queue')) return '/approvals.html';

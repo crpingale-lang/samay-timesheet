@@ -214,7 +214,7 @@
     if (data.token && data.user) {
       setSession(data.token, data.user);
       resetLoginStep();
-      window.location.replace('/module-select.html');
+      window.location.replace(getDefaultLandingPage());
       return;
     }
     if (!data.sms_required || !data.sms_challenge_token || !data.phone_number) {
@@ -318,7 +318,7 @@
 
         setSession(completeData.token, completeData.user);
         resetLoginStep();
-        window.location.replace('/module-select.html');
+        window.location.replace(getDefaultLandingPage());
         return;
       }
     } catch (err) {
