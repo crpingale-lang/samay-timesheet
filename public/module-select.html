@@ -17,7 +17,7 @@
           <h1 class="module-gate-title" id="module-select-title">Choose the module to open</h1>
           <p class="module-gate-subtitle">
             Samay now starts with a module selector so the right workspace opens after sign-in.
-            Pick Timesheet for the current app, or move into UDIN Tracker when it is ready.
+            Pick Timesheet for the current app, move into UDIN Tracker when it is ready, or open the Form 15CB Converter for TDS certificate processing.
           </p>
 
           <div class="module-gate-highlights" aria-label="Module summary">
@@ -33,6 +33,13 @@
               <div>
                 <strong>UDIN Tracker</strong>
                 <span>Reserved for the upcoming UDIN workflow and tracking experience.</span>
+              </div>
+            </div>
+            <div class="module-gate-highlight">
+              <div class="module-gate-highlight-icon" aria-hidden="true" style="background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 10px 24px rgba(5,150,105,0.22);">F</div>
+              <div>
+                <strong>Form 15CB Converter</strong>
+                <span>Convert 15CB XML to Form 146 JSON with master data, historical comparison, and validation.</span>
               </div>
             </div>
           </div>
@@ -56,6 +63,7 @@
               <option value="">Choose a module</option>
               <option value="timesheet">Timesheet</option>
               <option value="udin-tracker">UDIN Tracker</option>
+              <option value="form15cb">Form 15CB Converter</option>
             </select>
           </div>
           <div class="module-select-meta" id="module-meta">
@@ -68,6 +76,48 @@
               <span id="module-meta-status-text">Waiting for selection</span>
             </div>
           </div>
+          <section class="firm-login-report" id="firm-login-report" hidden aria-labelledby="firm-login-report-title">
+            <div class="firm-login-report-head">
+              <div>
+                <div class="module-select-label">Firm report</div>
+                <div class="firm-login-report-title" id="firm-login-report-title">User login and activity snapshot</div>
+                <div class="firm-login-report-copy">
+                  Live access summary for permitted firm roles before any module is opened.
+                </div>
+              </div>
+              <div class="firm-login-report-badge" id="firm-login-report-badge">Loading</div>
+            </div>
+            <div class="firm-login-report-stats" id="firm-login-report-stats">
+              <div class="firm-login-report-stat">
+                <span>Total users</span>
+                <strong id="firm-login-total-users">0</strong>
+              </div>
+              <div class="firm-login-report-stat">
+                <span>Online now</span>
+                <strong id="firm-login-online-users">0</strong>
+              </div>
+              <div class="firm-login-report-stat">
+                <span>Offline</span>
+                <strong id="firm-login-offline-users">0</strong>
+              </div>
+            </div>
+            <div class="table-wrapper firm-login-report-table-wrap">
+              <table class="mobile-stack-table firm-login-report-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Last Activity</th>
+                  </tr>
+                </thead>
+                <tbody id="firm-login-report-body">
+                  <tr><td colspan="5"><div class="empty-state"><div class="empty-icon">⏳</div>Loading firm activity…</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
           <div class="module-gate-actions" style="margin-top:18px;">
             <button class="btn btn-primary" type="button" id="continue-module-btn" disabled>Continue</button>
             <button class="btn btn-ghost" type="button" onclick="logout()">Logout</button>
@@ -87,10 +137,9 @@
 
 <script src="/js/app.js"></script>
 <script>
-requireAuth();
-if (!hasUsableSession()) {
-  window.location.replace('/');
-}
+if (!requireAuth()) {
+  window.stop();
+} else {
 
 const moduleSelect = document.getElementById('module-select');
 const continueBtn = document.getElementById('continue-module-btn');
@@ -100,6 +149,12 @@ const metaStatusText = document.getElementById('module-meta-status-text');
 const metaDot = document.getElementById('module-meta-dot');
 const visualNumber = document.getElementById('module-visual-number');
 const visualCopy = document.getElementById('module-visual-copy');
+const firmLoginReport = document.getElementById('firm-login-report');
+const firmLoginReportBadge = document.getElementById('firm-login-report-badge');
+const firmLoginReportBody = document.getElementById('firm-login-report-body');
+const firmLoginTotalUsers = document.getElementById('firm-login-total-users');
+const firmLoginOnlineUsers = document.getElementById('firm-login-online-users');
+const firmLoginOfflineUsers = document.getElementById('firm-login-offline-users');
 
 const moduleCards = {
   timesheet: {
@@ -115,8 +170,23 @@ const moduleCards = {
     status: 'Coming soon',
     number: '02',
     accent: 'var(--accent)'
+  },
+  'form15cb': {
+    title: 'Form 15CB Converter',
+    copy: 'Parse Form 15CB XML, map all fields to Form 146 JSON, manage Firm / CA / Remitter / Remittee / Bank masters, and review the last 5 transactions per remittee before you generate the final import file.',
+    status: 'Live',
+    number: '03',
+    accent: '#059669'
   }
 };
+
+void loadFirmActivityReport({
+  badgeEl: firmLoginReportBadge,
+  totalEl: firmLoginTotalUsers,
+  onlineEl: firmLoginOnlineUsers,
+  offlineEl: firmLoginOfflineUsers,
+  bodyEl: firmLoginReportBody
+});
 
 function renderModuleDetails(moduleKey) {
   const moduleData = moduleCards[moduleKey];
@@ -135,14 +205,21 @@ function renderModuleDetails(moduleKey) {
   metaTitle.textContent = moduleData.title;
   metaCopy.textContent = moduleData.copy;
   metaStatusText.textContent = moduleData.status;
-  metaDot.style.background = moduleData.accent === 'var(--accent)' ? 'var(--accent)' : 'var(--primary)';
-  metaDot.style.boxShadow = moduleData.accent === 'var(--accent)'
-    ? '0 0 0 5px rgba(217, 119, 6, 0.14)'
-    : '0 0 0 5px rgba(99, 102, 241, 0.12)';
+  const accentColors = {
+    'var(--primary)': { dot: 'var(--primary)', shadow: '0 0 0 5px rgba(99, 102, 241, 0.12)' },
+    'var(--accent)':  { dot: 'var(--accent)',  shadow: '0 0 0 5px rgba(217, 119, 6, 0.14)' },
+    '#059669':        { dot: '#059669',         shadow: '0 0 0 5px rgba(5, 150, 105, 0.14)' }
+  };
+  const accentStyle = accentColors[moduleData.accent] || accentColors['var(--primary)'];
+  metaDot.style.background = accentStyle.dot;
+  metaDot.style.boxShadow = accentStyle.shadow;
   visualNumber.textContent = moduleData.number;
-  visualCopy.textContent = moduleKey === 'timesheet'
-    ? 'Open the main workspace to continue into the live timesheet app.'
-    : 'Open the placeholder page while the UDIN Tracker module is being built.';
+  const visualCopyMap = {
+    timesheet:       'Open the main workspace to continue into the live timesheet app.',
+    'udin-tracker':  'Open the placeholder page while the UDIN Tracker module is being built.',
+    form15cb:        'Convert 15CB XML to Form 146 JSON, manage masters, and review historical transactions.'
+  };
+  visualCopy.textContent = visualCopyMap[moduleKey] || moduleData.copy;
   continueBtn.disabled = false;
 }
 
@@ -168,6 +245,7 @@ document.addEventListener('keydown', event => {
     continueBtn.click();
   }
 });
+}
 </script>
 </body>
 </html>

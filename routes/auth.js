@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../js/database');
 const { ensurePermissions } = require('../js/permissions');
-
-const JWT_SECRET = 'ca-timesheet-secret-2024';
-const SESSION_TTL = '30d';
+const { JWT_SECRET, SESSION_TTL } = require('../config');
+const SMS_CHALLENGE_TTL_SECONDS = 10 * 60;
+const ONLINE_WINDOW_MS = 15 * 60 * 1000;
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -29,6 +29,27 @@ function isContactInfoRequired(user) {
   return !normalizeEmail(user.email) || !normalizeMobileNumber(user.mobile_number);
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function updateUserSessionTimestamps(userId, { login = false, activity = false } = {}) {
+  const updates = [];
+  const params = [];
+  if (login) {
+    updates.push('last_login_at = ?');
+    params.push(nowIso());
+  }
+  if (activity) {
+    updates.push('last_activity_at = ?');
+    params.push(nowIso());
+  }
+  if (!updates.length) return null;
+  params.push(userId);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  return db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+}
+
 function authUserPayload(user) {
   const permissions = ensurePermissions(user.permissions, user.role);
   return {
@@ -40,8 +61,36 @@ function authUserPayload(user) {
     email: normalizeEmail(user.email),
     mobile_number: normalizeMobileNumber(user.mobile_number),
     permissions,
-    contact_info_required: isContactInfoRequired(user)
+    contact_info_required: isContactInfoRequired(user),
+    last_login_at: user.last_login_at || null,
+    last_activity_at: user.last_activity_at || null,
+    is_online: !!(user.last_activity_at && (Date.now() - new Date(user.last_activity_at).getTime()) <= ONLINE_WINDOW_MS)
   };
+}
+
+function createSmsChallenge({ userId, phoneNumber, verificationCode }) {
+  return jwt.sign(
+    {
+      purpose: 'sms-login',
+      userId,
+      phoneNumber: String(phoneNumber || ''),
+      verificationCode: String(verificationCode || '').trim()
+    },
+    JWT_SECRET,
+    { expiresIn: `${SMS_CHALLENGE_TTL_SECONDS}s` }
+  );
+}
+
+function verifySmsChallenge(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded?.purpose !== 'sms-login' || !decoded?.userId || !decoded?.phoneNumber) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
 }
 
 function issueSessionToken(user, permissions) {
@@ -99,10 +148,63 @@ router.post('/login', (req, res) => {
   const valid = bcrypt.compareSync(password, user.password);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
+  const isLocalSmsMode = process.env.NODE_ENV !== 'production';
   const userPayload = authUserPayload(user);
+  if (isLocalSmsMode) {
+    const smsVerificationCode = String(Math.floor(100000 + Math.random() * 900000));
+    const smsChallengeToken = createSmsChallenge({
+      userId: user.id,
+      phoneNumber: user.mobile_number,
+      verificationCode: smsVerificationCode
+    });
+
+    return res.json({
+      sms_required: true,
+      sms_mode: 'local',
+      sms_challenge_token: smsChallengeToken,
+      phone_number: user.mobile_number,
+      masked_phone_number: user.mobile_number,
+      sms_test_code: smsVerificationCode,
+      user: userPayload
+    });
+  }
+
+  const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
   const token = issueSessionToken(user, userPayload.permissions);
 
   res.json({
+    token,
+    user: authUserPayload(updatedUser)
+  });
+});
+
+// POST /api/auth/complete-sms-login
+router.post('/complete-sms-login', (req, res) => {
+  const smsChallengeToken = String(req.body?.sms_challenge_token || '');
+  const smsVerificationCode = String(req.body?.sms_verification_code || '').trim();
+
+  if (!smsChallengeToken || !smsVerificationCode) {
+    return res.status(400).json({ error: 'Missing SMS login details' });
+  }
+
+  const challenge = verifySmsChallenge(smsChallengeToken);
+  if (!challenge) {
+    return res.status(401).json({ error: 'SMS challenge expired or invalid' });
+  }
+
+  if (smsVerificationCode !== challenge.verificationCode) {
+    return res.status(401).json({ error: 'SMS code is invalid' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(challenge.userId);
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
+  const userPayload = authUserPayload(updatedUser);
+  const token = issueSessionToken(user, userPayload.permissions);
+  return res.json({
     token,
     user: userPayload
   });
@@ -113,12 +215,25 @@ router.post('/refresh-session', (req, res) => {
   const authUser = getAuthorizedUser(req, res);
   if (!authUser) return;
 
-  const userPayload = authUserPayload(authUser);
+  const updatedUser = updateUserSessionTimestamps(authUser.id, { activity: true }) || authUser;
+  const userPayload = authUserPayload(updatedUser);
   const token = issueSessionToken(authUser, userPayload.permissions);
 
   res.json({
     token,
     user: userPayload
+  });
+});
+
+// POST /api/auth/activity-ping
+router.post('/activity-ping', (req, res) => {
+  const authUser = getAuthorizedUser(req, res);
+  if (!authUser) return;
+
+  const updatedUser = updateUserSessionTimestamps(authUser.id, { activity: true }) || authUser;
+  res.json({
+    success: true,
+    user: authUserPayload(updatedUser)
   });
 });
 
