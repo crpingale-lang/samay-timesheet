@@ -11,7 +11,7 @@
     .firm-panel{background:linear-gradient(180deg,rgba(79,70,229,.08),rgba(79,70,229,.03));border:1px solid rgba(79,70,229,.15);border-radius:18px;padding:22px}
     .firm-panel h1{margin:0 0 10px;font-size:30px;line-height:1.05}
     .firm-panel p{margin:0;color:var(--text-muted);max-width:62ch}
-    .firm-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
+    .firm-quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:16px}
     .firm-action{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:16px;padding:16px;background:var(--bg-card);text-decoration:none;color:inherit;min-height:140px}
     .firm-action strong{font-size:15px}
     .firm-action span{color:var(--text-muted);font-size:13px;line-height:1.5}
@@ -50,7 +50,7 @@
           <div class="badge badge-partner" style="margin-bottom:10px;">Firm Control Center</div>
           <h1>Manage the firm before opening a module.</h1>
           <p>
-            This space sits above the module selector so user and client masters can be governed centrally.
+            This space sits above the module selector so user, client, and UDIN support masters can be governed centrally.
             Use the quick actions below to move into module selection or open the shared masters.
           </p>
 
@@ -67,6 +67,10 @@
               <strong>Clients</strong>
               <span>Maintain the firm-wide client master that modules like timesheet consume.</span>
             </a>
+            <a class="firm-action" href="/firm-masters.html" data-permissions="firm.dashboard.view">
+              <strong>Firm Masters</strong>
+              <span>Manage UDIN assignment, financial year, and location masters from one shared firm screen.</span>
+            </a>
           </div>
         </section>
 
@@ -79,6 +83,7 @@
           <div class="firm-chip-row">
             <span class="firm-chip">Shared user master</span>
             <span class="firm-chip">Shared client master</span>
+            <span class="firm-chip">Shared UDIN masters</span>
             <span class="firm-chip">Module selector</span>
           </div>
           <div class="firm-chip-row" id="firm-stats">
@@ -242,12 +247,18 @@ if (!hasPermission('firm.dashboard.view')) {
   async function loadFirmStats() {
     const chips = [];
     try {
-      const [users, clients] = await Promise.all([
+      const [users, clients, assignments, years, locations] = await Promise.all([
         apiFetch('/users?status=all&page_size=1'),
-        apiFetch('/clients?page_size=1')
+        apiFetch('/clients?page_size=1'),
+        apiFetch('/master-data/all/udin_assignment'),
+        apiFetch('/master-data/all/financial_year'),
+        apiFetch('/master-data/locations/all')
       ]);
       chips.push(`Users: ${users.total || 0}`);
       chips.push(`Clients: ${clients.total || 0}`);
+      chips.push(`Assignments: ${(assignments.items || []).filter(item => item.active).length}`);
+      chips.push(`FYs: ${(years.items || []).filter(item => item.active).length}`);
+      chips.push(`Locations: ${(locations.items || []).filter(item => item.active).length}`);
     } catch (err) {
       chips.push('Users: unavailable');
       chips.push('Clients: unavailable');

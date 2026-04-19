@@ -2,7 +2,11 @@ const express = require('express');
 const router = express.Router();
 const db = require('../js/database');
 
-const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification']);
+const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification', 'udin_assignment', 'financial_year']);
+
+function canManageMasters(req) {
+  return req.user?.role === 'partner' || req.user?.permissions?.includes('access.manage');
+}
 
 function listCategory(category) {
   return db.prepare(`
@@ -16,12 +20,32 @@ function listCategory(category) {
 router.get('/', (req, res) => {
   res.json({
     work_categories: listCategory('work_category'),
-    work_classifications: listCategory('work_classification')
+    work_classifications: listCategory('work_classification'),
+    udin_assignments: listCategory('udin_assignment'),
+    financial_years: listCategory('financial_year'),
+    locations: db.prepare(`
+      SELECT id, location AS label, short_name, latitude, longitude, radius_meters, active
+      FROM location_master
+      WHERE active = 1
+      ORDER BY location ASC
+    `).all()
   });
 });
 
-router.post('/:category', (req, res) => {
-  if (req.user.role !== 'partner') return res.status(403).json({ error: 'Partner only' });
+router.get('/all/:category', (req, res) => {
+  const { category } = req.params;
+  if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
+  const items = db.prepare(`
+    SELECT id, key, label, short_label, sort_order, active
+    FROM master_data_options
+    WHERE category = ?
+    ORDER BY active DESC, sort_order ASC, label ASC
+  `).all(category);
+  res.json({ items });
+});
+
+router.post('/category/:category', (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
   const { category } = req.params;
   if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
 
@@ -40,8 +64,8 @@ router.post('/:category', (req, res) => {
   }
 });
 
-router.put('/:category/:id', (req, res) => {
-  if (req.user.role !== 'partner') return res.status(403).json({ error: 'Partner only' });
+router.put('/category/:category/:id', (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
   const { category, id } = req.params;
   if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
 
@@ -57,6 +81,65 @@ router.put('/:category/:id', (req, res) => {
     res.json({ success: true });
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Key already exists for this category' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/locations/all', (req, res) => {
+  const items = db.prepare(`
+    SELECT id, location AS label, short_name, latitude, longitude, radius_meters, active
+    FROM location_master
+    ORDER BY active DESC, location ASC
+  `).all();
+  res.json({ items });
+});
+
+router.post('/locations', (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
+  const { label, short_name, latitude, longitude, radius_meters, active } = req.body || {};
+  const location = String(label || '').trim();
+  if (!location) return res.status(400).json({ error: 'Location name is required' });
+  try {
+    const result = db.prepare(`
+      INSERT INTO location_master (location, short_name, latitude, longitude, radius_meters, active, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(
+      location,
+      String(short_name || '').trim() || null,
+      latitude === '' || latitude == null ? null : Number(latitude),
+      longitude === '' || longitude == null ? null : Number(longitude),
+      radius_meters ? Number(radius_meters) : 50,
+      active === undefined ? 1 : (active ? 1 : 0)
+    );
+    res.json({ id: result.lastInsertRowid });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Location already exists' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/locations/:id', (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
+  const { label, short_name, latitude, longitude, radius_meters, active } = req.body || {};
+  const location = String(label || '').trim();
+  if (!location) return res.status(400).json({ error: 'Location name is required' });
+  try {
+    db.prepare(`
+      UPDATE location_master
+      SET location = ?, short_name = ?, latitude = ?, longitude = ?, radius_meters = ?, active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      location,
+      String(short_name || '').trim() || null,
+      latitude === '' || latitude == null ? null : Number(latitude),
+      longitude === '' || longitude == null ? null : Number(longitude),
+      radius_meters ? Number(radius_meters) : 50,
+      active ? 1 : 0,
+      req.params.id
+    );
+    res.json({ success: true });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Location already exists' });
     res.status(500).json({ error: e.message });
   }
 });

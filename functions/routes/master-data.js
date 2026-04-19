@@ -3,7 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { getMasterDataItems, getLocationMasterItems, invalidateCache } = require('../data-cache');
 
-const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification']);
+const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification', 'udin_assignment', 'financial_year']);
 
 const DEFAULT_MASTER_DATA = {
   work_classification: [
@@ -32,8 +32,22 @@ const DEFAULT_MASTER_DATA = {
     { key: 'fema_rbi_compliance', label: 'FEMA / RBI Compliance', sort_order: 16 },
     { key: 'administrative', label: 'Administrative', sort_order: 17 },
     { key: 'other', label: 'Other', sort_order: 18 }
+  ],
+  udin_assignment: [
+    { key: 'certificate', label: 'Certificate', short_label: 'CERT', sort_order: 1 },
+    { key: 'consultancy', label: 'Consultancy', short_label: 'CONS', sort_order: 2 },
+    { key: 'professional_services', label: 'Professional Services', short_label: 'PS', sort_order: 3 }
+  ],
+  financial_year: [
+    { key: '2024-25', label: '2024-25', short_label: '2024-25', sort_order: 1 },
+    { key: '2025-26', label: '2025-26', short_label: '2025-26', sort_order: 2 },
+    { key: '2026-27', label: '2026-27', short_label: '2026-27', sort_order: 3 }
   ]
 };
+
+function canManageMasters(req) {
+  return req.user?.role === 'partner' || (Array.isArray(req.user?.permissions) && req.user.permissions.includes('access.manage'));
+}
 
 async function ensureMasterData() {
   const existing = await getMasterDataItems();
@@ -98,6 +112,7 @@ function normalizeLocationItem(item) {
   return {
     id: item.id,
     label: label || `Location ${item.id}`,
+    short_name: String(item.short_name || item.shortName || '').trim(),
     latitude: Number.isFinite(latitude) ? latitude : null,
     longitude: Number.isFinite(longitude) ? longitude : null,
     radius_meters: Number.isFinite(radiusMeters) && radiusMeters > 0 ? radiusMeters : 50,
@@ -109,7 +124,7 @@ async function listLocations() {
   const items = await getLocationMasterItems();
   return items
     .map(normalizeLocationItem)
-    .filter(item => item.active && item.latitude != null && item.longitude != null)
+    .filter(item => item.active)
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
@@ -119,6 +134,8 @@ router.get('/', async (req, res) => {
     res.json({
       work_categories: await listCategory('work_category'),
       work_classifications: await listCategory('work_classification'),
+      udin_assignments: await listCategory('udin_assignment'),
+      financial_years: await listCategory('financial_year'),
       locations: await listLocations()
     });
   } catch (e) {
@@ -126,8 +143,22 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/:category', async (req, res) => {
-  if (req.user.role !== 'partner') return res.status(403).json({ error: 'Partner only' });
+router.get('/all/:category', async (req, res) => {
+  const { category } = req.params;
+  if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
+  try {
+    await ensureMasterData();
+    const items = await listCategory(category);
+    res.json({
+      items: items.sort((a, b) => Number(b.active) - Number(a.active) || (a.sort_order || 0) - (b.sort_order || 0) || a.label.localeCompare(b.label))
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/category/:category', async (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
   const { category } = req.params;
   if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
   const { key, label, short_label, sort_order, active } = req.body;
@@ -153,8 +184,8 @@ router.post('/:category', async (req, res) => {
   }
 });
 
-router.put('/:category/:id', async (req, res) => {
-  if (req.user.role !== 'partner') return res.status(403).json({ error: 'Partner only' });
+router.put('/category/:category/:id', async (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
   const { category, id } = req.params;
   if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
   const { key, label, short_label, sort_order, active } = req.body;
@@ -174,6 +205,62 @@ router.put('/:category/:id', async (req, res) => {
       active: !!active
     });
     invalidateCache('master-data:all');
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/locations/all', async (req, res) => {
+  try {
+    const items = await getLocationMasterItems();
+    const normalized = items.map(normalizeLocationItem).sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label));
+    res.json({ items: normalized });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/locations', async (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
+  const label = String(req.body?.label || '').trim();
+  if (!label) return res.status(400).json({ error: 'Location name is required' });
+  try {
+    const items = await getLocationMasterItems();
+    const exists = items.some(item => String(item.location || item.label || '').trim().toLowerCase() === label.toLowerCase());
+    if (exists) return res.status(400).json({ error: 'Location already exists' });
+    const docRef = await db.collection('location_master').add({
+      location: label,
+      short_name: String(req.body?.short_name || '').trim(),
+      latitude: req.body?.latitude === '' || req.body?.latitude == null ? null : Number(req.body.latitude),
+      longitude: req.body?.longitude === '' || req.body?.longitude == null ? null : Number(req.body.longitude),
+      radius_meters: req.body?.radius_meters ? Number(req.body.radius_meters) : 50,
+      active: req.body?.active === undefined ? true : !!req.body.active
+    });
+    invalidateCache('location-master:all');
+    res.json({ id: docRef.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/locations/:id', async (req, res) => {
+  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
+  const label = String(req.body?.label || '').trim();
+  if (!label) return res.status(400).json({ error: 'Location name is required' });
+  try {
+    const items = await getLocationMasterItems();
+    const exists = items.some(item => String(item.id) !== String(req.params.id) && String(item.location || item.label || '').trim().toLowerCase() === label.toLowerCase());
+    if (exists) return res.status(400).json({ error: 'Location already exists' });
+    await db.collection('location_master').doc(req.params.id).update({
+      location: label,
+      short_name: String(req.body?.short_name || '').trim(),
+      latitude: req.body?.latitude === '' || req.body?.latitude == null ? null : Number(req.body.latitude),
+      longitude: req.body?.longitude === '' || req.body?.longitude == null ? null : Number(req.body.longitude),
+      radius_meters: req.body?.radius_meters ? Number(req.body.radius_meters) : 50,
+      active: !!req.body.active
+    });
+    invalidateCache('location-master:all');
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

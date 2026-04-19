@@ -41,6 +41,16 @@ const DEFAULT_MASTER_DATA = {
     { key: 'fema_rbi_compliance', label: 'FEMA / RBI Compliance', sort_order: 16 },
     { key: 'administrative', label: 'Administrative', sort_order: 17 },
     { key: 'other', label: 'Other', sort_order: 18 }
+  ],
+  udin_assignment: [
+    { key: 'certificate', label: 'Certificate', short_label: 'CERT', sort_order: 1 },
+    { key: 'consultancy', label: 'Consultancy', short_label: 'CONS', sort_order: 2 },
+    { key: 'professional_services', label: 'Professional Services', short_label: 'PS', sort_order: 3 }
+  ],
+  financial_year: [
+    { key: '2024-25', label: '2024-25', short_label: '2024-25', sort_order: 1 },
+    { key: '2025-26', label: '2025-26', short_label: '2025-26', sort_order: 2 },
+    { key: '2026-27', label: '2026-27', short_label: '2026-27', sort_order: 3 }
   ]
 };
 
@@ -213,6 +223,93 @@ db.exec(`
     UNIQUE(client_id, site_name),
     FOREIGN KEY (client_id) REFERENCES clients(id),
     FOREIGN KEY (shift_id) REFERENCES timesheet_shifts(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS location_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location TEXT NOT NULL UNIQUE,
+    short_name TEXT,
+    latitude REAL,
+    longitude REAL,
+    radius_meters INTEGER NOT NULL DEFAULT 50,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS udin_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    original_revised TEXT DEFAULT 'Original',
+    unique_id TEXT NOT NULL UNIQUE,
+    date_of_request TEXT NOT NULL,
+    entity_name TEXT NOT NULL,
+    entity_short_name TEXT,
+    branch TEXT,
+    assignment_type TEXT NOT NULL,
+    assignment_type_short TEXT,
+    entered_by_user_id INTEGER NOT NULL,
+    entered_by_name TEXT,
+    location_id INTEGER,
+    location_name TEXT,
+    location_short_name TEXT,
+    party_name TEXT NOT NULL,
+    folder_number TEXT,
+    financial_year TEXT,
+    path_for_documentation TEXT,
+    initiated_by_user_id INTEGER,
+    initiated_by_name TEXT,
+    original_udin TEXT,
+    original_income_tax_acknowledgement_number TEXT,
+    internal_reference_for_udin TEXT,
+    remittance_approver TEXT,
+    approval_status TEXT DEFAULT 'Pending Review',
+    workflow_status TEXT DEFAULT 'pending_review',
+    reviewed_by_user_id INTEGER,
+    reviewed_by_name TEXT,
+    reviewed_at TEXT,
+    rejection_reason TEXT,
+    udin TEXT,
+    udin_generation_date TEXT,
+    revocation TEXT,
+    revocation_reason TEXT,
+    revocation_requested_by_user_id INTEGER,
+    revocation_requested_at TEXT,
+    revoked_by_user_id INTEGER,
+    revoked_at TEXT,
+    copy_of_certificate_name TEXT,
+    income_tax_acknowledgement_name TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (entered_by_user_id) REFERENCES users(id),
+    FOREIGN KEY (initiated_by_user_id) REFERENCES users(id),
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users(id),
+    FOREIGN KEY (location_id) REFERENCES location_master(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS udin_request_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL,
+    field_name TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime_type TEXT,
+    file_blob BLOB NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(request_id, field_name),
+    FOREIGN KEY (request_id) REFERENCES udin_requests(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS udin_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    actor_user_id INTEGER,
+    actor_name TEXT,
+    actor_role TEXT,
+    payload_json TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (request_id) REFERENCES udin_requests(id),
+    FOREIGN KEY (actor_user_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS feedback_submissions (
@@ -397,6 +494,109 @@ if (!siteCols.length) {
   `);
 }
 
+const locationCols = db.prepare("PRAGMA table_info(location_master)").all().map(c => c.name);
+if (!locationCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS location_master (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      location TEXT NOT NULL UNIQUE,
+      short_name TEXT,
+      latitude REAL,
+      longitude REAL,
+      radius_meters INTEGER NOT NULL DEFAULT 50,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+if (!locationCols.includes('short_name')) {
+  db.exec("ALTER TABLE location_master ADD COLUMN short_name TEXT");
+}
+
+const udinCols = db.prepare("PRAGMA table_info(udin_requests)").all().map(c => c.name);
+if (!udinCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS udin_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      original_revised TEXT DEFAULT 'Original',
+      unique_id TEXT NOT NULL UNIQUE,
+      date_of_request TEXT NOT NULL,
+      entity_name TEXT NOT NULL,
+      entity_short_name TEXT,
+      branch TEXT,
+      assignment_type TEXT NOT NULL,
+      assignment_type_short TEXT,
+      entered_by_user_id INTEGER NOT NULL,
+      entered_by_name TEXT,
+      location_id INTEGER,
+      location_name TEXT,
+      location_short_name TEXT,
+      party_name TEXT NOT NULL,
+      folder_number TEXT,
+      financial_year TEXT,
+      path_for_documentation TEXT,
+      initiated_by_user_id INTEGER,
+      initiated_by_name TEXT,
+      original_udin TEXT,
+      original_income_tax_acknowledgement_number TEXT,
+      internal_reference_for_udin TEXT,
+      remittance_approver TEXT,
+      approval_status TEXT DEFAULT 'Pending Review',
+      workflow_status TEXT DEFAULT 'pending_review',
+      reviewed_by_user_id INTEGER,
+      reviewed_by_name TEXT,
+      reviewed_at TEXT,
+      rejection_reason TEXT,
+      udin TEXT,
+      udin_generation_date TEXT,
+      revocation TEXT,
+      revocation_reason TEXT,
+      revocation_requested_by_user_id INTEGER,
+      revocation_requested_at TEXT,
+      revoked_by_user_id INTEGER,
+      revoked_at TEXT,
+      copy_of_certificate_name TEXT,
+      income_tax_acknowledgement_name TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+
+const udinFileCols = db.prepare("PRAGMA table_info(udin_request_files)").all().map(c => c.name);
+if (!udinFileCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS udin_request_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id INTEGER NOT NULL,
+      field_name TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT,
+      file_blob BLOB NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(request_id, field_name)
+    );
+  `);
+}
+
+const udinAuditCols = db.prepare("PRAGMA table_info(udin_audit_log)").all().map(c => c.name);
+if (!udinAuditCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS udin_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      actor_user_id INTEGER,
+      actor_name TEXT,
+      actor_role TEXT,
+      payload_json TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+
 const users = db.prepare("SELECT id, role, permissions FROM users").all();
 const updatePermissions = db.prepare("UPDATE users SET permissions = ? WHERE id = ?");
 for (const user of users) {
@@ -423,6 +623,15 @@ if (!managerExists) {
     .run('Sample Manager', 'manager', hash, 'manager', serializePermissions(getDefaultPermissions('manager')), 'Audit Manager', 'manager@example.com', '+919999999992');
   console.log('✅ Default manager created: manager / manager123');
 }
+
+db.prepare("UPDATE users SET permissions = ? WHERE username = ?").run(
+  serializePermissions(getDefaultPermissions('partner')),
+  'partner'
+);
+db.prepare("UPDATE users SET permissions = ? WHERE username = ?").run(
+  serializePermissions(getDefaultPermissions('manager')),
+  'manager'
+);
 
 // Seed sample clients
 const clientCount = db.prepare("SELECT COUNT(*) as cnt FROM clients").get();
@@ -452,6 +661,14 @@ if (shiftCount.cnt === 0) {
     INSERT INTO timesheet_shifts (shift_code, label, start_time, end_time, active, default_for_new_clients)
     VALUES (?, ?, ?, ?, 1, 1)
   `).run('GEN-1000', 'General Day Shift', '10:00', '18:30');
+}
+
+const locationCount = db.prepare("SELECT COUNT(*) as cnt FROM location_master").get();
+if (locationCount.cnt === 0) {
+  db.prepare(`
+    INSERT INTO location_master (location, short_name, latitude, longitude, radius_meters, active, updated_at)
+    VALUES (?, ?, ?, ?, ?, 1, datetime('now'))
+  `).run('Main Office', 'MO', 19.0760, 72.8777, 75);
 }
 
 module.exports = db;

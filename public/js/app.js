@@ -42,7 +42,13 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'attendance.view_reports',
     'dashboard.view_self',
     'dashboard.view_team',
-    'dashboard.view_firm'
+    'dashboard.view_firm',
+    'udin.view_own',
+    'udin.create',
+    'udin.update',
+    'udin.review',
+    'udin.revoke',
+    'udin.dashboard.view'
   ],
   manager: [
     'clients.view',
@@ -61,7 +67,13 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'reports.export',
     'attendance.view_reports',
     'dashboard.view_self',
-    'dashboard.view_team'
+    'dashboard.view_team',
+    'udin.view_own',
+    'udin.create',
+    'udin.update',
+    'udin.review',
+    'udin.revoke',
+    'udin.dashboard.view'
   ],
   article: [
     'clients.view',
@@ -73,7 +85,13 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'timesheets.submit_own',
     'attendance.view_own',
     'attendance.create_own',
-    'dashboard.view_self'
+    'dashboard.view_self',
+    'udin.view_own',
+    'udin.create',
+    'udin.update',
+    'udin.review',
+    'udin.revoke',
+    'udin.dashboard.view'
   ]
 };
 
@@ -166,8 +184,9 @@ function shouldRefreshSession(token = getToken()) {
 let sessionRefreshPromise = null;
 function inferPermissions(user) {
   if (!user || typeof user !== 'object') return [];
-  if (Array.isArray(user.permissions) && user.permissions.length) return user.permissions;
-  const permissions = ROLE_DEFAULT_PERMISSIONS[user.role] || [];
+  const current = Array.isArray(user.permissions) ? user.permissions.filter(Boolean) : [];
+  const fallback = ROLE_DEFAULT_PERMISSIONS[user.role] || [];
+  const permissions = [...new Set([...current, ...fallback])];
   return permissions.includes('firm.dashboard.view')
     ? permissions
     : [...permissions, 'firm.dashboard.view'];
@@ -293,7 +312,7 @@ function getModuleLandingPage(moduleKey = getSelectedModule()) {
       return '/timesheet.html';
     case 'udin':
     case 'udin-tracker':
-      return '/udin-coming-soon.html';
+      return '/udin.html';
     case 'form15cb':
       return '/form15cb.html';
     default:
@@ -312,7 +331,7 @@ function getDefaultLandingPage() {
     if (hasPermission('dashboard.view_self')) return '/dashboard.html';
     if (hasPermission('timesheets.view_own')) return '/timesheet.html';
   }
-  if (selectedModule === 'udin' || selectedModule === 'udin-tracker') return '/udin-coming-soon.html';
+  if (selectedModule === 'udin' || selectedModule === 'udin-tracker') return '/udin.html';
   if (selectedModule === 'form15cb') return '/form15cb.html';
   if (hasPermission('dashboard.view_self')) return '/dashboard.html';
   if (hasPermission('timesheets.view_own')) return '/timesheet.html';
@@ -920,7 +939,9 @@ function fmtCurrency(v) { return 'Rs ' + (parseFloat(v)||0).toLocaleString('en-I
 const MASTER_DATA_CACHE_KEY = 'ts_master_data_cache';
 let MASTER_DATA = {
   work_categories: [],
-  work_classifications: []
+  work_classifications: [],
+  udin_assignments: [],
+  financial_years: []
 };
 
 const TIMESHEET_MASTER_CACHE_KEY = 'ts_timesheet_master_cache';
@@ -947,7 +968,9 @@ function humanizeKey(value = '') {
 function setMasterData(data = {}) {
   MASTER_DATA = {
     work_categories: Array.isArray(data.work_categories) ? data.work_categories : [],
-    work_classifications: Array.isArray(data.work_classifications) ? data.work_classifications : []
+    work_classifications: Array.isArray(data.work_classifications) ? data.work_classifications : [],
+    udin_assignments: Array.isArray(data.udin_assignments) ? data.udin_assignments : [],
+    financial_years: Array.isArray(data.financial_years) ? data.financial_years : []
   };
   try {
     localStorage.setItem(MASTER_DATA_CACHE_KEY, JSON.stringify(MASTER_DATA));
@@ -1258,6 +1281,7 @@ function SIDEBAR_HTML() {
       <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
       <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
       <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
+      <a class="nav-item nav-item-udin" data-page="udin.html" href="/udin.html" data-permissions="udin.dashboard.view,udin.view_own,udin.create,udin.review,udin.update,udin.revoke"><span class="nav-icon" aria-hidden="true">#</span><span class="nav-label">UDIN Tracker</span></a>
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
       <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
       <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
@@ -1292,6 +1316,7 @@ function TIMESHEET_SIDEBAR_HTML() {
       <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
       <a class="nav-item nav-item-timesheet-masters" data-page="timesheet-masters.html" href="/timesheet-masters.html" data-permissions="timesheets.masters.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Timesheet Masters</span></a>
       <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
+      <a class="nav-item nav-item-udin" data-page="udin.html" href="/udin.html" data-permissions="udin.dashboard.view,udin.view_own,udin.create,udin.review,udin.update,udin.revoke"><span class="nav-icon" aria-hidden="true">#</span><span class="nav-label">UDIN Tracker</span></a>
       <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
       <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
       <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
@@ -1353,6 +1378,7 @@ function FIRM_SIDEBAR_HTML() {
     <nav class="sidebar-nav">
       <span class="nav-section-label">Firm</span>
       <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
+      <a class="nav-item nav-item-firm-masters" data-page="firm-masters.html" href="/firm-masters.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Firm Masters</span></a>
       <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
       <a class="nav-item nav-item-users" data-page="users.html" href="/users.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Users</span></a>
       <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>

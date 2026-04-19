@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firm Masters - Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+  <style>
+    .page-hero{border:1px solid var(--border);border-radius:22px;padding:22px;background:linear-gradient(135deg,rgba(67,56,202,.07),rgba(255,255,255,.98) 58%,rgba(59,130,246,.06));box-shadow:0 18px 50px rgba(15,23,42,.05)}
+    .page-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+    .page-hero-kicker{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--primary)}
+    .page-hero-title{margin:8px 0 0;font-size:32px;line-height:1.05;letter-spacing:-.03em}
+    .page-hero-copy{margin:10px 0 0;color:var(--text-muted);max-width:72ch;font-size:14px;line-height:1.55}
+    .page-hero-note{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid rgba(67,56,202,.16);border-radius:999px;background:rgba(67,56,202,.05);color:var(--primary);font-size:12px;font-weight:700;white-space:nowrap}
+    .masters-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+    .masters-card{display:grid;gap:14px}
+    .masters-card .card-header{margin-bottom:0}
+    .masters-form{display:grid;gap:12px}
+    .masters-form .form-group{margin:0}
+    .masters-section-copy{font-size:13px;color:var(--text-muted);line-height:1.5}
+    .masters-note{padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--bg);font-size:12.5px;color:var(--text-muted);line-height:1.5}
+    .masters-chip-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    .masters-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12px;color:var(--text-muted)}
+    .masters-chip strong{color:var(--text)}
+    .masters-table td small{display:block;color:var(--text-muted);font-size:11px;margin-top:3px}
+    @media (max-width: 1100px){.masters-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
+        <div class="topbar-title">Firm Masters</div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/firm-dashboard.html" class="btn btn-ghost btn-sm">Firm Dashboard</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <section class="page-hero">
+        <div class="page-hero-top">
+          <div>
+            <div class="page-hero-kicker">Firm Masters</div>
+            <h1 class="page-hero-title">Manage the dropdown sources used by the UDIN module.</h1>
+            <p class="page-hero-copy">
+              Client master already powers entity selection and user master already powers entered-by ownership.
+              This page adds the remaining shared masters: assignment, financial year, and location.
+            </p>
+          </div>
+          <div class="page-hero-note" id="masters-access-note">Loading access…</div>
+        </div>
+        <div class="masters-chip-row">
+          <span class="masters-chip"><strong>Entity</strong> Client master</span>
+          <span class="masters-chip"><strong>User</strong> User master</span>
+          <span class="masters-chip"><strong>Assignment</strong> This page</span>
+          <span class="masters-chip"><strong>FY</strong> This page</span>
+          <span class="masters-chip"><strong>Location</strong> This page</span>
+        </div>
+      </section>
+
+      <section class="masters-grid" style="margin-top:16px;">
+        <div class="card masters-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Assignment Master</div>
+              <div class="card-subtitle">Feeds the UDIN “Type of Assignment” dropdown and short-name logic.</div>
+            </div>
+          </div>
+          <form class="masters-form" id="assignment-form">
+            <input type="hidden" id="assignment-id">
+            <div class="form-group"><label class="form-label">Assignment Name *</label><input class="form-control" id="assignment-label" required></div>
+            <div class="form-group"><label class="form-label">Short Name *</label><input class="form-control" id="assignment-short" required></div>
+            <div class="form-group"><label class="form-label">Sort Order</label><input class="form-control" id="assignment-sort" type="number" min="0" value="0"></div>
+            <div class="form-group"><div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="assignment-active" checked><span class="toggle-slider"></span></label></div></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+              <button class="btn btn-ghost" type="button" onclick="resetAssignmentForm()">Clear</button>
+              <button class="btn btn-primary" type="submit" id="assignment-save-btn">Save Assignment</button>
+            </div>
+          </form>
+          <div class="table-wrapper">
+            <table class="mobile-stack-table masters-table">
+              <thead><tr><th>Name</th><th>Short</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="assignment-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card masters-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Financial Year Master</div>
+              <div class="card-subtitle">Feeds the UDIN financial year dropdown so users pick from governed options.</div>
+            </div>
+          </div>
+          <form class="masters-form" id="fy-form">
+            <input type="hidden" id="fy-id">
+            <div class="form-group"><label class="form-label">Financial Year *</label><input class="form-control" id="fy-label" placeholder="2026-27" required></div>
+            <div class="form-group"><label class="form-label">Sort Order</label><input class="form-control" id="fy-sort" type="number" min="0" value="0"></div>
+            <div class="form-group"><div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="fy-active" checked><span class="toggle-slider"></span></label></div></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+              <button class="btn btn-ghost" type="button" onclick="resetFyForm()">Clear</button>
+              <button class="btn btn-primary" type="submit" id="fy-save-btn">Save FY</button>
+            </div>
+          </form>
+          <div class="table-wrapper">
+            <table class="mobile-stack-table masters-table">
+              <thead><tr><th>Financial Year</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="fy-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card masters-card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Location Master</div>
+              <div class="card-subtitle">Feeds the UDIN location dropdown and gives each location a reusable short name.</div>
+            </div>
+          </div>
+          <form class="masters-form" id="location-form">
+            <input type="hidden" id="location-edit-id">
+            <div class="form-group"><label class="form-label">Location Name *</label><input class="form-control" id="location-label" required></div>
+            <div class="form-group"><label class="form-label">Short Name *</label><input class="form-control" id="location-short" required></div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" id="location-latitude" type="number" step="any"></div>
+              <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" id="location-longitude" type="number" step="any"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Radius (Meters)</label><input class="form-control" id="location-radius" type="number" min="1" value="50"></div>
+            <div class="form-group"><div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="location-active" checked><span class="toggle-slider"></span></label></div></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+              <button class="btn btn-ghost" type="button" onclick="resetLocationForm()">Clear</button>
+              <button class="btn btn-primary" type="submit" id="location-save-btn">Save Location</button>
+            </div>
+          </form>
+          <div class="masters-note">Latitude and longitude are optional here so the same location master can serve both UDIN and attendance use cases.</div>
+          <div class="table-wrapper">
+            <table class="mobile-stack-table masters-table">
+              <thead><tr><th>Location</th><th>Short</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="location-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!hasPermission('firm.dashboard.view')) {
+  window.location.replace(getDefaultLandingPage());
+}
+
+document.getElementById('sidebar-el').innerHTML = FIRM_SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+const canManageMasters = hasPermission('access.manage') || getUser()?.role === 'partner';
+document.getElementById('masters-access-note').textContent = canManageMasters ? 'Editable by firm admins' : 'View only';
+
+let assignmentItems = [];
+let fyItems = [];
+let locationItems = [];
+
+function slugKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function statusBadgeFromActive(active) {
+  return `<span class="badge ${active ? 'badge-approved' : 'badge-draft'}">${active ? 'Active' : 'Inactive'}</span>`;
+}
+
+function renderAssignmentTable() {
+  const tbody = document.getElementById('assignment-tbody');
+  if (!assignmentItems.length) {
+    tbody.innerHTML = `<tr><td colspan="4">${renderEmptyState({ icon: '◌', title: 'No assignments yet', subtitle: 'Add the first assignment master entry for UDIN.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = assignmentItems.map(item => `
+    <tr>
+      <td data-label="Name"><strong>${item.label}</strong><small>Sort ${item.sort_order || 0}</small></td>
+      <td data-label="Short">${item.short_label || '-'}</td>
+      <td data-label="Status">${statusBadgeFromActive(item.active)}</td>
+      <td data-label="Action">${canManageMasters ? `<button class="btn btn-ghost btn-sm" onclick='editAssignment(${JSON.stringify(item)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderFyTable() {
+  const tbody = document.getElementById('fy-tbody');
+  if (!fyItems.length) {
+    tbody.innerHTML = `<tr><td colspan="3">${renderEmptyState({ icon: '◌', title: 'No financial years yet', subtitle: 'Add the FY values you want to expose in the UDIN form.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = fyItems.map(item => `
+    <tr>
+      <td data-label="Financial Year"><strong>${item.label}</strong><small>Sort ${item.sort_order || 0}</small></td>
+      <td data-label="Status">${statusBadgeFromActive(item.active)}</td>
+      <td data-label="Action">${canManageMasters ? `<button class="btn btn-ghost btn-sm" onclick='editFy(${JSON.stringify(item)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderLocationTable() {
+  const tbody = document.getElementById('location-tbody');
+  if (!locationItems.length) {
+    tbody.innerHTML = `<tr><td colspan="4">${renderEmptyState({ icon: '⌂', title: 'No locations yet', subtitle: 'Add firm locations for the UDIN dropdown.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = locationItems.map(item => `
+    <tr>
+      <td data-label="Location"><strong>${item.label}</strong><small>Radius ${item.radius_meters || 50}m</small></td>
+      <td data-label="Short">${item.short_name || '-'}</td>
+      <td data-label="Status">${statusBadgeFromActive(item.active)}</td>
+      <td data-label="Action">${canManageMasters ? `<button class="btn btn-ghost btn-sm" onclick='editLocation(${JSON.stringify(item)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function resetAssignmentForm() {
+  document.getElementById('assignment-form').reset();
+  document.getElementById('assignment-id').value = '';
+  document.getElementById('assignment-active').checked = true;
+  document.getElementById('assignment-sort').value = '0';
+}
+
+function resetFyForm() {
+  document.getElementById('fy-form').reset();
+  document.getElementById('fy-id').value = '';
+  document.getElementById('fy-active').checked = true;
+  document.getElementById('fy-sort').value = '0';
+}
+
+function resetLocationForm() {
+  document.getElementById('location-form').reset();
+  document.getElementById('location-edit-id').value = '';
+  document.getElementById('location-active').checked = true;
+  document.getElementById('location-radius').value = '50';
+}
+
+function editAssignment(item) {
+  document.getElementById('assignment-id').value = item.id;
+  document.getElementById('assignment-label').value = item.label || '';
+  document.getElementById('assignment-short').value = item.short_label || '';
+  document.getElementById('assignment-sort').value = item.sort_order || 0;
+  document.getElementById('assignment-active').checked = !!item.active;
+}
+
+function editFy(item) {
+  document.getElementById('fy-id').value = item.id;
+  document.getElementById('fy-label').value = item.label || '';
+  document.getElementById('fy-sort').value = item.sort_order || 0;
+  document.getElementById('fy-active').checked = !!item.active;
+}
+
+function editLocation(item) {
+  document.getElementById('location-edit-id').value = item.id;
+  document.getElementById('location-label').value = item.label || '';
+  document.getElementById('location-short').value = item.short_name || '';
+  document.getElementById('location-latitude').value = item.latitude ?? '';
+  document.getElementById('location-longitude').value = item.longitude ?? '';
+  document.getElementById('location-radius').value = item.radius_meters || 50;
+  document.getElementById('location-active').checked = !!item.active;
+}
+
+async function loadFirmMasters() {
+  const [assignments, years, locations] = await Promise.all([
+    apiFetch('/master-data/all/udin_assignment'),
+    apiFetch('/master-data/all/financial_year'),
+    apiFetch('/master-data/locations/all')
+  ]);
+  assignmentItems = assignments.items || [];
+  fyItems = years.items || [];
+  locationItems = locations.items || [];
+  renderAssignmentTable();
+  renderFyTable();
+  renderLocationTable();
+}
+
+document.getElementById('assignment-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!canManageMasters) return toast('You have view-only access here', 'info');
+  const id = document.getElementById('assignment-id').value;
+  const label = document.getElementById('assignment-label').value.trim();
+  const payload = {
+    key: slugKey(label),
+    label,
+    short_label: document.getElementById('assignment-short').value.trim(),
+    sort_order: Number(document.getElementById('assignment-sort').value || 0),
+    active: document.getElementById('assignment-active').checked
+  };
+  try {
+    if (id) await apiFetch(`/master-data/category/udin_assignment/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/master-data/category/udin_assignment', { method: 'POST', body: payload });
+    resetAssignmentForm();
+    await loadFirmMasters();
+    toast('Assignment master saved', 'success');
+  } catch (err) {
+    toast(err.message || 'Unable to save assignment master', 'error');
+  }
+});
+
+document.getElementById('fy-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!canManageMasters) return toast('You have view-only access here', 'info');
+  const id = document.getElementById('fy-id').value;
+  const label = document.getElementById('fy-label').value.trim();
+  const payload = {
+    key: label,
+    label,
+    short_label: label,
+    sort_order: Number(document.getElementById('fy-sort').value || 0),
+    active: document.getElementById('fy-active').checked
+  };
+  try {
+    if (id) await apiFetch(`/master-data/category/financial_year/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/master-data/category/financial_year', { method: 'POST', body: payload });
+    resetFyForm();
+    await loadFirmMasters();
+    toast('Financial year master saved', 'success');
+  } catch (err) {
+    toast(err.message || 'Unable to save financial year master', 'error');
+  }
+});
+
+document.getElementById('location-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!canManageMasters) return toast('You have view-only access here', 'info');
+  const id = document.getElementById('location-edit-id').value;
+  const payload = {
+    label: document.getElementById('location-label').value.trim(),
+    short_name: document.getElementById('location-short').value.trim(),
+    latitude: document.getElementById('location-latitude').value,
+    longitude: document.getElementById('location-longitude').value,
+    radius_meters: Number(document.getElementById('location-radius').value || 50),
+    active: document.getElementById('location-active').checked
+  };
+  try {
+    if (id) await apiFetch(`/master-data/locations/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/master-data/locations', { method: 'POST', body: payload });
+    resetLocationForm();
+    await loadFirmMasters();
+    toast('Location master saved', 'success');
+  } catch (err) {
+    toast(err.message || 'Unable to save location master', 'error');
+  }
+});
+
+if (!canManageMasters) {
+  document.querySelectorAll('button[type="submit"]').forEach(button => button.disabled = true);
+}
+
+loadFirmMasters().catch(err => toast(err.message || 'Unable to load firm masters', 'error'));
+
+function openSidebar(){document.getElementById('sidebar-el').classList.add('open');document.getElementById('sb-overlay').classList.add('open');}
+function closeSidebar(){document.getElementById('sidebar-el').classList.remove('open');document.getElementById('sb-overlay').classList.remove('open');}
+</script>
+</body>
+</html>
