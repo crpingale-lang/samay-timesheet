@@ -184,8 +184,9 @@ function shouldRefreshSession(token = getToken()) {
 let sessionRefreshPromise = null;
 function inferPermissions(user) {
   if (!user || typeof user !== 'object') return [];
-  if (Array.isArray(user.permissions) && user.permissions.length) return user.permissions;
-  const permissions = ROLE_DEFAULT_PERMISSIONS[user.role] || [];
+  const current = Array.isArray(user.permissions) ? user.permissions.filter(Boolean) : [];
+  const fallback = ROLE_DEFAULT_PERMISSIONS[user.role] || [];
+  const permissions = [...new Set([...current, ...fallback])];
   return permissions.includes('firm.dashboard.view')
     ? permissions
     : [...permissions, 'firm.dashboard.view'];

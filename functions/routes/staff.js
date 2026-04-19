@@ -159,7 +159,6 @@ function toE164PhoneNumber(value) {
 
 function ensurePermissions(role, permissions) {
   const normalizedRole = normalizeRole(role);
-  if (Array.isArray(permissions) && permissions.length) return permissions;
   const fallback = {
     partner: [
       'clients.view','clients.create','clients.edit','clients.delete','clients.import',
@@ -184,9 +183,10 @@ function ensurePermissions(role, permissions) {
       'firm.dashboard.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','attendance.view_own','attendance.create_own','dashboard.view_self',
       'udin.view_own','udin.create','udin.dashboard.view'
-    ]
-  };
-  return fallback[normalizedRole] || [];
+      ]
+    };
+  const current = Array.isArray(permissions) ? permissions.filter(Boolean) : [];
+  return [...new Set([...current, ...(fallback[normalizedRole] || [])])];
 }
 
 function isValidEmail(value) {

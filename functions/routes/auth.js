@@ -350,12 +350,12 @@ function normalizeRole(role) {
 }
 
 function ensurePermissions(role, permissions) {
-  const normalized = Array.isArray(permissions) && permissions.length
-    ? permissions
-    : (ROLE_DEFAULT_PERMISSIONS[normalizeRole(role)] || []);
-  return normalized.includes('firm.dashboard.view')
-    ? normalized
-    : [...normalized, 'firm.dashboard.view'];
+  const fallback = ROLE_DEFAULT_PERMISSIONS[normalizeRole(role)] || [];
+  const current = Array.isArray(permissions) ? permissions.filter(Boolean) : [];
+  const merged = [...new Set([...current, ...fallback])];
+  return merged.includes('firm.dashboard.view')
+    ? merged
+    : [...merged, 'firm.dashboard.view'];
 }
 
 function isValidEmail(value) {
