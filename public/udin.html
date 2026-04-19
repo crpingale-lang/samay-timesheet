@@ -8,6 +8,89 @@
   <meta name="theme-color" content="#4338ca">
   <style>
     html{scroll-padding-top:84px}
+    .sidebar.udin-appsheet-sidebar{
+      background:#fff;
+      border-right:1px solid #d9dee8;
+      box-shadow:none;
+      overflow-y:auto;
+    }
+    .sidebar.udin-appsheet-sidebar::before{
+      content:'';
+      position:sticky;
+      top:0;
+      display:block;
+      height:8px;
+      background:#0d2d71;
+      z-index:2;
+    }
+    .udin-appsheet-sidebar .sidebar-logo{display:none}
+    .udin-appsheet-sidebar .sidebar-nav{padding:10px 0 18px;gap:2px}
+    .udin-appsheet-sidebar .nav-section-label{display:none}
+    .udin-appsheet-sidebar .nav-item{
+      min-height:56px;
+      padding:12px 18px;
+      border-radius:0;
+      background:transparent;
+      border:none;
+      box-shadow:none;
+      color:#8b5a2b;
+      font-size:13px;
+      font-weight:500;
+      gap:14px;
+      transform:none;
+    }
+    .udin-appsheet-sidebar .nav-item:hover{
+      background:#f8fafc;
+      color:#7c2d12;
+      border:none;
+      transform:none;
+    }
+    .udin-appsheet-sidebar .nav-item.active{
+      background:#f9f7f3;
+      color:#7c2d12;
+      border:none;
+      box-shadow:inset 3px 0 0 #d97706;
+    }
+    .udin-appsheet-sidebar .nav-item .nav-icon{
+      width:28px;
+      height:28px;
+      border:none;
+      background:transparent;
+      color:#808996;
+      border-radius:0;
+      box-shadow:none;
+      padding:0;
+    }
+    .udin-appsheet-sidebar .nav-item:hover .nav-icon,
+    .udin-appsheet-sidebar .nav-item.active .nav-icon{
+      background:transparent;
+      border:none;
+      box-shadow:none;
+      color:#6b7280;
+    }
+    .udin-appsheet-sidebar .nav-icon svg{
+      width:22px;
+      height:22px;
+      display:block;
+      stroke:currentColor;
+      fill:none;
+      stroke-width:1.9;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .udin-appsheet-sidebar .nav-label{font-size:14px;line-height:1.15;color:inherit}
+    .udin-appsheet-sidebar .sidebar-footer{
+      margin-top:auto;
+      padding:12px 14px 18px;
+      background:#fff;
+      border-top:1px solid #eef2f7;
+    }
+    .udin-appsheet-sidebar .user-pill{background:#f8fafc;border:1px solid #e2e8f0;backdrop-filter:none}
+    .udin-appsheet-sidebar .user-avatar{background:#0d2d71;color:#fff}
+    .udin-appsheet-sidebar .user-name{color:#0f172a}
+    .udin-appsheet-sidebar .user-role{color:#64748b}
+    .udin-appsheet-sidebar .logout-btn{background:#fff;border:1px solid #e2e8f0;color:#64748b}
+    .udin-appsheet-sidebar .logout-btn:hover{color:#dc2626;background:#fff5f5}
     .udin-hero{border:1px solid var(--border);border-radius:22px;padding:22px;background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(255,255,255,.98) 52%,rgba(67,56,202,.06));box-shadow:0 18px 50px rgba(15,23,42,.05)}
     .udin-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
     .udin-kicker{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
@@ -41,8 +124,13 @@
     .udin-file-link span{font-size:13px;color:var(--text-muted)}
     .udin-sidebar-note{padding:0 14px 14px;font-size:12px;line-height:1.55;color:rgba(255,255,255,.82)}
     .udin-sidebar-note strong{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ecfeff;margin-bottom:4px}
+    .udin-idea-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .udin-idea-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:linear-gradient(180deg,#fff,#f8fafc)}
+    .udin-idea-card h3{font-size:14px;line-height:1.2;margin:0}
+    .udin-idea-card p{margin:8px 0 0;font-size:12.5px;line-height:1.55;color:var(--text-muted)}
+    .udin-idea-pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(217,119,6,.1);color:#9a3412;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
     @media (max-width: 960px){
-      .udin-grid,.udin-summary,.udin-toolbar,.udin-form-grid,.udin-info-grid{grid-template-columns:1fr}
+      .udin-grid,.udin-summary,.udin-toolbar,.udin-form-grid,.udin-info-grid,.udin-idea-grid{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -56,11 +144,11 @@
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div>
           <div class="topbar-title">UDIN Tracker</div>
-          <div class="report-topbar-subtitle">Reviewer queues, UDIN updates, signed copies, and revocation control.</div>
+          <div class="report-topbar-subtitle">AppSheet-style workspace with quick jumps for review, update, upload, and master areas.</div>
         </div>
       </div>
       <div class="topbar-actions">
-        <a href="/module-select.html" class="btn btn-ghost btn-sm"><span class="btn-symbol" aria-hidden="true">⇆</span><span class="btn-label">Modules</span></a>
+        <a href="/module-select.html" class="btn btn-ghost btn-sm" data-module-switcher="true"><span class="btn-symbol" aria-hidden="true">&#8646;</span><span class="btn-label">Modules</span></a>
         <button class="btn btn-ghost btn-sm" onclick="loadUdins()">Refresh</button>
       </div>
     </header>
@@ -196,7 +284,7 @@
 
             <div class="udin-divider"></div>
 
-            <div class="udin-form-grid">
+            <div class="udin-form-grid" id="update-udin-section">
               <div class="form-group">
                 <label class="form-label">UDIN</label>
                 <input class="form-control" id="udin-value" placeholder="Enter UDIN when issued">
@@ -209,7 +297,7 @@
                 <label class="form-label">Copy of Certificate</label>
                 <input class="form-control" id="copy-of-certificate" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp">
               </div>
-              <div class="form-group">
+              <div class="form-group" id="upload-signed-section">
                 <label class="form-label">Income Tax Acknowledgement</label>
                 <input class="form-control" id="income-tax-acknowledgement" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp">
               </div>
@@ -236,6 +324,35 @@
           </div>
         </div>
       </section>
+      <section class="udin-section">
+        <div class="card">
+          <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <div class="card-title">Same-Tab Expansion Idea</div>
+              <div class="card-subtitle">A clean AppSheet-style structure for the next UDIN build phase, keeping report views separate.</div>
+            </div>
+            <span class="udin-idea-pill">Next Layout Pass</span>
+          </div>
+          <div class="udin-idea-grid">
+            <article class="udin-idea-card" id="expiry-section">
+              <h3>UDIN Expiry Tracker</h3>
+              <p>Surface certificates nearing the revocation or expiry window with due-date filtering and owner accountability.</p>
+            </article>
+            <article class="udin-idea-card" id="audit-section">
+              <h3>Audit Tracker</h3>
+              <p>Pin audit-linked requests, document checkpoints, and internal readiness flags in one compact review area.</p>
+            </article>
+            <article class="udin-idea-card" id="entity-master-section">
+              <h3>Entity Master</h3>
+              <p>Keep entity naming, short codes, and default assignment metadata editable without leaving the UDIN module.</p>
+            </article>
+            <article class="udin-idea-card" id="user-master-section">
+              <h3>User Master</h3>
+              <p>Maintain initiators, approvers, and assignment owners here so the sidebar can stay in one continuous workflow.</p>
+            </article>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -248,7 +365,9 @@ if (!hasPermission('udin.dashboard.view') && !hasPermission('udin.view_own') && 
 }
 
 document.getElementById('sidebar-el').innerHTML = UDIN_SIDEBAR_HTML();
+document.getElementById('sidebar-el').classList.add('udin-appsheet-sidebar');
 buildSidebar();
+initUdinSidebarActions();
 syncUdinSidebarActive();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 window.addEventListener('hashchange', syncUdinSidebarActive);
@@ -263,6 +382,23 @@ document.getElementById('financial-year').value = `${new Date().getFullYear()}-$
 let currentItems = [];
 let selectedItem = null;
 let locationOptions = [];
+
+function udinNavIcon(name) {
+  const icons = {
+    home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M7 10.5V19h10v-8.5"/></svg>',
+    list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4.5 6h.01"/><path d="M4.5 12h.01"/><path d="M4.5 18h.01"/></svg>',
+    laptop: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v10H4z"/><path d="M2 19h20"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4"/><path d="M6 5c2-1 4-1 6 0s4 1 6 0v8c-2 1-4 1-6 0s-4-1-6 0"/></svg>',
+    hand: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V7a1.5 1.5 0 0 1 3 0v4"/><path d="M10 11V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M13 11V7.5a1.5 1.5 0 0 1 3 0V12"/><path d="M16 12V9.5a1.5 1.5 0 0 1 3 0v4.5c0 3.3-2.7 6-6 6h-1.3a5.7 5.7 0 0 1-4.9-2.8L5 14.2A1.5 1.5 0 0 1 7.5 12Z"/></svg>',
+    calc: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3.5" width="12" height="17" rx="2"/><path d="M9 7.5h6"/><path d="M9 12h.01"/><path d="M12 12h.01"/><path d="M15 12h.01"/><path d="M9 15.5h.01"/><path d="M12 15.5h.01"/><path d="M15 15.5h.01"/></svg>',
+    check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.2 4.2L19 6.5"/></svg>',
+    building: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V5h12v16"/><path d="M3 21h18"/><path d="M9 8h.01"/><path d="M12 8h.01"/><path d="M15 8h.01"/><path d="M9 12h.01"/><path d="M12 12h.01"/><path d="M15 12h.01"/><path d="M11 21v-4h2v4"/></svg>',
+    users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19a4 4 0 0 0-8 0"/><circle cx="12" cy="9" r="3"/><path d="M20 18a3 3 0 0 0-3-2.8"/><path d="M17.5 7.2a3 3 0 0 1 0 5.6"/><path d="M4 18a3 3 0 0 1 3-2.8"/><path d="M6.5 12.8a3 3 0 0 1 0-5.6"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 6 13h5l-1 9 8-12h-5z"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5"/><path d="m7.5 9.5 4.5-4.5 4.5 4.5"/><path d="M5 19h14"/></svg>'
+  };
+  return icons[name] || icons.list;
+}
 
 function UDIN_SIDEBAR_HTML() {
   return `
@@ -313,6 +449,82 @@ function syncUdinSidebarActive() {
   const activeClass = map[hash] || 'nav-item-udin-overview';
   document.querySelector(`.sidebar .${activeClass}`)?.classList.add('active');
 }
+
+UDIN_SIDEBAR_HTML = function () {
+  return `
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="#overview-section" data-nav-key="dashboard" data-hash="#overview-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('home')}</span><span class="nav-label">Dashboard</span></a>
+      <a class="nav-item" href="#requests-section" data-nav-key="udin-not-updated" data-hash="#requests-section" data-scope="updates"><span class="nav-icon" aria-hidden="true">${udinNavIcon('list')}</span><span class="nav-label">UDIN not updated</span></a>
+      <a class="nav-item" href="#requests-section" data-nav-key="udin-data" data-hash="#requests-section" data-scope="all"><span class="nav-icon" aria-hidden="true">${udinNavIcon('laptop')}</span><span class="nav-label">UDIN Data</span></a>
+      <a class="nav-item" href="#expiry-section" data-nav-key="udin-expiry" data-hash="#expiry-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('flag')}</span><span class="nav-label">UDIN Expiry Tracker</span></a>
+      <a class="nav-item" href="#create-section" data-nav-key="add-request" data-hash="#create-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('hand')}</span><span class="nav-label">Add UDIN request for Approval</span></a>
+      <a class="nav-item" href="#audit-section" data-nav-key="audit-tracker" data-hash="#audit-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('calc')}</span><span class="nav-label">Audit Tracker</span></a>
+      <a class="nav-item" href="#requests-section" data-nav-key="approve-assignment" data-hash="#requests-section" data-scope="review"><span class="nav-icon" aria-hidden="true">${udinNavIcon('check')}</span><span class="nav-label">Approve assignment</span></a>
+      <a class="nav-item" href="#entity-master-section" data-nav-key="entity-master" data-hash="#entity-master-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('building')}</span><span class="nav-label">Entity Master</span></a>
+      <a class="nav-item" href="#user-master-section" data-nav-key="user-master" data-hash="#user-master-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('users')}</span><span class="nav-label">User Master</span></a>
+      <a class="nav-item" href="#update-udin-section" data-nav-key="update-udin" data-hash="#update-udin-section" data-focus="udin-value"><span class="nav-icon" aria-hidden="true">${udinNavIcon('bolt')}</span><span class="nav-label">Update UDIN Data</span></a>
+      <a class="nav-item" href="#upload-signed-section" data-nav-key="upload-signed" data-hash="#upload-signed-section" data-focus="copy-of-certificate"><span class="nav-icon" aria-hidden="true">${udinNavIcon('upload')}</span><span class="nav-label">Upload Signed Copy</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">User</div>
+          <div class="user-role" id="sidebar-user-role">Role</div>
+        </div>
+        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
+      </div>
+    </div>
+  `;
+};
+
+function initUdinSidebarActions() {
+  document.querySelectorAll('.sidebar [data-nav-key]').forEach(link => {
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      const key = link.dataset.navKey || 'dashboard';
+      const hash = link.dataset.hash || '#overview-section';
+      const scope = link.dataset.scope;
+      sessionStorage.setItem('ts_udin_nav_key', key);
+
+      if (scope && document.getElementById('scope-filter')) {
+        document.getElementById('scope-filter').value = scope;
+        loadUdins();
+      }
+
+      window.location.hash = hash;
+      document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      syncUdinSidebarActive();
+
+      const focusId = link.dataset.focus;
+      if (focusId) {
+        window.setTimeout(() => document.getElementById(focusId)?.focus(), 320);
+      }
+    });
+  });
+}
+
+syncUdinSidebarActive = function () {
+  const hash = window.location.hash || '#overview-section';
+  const map = {
+    '#overview-section': 'dashboard',
+    '#expiry-section': 'udin-expiry',
+    '#audit-section': 'audit-tracker',
+    '#entity-master-section': 'entity-master',
+    '#user-master-section': 'user-master',
+    '#update-udin-section': 'update-udin',
+    '#upload-signed-section': 'upload-signed'
+  };
+  const storedKey = sessionStorage.getItem('ts_udin_nav_key') || 'dashboard';
+  const activeKey = hash === '#requests-section' || hash === '#create-section' ? storedKey : (map[hash] || storedKey);
+  document.querySelectorAll('.sidebar [data-nav-key]').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.sidebar [data-nav-key="${activeKey}"]`)?.classList.add('active');
+};
+
+document.getElementById('sidebar-el').innerHTML = UDIN_SIDEBAR_HTML();
+buildSidebar();
+initUdinSidebarActions();
+syncUdinSidebarActive();
 
 function persistState() {
   writeViewState('udin', {
