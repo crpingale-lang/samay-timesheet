@@ -13,6 +13,8 @@ const timesheetMastersRoutes = require('./routes/timesheet-masters');
 const timesheetRoutes = require('./routes/timesheets');
 const reportRoutes = require('./routes/reports');
 const feedbackRoutes = require('./routes/feedback');
+const form15cbRoutes = require('./functions/routes/form15cb');
+const udinRoutes = require('./routes/udin');
 
 const app = express();
 
@@ -63,6 +65,8 @@ app.use('/api/timesheet-masters', authMiddleware, timesheetMastersRoutes);
 app.use('/api/timesheets', authMiddleware, timesheetRoutes);
 app.use('/api/reports', authMiddleware, managerOrAbove, reportRoutes);
 app.use('/api/feedback', authMiddleware, feedbackRoutes);
+app.use('/api/form15cb', authMiddleware, form15cbRoutes);
+app.use('/api/udin', authMiddleware, udinRoutes);
 
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
