@@ -16,7 +16,7 @@
           <div class="module-gate-kicker">Workspace switch</div>
           <h1 class="module-gate-title" id="module-select-title">Choose the module to open</h1>
           <p class="module-gate-subtitle">
-            Pick the workspace you want to open next. Timesheet is live, UDIN Tracker is coming soon, and Form 15CB Converter is ready for TDS certificate processing.
+            Pick the workspace you want to open next. Timesheet is live, UDIN Tracker is live, and Form 15CB Converter is ready for TDS certificate processing.
           </p>
 
           <div class="module-gate-highlights" aria-label="Module summary">
@@ -31,7 +31,7 @@
               <div class="module-gate-highlight-icon" aria-hidden="true" style="background:linear-gradient(135deg,var(--accent),#f97316);box-shadow:0 10px 24px rgba(217,119,6,0.22);">U</div>
               <div>
                 <strong>UDIN Tracker</strong>
-                <span>Reserved for the upcoming UDIN workflow and tracking experience.</span>
+                <span>Open the UDIN workflow for review, update, signed copy, and revocation.</span>
               </div>
             </div>
             <div class="module-gate-highlight">
@@ -48,7 +48,7 @@
           <div class="module-gate-visual-label">Module routing</div>
           <div class="module-gate-visual-number" id="module-visual-number">01</div>
           <div class="module-gate-visual-copy" id="module-visual-copy">
-            Timesheet is the active workspace. UDIN Tracker will be mapped once it is ready.
+            Timesheet is the active workspace. UDIN Tracker is available now.
           </div>
         </div>
       </div>
@@ -163,10 +163,10 @@ const moduleCards = {
     number: '01',
     accent: 'var(--primary)'
   },
-  'udin-tracker': {
+    'udin-tracker': {
     title: 'UDIN Tracker',
-    copy: 'This module is reserved for the future UDIN tracker experience. The placeholder landing page is live for now.',
-    status: 'Coming soon',
+    copy: 'Open the live UDIN workflow for new requests, reviewer queues, updates, uploads, and revocations.',
+    status: 'Live',
     number: '02',
     accent: 'var(--accent)'
   },
@@ -196,7 +196,7 @@ function renderModuleDetails(moduleKey) {
     metaDot.style.background = 'var(--primary)';
     metaDot.style.boxShadow = '0 0 0 5px rgba(99, 102, 241, 0.12)';
     visualNumber.textContent = '01';
-    visualCopy.textContent = 'Timesheet is the active workspace. UDIN Tracker will be mapped once it is ready.';
+    visualCopy.textContent = 'Timesheet is the active workspace. UDIN Tracker is available now.';
     continueBtn.disabled = true;
     return;
   }
@@ -215,7 +215,7 @@ function renderModuleDetails(moduleKey) {
   visualNumber.textContent = moduleData.number;
   const visualCopyMap = {
     timesheet:       'Open the main workspace to continue into the live timesheet app.',
-    'udin-tracker':  'Open the placeholder page while the UDIN Tracker module is being built.',
+    'udin-tracker':  'Open the live UDIN workflow to manage requests, approvals, updates, and revocations.',
     form15cb:        'Convert 15CB XML to Form 146 JSON, manage masters, and review historical transactions.'
   };
   visualCopy.textContent = visualCopyMap[moduleKey] || moduleData.copy;

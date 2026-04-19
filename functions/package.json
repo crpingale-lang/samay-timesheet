@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": "22"
+    "node": "20"
   },
   "description": "",
   "dependencies": {

@@ -43,6 +43,7 @@ function fullAdminPermissions() {
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
     'reports.view','reports.export','dashboard.view_self','dashboard.view_team','dashboard.view_firm',
+    'udin.view_own','udin.create','udin.update','udin.review','udin.revoke','udin.dashboard.view',
     'feedback.view'
   ];
 }

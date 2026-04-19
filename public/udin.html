@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UDIN Tracker - Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4338ca">
+  <style>
+    .udin-hero{border:1px solid var(--border);border-radius:22px;padding:22px;background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(255,255,255,.98) 52%,rgba(67,56,202,.06));box-shadow:0 18px 50px rgba(15,23,42,.05)}
+    .udin-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+    .udin-kicker{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+    .udin-title{margin:8px 0 0;font-size:32px;line-height:1.02;letter-spacing:-.03em}
+    .udin-copy{margin:10px 0 0;max-width:78ch;color:var(--text-muted);font-size:14px;line-height:1.6}
+    .udin-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .udin-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg);font-size:12px;font-weight:700;color:var(--text-muted)}
+    .udin-badge strong{color:var(--text)}
+    .udin-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,.9fr);gap:16px;align-items:start}
+    .udin-section{margin-top:18px}
+    .udin-panel{border:1px solid var(--border);border-radius:18px;padding:16px;background:var(--bg)}
+    .udin-panel-title{font-size:18px;font-weight:800;line-height:1.1;margin:0}
+    .udin-panel-sub{font-size:13px;color:var(--text-muted);line-height:1.5;margin:6px 0 0}
+    .udin-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-top:16px}
+    .udin-summary .stat-card{min-height:118px}
+    .udin-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+    .udin-toolbar .form-group{margin:0}
+    .udin-list .mobile-stack-table tbody tr{cursor:pointer}
+    .udin-list .mobile-stack-table tbody tr.active{background:rgba(67,56,202,.05)}
+    .udin-detail{display:grid;gap:12px}
+    .udin-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .udin-meta{border:1px solid var(--border);border-radius:14px;padding:12px;background:rgba(255,255,255,.92)}
+    .udin-meta .k{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+    .udin-meta .v{margin-top:5px;font-size:14px;font-weight:700;word-break:break-word}
+    .udin-divider{height:1px;background:var(--border);margin:6px 0}
+    .udin-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .udin-form-grid .form-group{margin:0}
+    .udin-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+    .udin-file-list{display:grid;gap:8px}
+    .udin-file-link{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+    .udin-file-link span{font-size:13px;color:var(--text-muted)}
+    @media (max-width: 960px){
+      .udin-grid,.udin-summary,.udin-toolbar,.udin-form-grid,.udin-info-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
+        <div>
+          <div class="topbar-title">UDIN Tracker</div>
+          <div class="report-topbar-subtitle">Reviewer queues, UDIN updates, signed copies, and revocation control.</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/module-select.html" class="btn btn-ghost btn-sm"><span class="btn-symbol" aria-hidden="true">⇆</span><span class="btn-label">Modules</span></a>
+        <button class="btn btn-ghost btn-sm" onclick="loadUdins()">Refresh</button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <section class="udin-hero">
+        <div class="udin-hero-top">
+          <div>
+            <div class="udin-kicker">Assurance workflow</div>
+            <h1 class="udin-title">Manage UDIN requests from review to revocation</h1>
+            <p class="udin-copy">
+              This workspace covers the complete office loop: create a request, route it for review, update the UDIN, upload the signed copy, and revoke if the generation window still allows it.
+            </p>
+            <div class="udin-badges">
+              <div class="udin-badge"><strong>Review</strong> reviewer queue and approvals</div>
+              <div class="udin-badge"><strong>Update</strong> UDIN and generation date</div>
+              <div class="udin-badge"><strong>Upload</strong> signed copies and acknowledgements</div>
+              <div class="udin-badge"><strong>Revoke</strong> within the allowed window</div>
+            </div>
+          </div>
+          <div class="report-sync" id="udin-sync">Loading</div>
+        </div>
+      </section>
+
+      <div class="udin-summary">
+        <div class="stat-card indigo"><div class="stat-label">Total</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub">All UDIN requests</div></div>
+        <div class="stat-card amber"><div class="stat-label">Pending Review</div><div class="stat-value" id="stat-pending">0</div><div class="stat-sub">Waiting for reviewer action</div></div>
+        <div class="stat-card green"><div class="stat-label">Approved</div><div class="stat-value" id="stat-approved">0</div><div class="stat-sub">Approved or updated</div></div>
+        <div class="stat-card blue"><div class="stat-label">Need UDIN</div><div class="stat-value" id="stat-needs-udin">0</div><div class="stat-sub">Approved but not updated</div></div>
+        <div class="stat-card amber"><div class="stat-label">Signed Copy Pending</div><div class="stat-value" id="stat-signed-copy">0</div><div class="stat-sub">UDIN updated, file missing</div></div>
+        <div class="stat-card blue"><div class="stat-label">Revocable</div><div class="stat-value" id="stat-revocable">0</div><div class="stat-sub">Within 3 days of generation</div></div>
+      </div>
+
+      <section class="udin-section udin-grid">
+        <div class="card udin-list">
+          <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <div class="card-title">UDIN Requests</div>
+              <div class="card-subtitle">Filter by scope, status, and search text.</div>
+            </div>
+          </div>
+          <div class="udin-toolbar">
+            <div class="form-group">
+              <label class="form-label">Scope</label>
+              <select class="form-control" id="scope-filter">
+                <option value="all">All</option>
+                <option value="mine">My Requests</option>
+                <option value="review">Review Queue</option>
+                <option value="updates">Update Queue</option>
+                <option value="revocable">Revocable</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-control" id="status-filter">
+                <option value="">Any</option>
+                <option value="pending_review">Pending Review</option>
+                <option value="approved">Approved</option>
+                <option value="udin_updated">UDIN Updated</option>
+                <option value="revocation_pending">Revocation Pending</option>
+                <option value="revoked">Revoked</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Search</label>
+              <input class="form-control" type="text" id="search-box" placeholder="Unique ID, entity, party, UDIN">
+            </div>
+            <div class="form-group" style="display:flex;align-items:end;">
+              <button class="btn btn-primary" type="button" onclick="loadUdins()">Apply</button>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="mobile-stack-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Unique ID</th>
+                  <th>Entity</th>
+                  <th>Party</th>
+                  <th>Status</th>
+                  <th class="hide-mobile">UDIN</th>
+                </tr>
+              </thead>
+              <tbody id="udin-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <div class="card-title" id="detail-title">Create Request</div>
+              <div class="card-subtitle" id="detail-subtitle">New items start in the reviewer queue.</div>
+            </div>
+          </div>
+
+          <div class="udin-detail">
+            <div class="udin-info-grid">
+              <div class="udin-meta"><div class="k">Selected ID</div><div class="v" id="detail-id">-</div></div>
+              <div class="udin-meta"><div class="k">Status</div><div class="v" id="detail-status">-</div></div>
+              <div class="udin-meta"><div class="k">Internal Ref</div><div class="v" id="detail-internal-ref">-</div></div>
+              <div class="udin-meta"><div class="k">Revocable</div><div class="v" id="detail-revocable">-</div></div>
+            </div>
+
+            <form id="udin-form">
+              <input type="hidden" id="selected-id">
+              <div class="udin-form-grid">
+                <div class="form-group"><label class="form-label">Original / Revised</label><input class="form-control" id="original-revised" placeholder="Original"></div>
+                <div class="form-group"><label class="form-label">Date of Request</label><input class="form-control" id="date-of-request" type="date"></div>
+                <div class="form-group"><label class="form-label">Unique ID *</label><input class="form-control" id="unique-id" required></div>
+                <div class="form-group"><label class="form-label">Entity Name *</label><input class="form-control" id="entity-name" required></div>
+                <div class="form-group"><label class="form-label">Assignment Type *</label><input class="form-control" id="assignment-type" required></div>
+                <div class="form-group"><label class="form-label">Party Name *</label><input class="form-control" id="party-name" required></div>
+                <div class="form-group"><label class="form-label">Branch</label><input class="form-control" id="branch"></div>
+                <div class="form-group"><label class="form-label">Location</label><select class="form-control" id="location-id"><option value="">Loading...</option></select></div>
+                <div class="form-group"><label class="form-label">Folder Number</label><input class="form-control" id="folder-number"></div>
+                <div class="form-group"><label class="form-label">Financial Year</label><input class="form-control" id="financial-year" placeholder="2025-26"></div>
+                <div class="form-group"><label class="form-label">Path for Documentation</label><input class="form-control" id="path-for-documentation"></div>
+                <div class="form-group"><label class="form-label">Remittance Approver</label><input class="form-control" id="remittance-approver"></div>
+                <div class="form-group"><label class="form-label">Original UDIN</label><input class="form-control" id="original-udin"></div>
+                <div class="form-group"><label class="form-label">IT Ack. No.</label><input class="form-control" id="original-income-tax-acknowledgement-number"></div>
+                <div class="form-group"><label class="form-label">Entity Short Name</label><input class="form-control" id="entity-short-name"></div>
+                <div class="form-group"><label class="form-label">Assignment Short Name</label><input class="form-control" id="assignment-type-short"></div>
+                <div class="form-group"><label class="form-label">Location Short Name</label><input class="form-control" id="location-short-name"></div>
+                <div class="form-group"><label class="form-label">Initiated By</label><input class="form-control" id="initiated-by"></div>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+                <button class="btn btn-primary" type="submit" id="save-request-btn">Save Request</button>
+                <button class="btn btn-ghost" type="button" onclick="clearForm()">Clear</button>
+              </div>
+            </form>
+
+            <div class="udin-divider"></div>
+
+            <div class="udin-form-grid">
+              <div class="form-group">
+                <label class="form-label">UDIN</label>
+                <input class="form-control" id="udin-value" placeholder="Enter UDIN when issued">
+              </div>
+              <div class="form-group">
+                <label class="form-label">UDIN Generation Date</label>
+                <input class="form-control" id="udin-generation-date" type="date">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Copy of Certificate</label>
+                <input class="form-control" id="copy-of-certificate" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Income Tax Acknowledgement</label>
+                <input class="form-control" id="income-tax-acknowledgement" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp">
+              </div>
+              <div class="form-group" style="grid-column:1/-1;">
+                <label class="form-label">Revocation Reason</label>
+                <textarea class="form-control" id="revocation-reason" rows="2" placeholder="Why should this UDIN be revoked?"></textarea>
+              </div>
+            </div>
+
+            <div class="udin-actions">
+              <button class="btn btn-success" type="button" id="review-approve-btn" onclick="reviewRequest('approve')">Approve</button>
+              <button class="btn btn-danger" type="button" id="review-reject-btn" onclick="reviewRequest('reject')">Reject</button>
+              <button class="btn btn-primary" type="button" id="update-udin-btn" onclick="updateUdin()">Save UDIN</button>
+              <button class="btn btn-ghost" type="button" id="upload-files-btn" onclick="uploadFiles()">Upload Files</button>
+              <button class="btn btn-danger-ghost" type="button" id="revoke-btn" onclick="revokeUdin()">Revoke</button>
+            </div>
+
+            <div>
+              <div class="card-title" style="font-size:16px;">Files</div>
+              <div class="udin-file-list" id="file-list">
+                <div class="empty-state"><div class="empty-icon">⏳</div>Select a request to see attachments.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+if (!hasPermission('udin.dashboard.view') && !hasPermission('udin.view_own') && !hasPermission('udin.review')) {
+  window.location.replace(getDefaultLandingPage());
+}
+
+document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+buildSidebar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+const state = readViewState('udin') || {};
+document.getElementById('scope-filter').value = state.scope || 'all';
+document.getElementById('status-filter').value = state.status || '';
+document.getElementById('search-box').value = state.q || '';
+document.getElementById('date-of-request').value = today();
+document.getElementById('financial-year').value = `${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+
+let currentItems = [];
+let selectedItem = null;
+let locationOptions = [];
+
+function persistState() {
+  writeViewState('udin', {
+    scope: document.getElementById('scope-filter').value,
+    status: document.getElementById('status-filter').value,
+    q: document.getElementById('search-box').value.trim()
+  });
+}
+
+function setSync(text, mode = 'idle') {
+  const el = document.getElementById('udin-sync');
+  el.textContent = text;
+  el.className = `report-sync ${mode}`;
+}
+
+function formatDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-IN');
+}
+
+function statusBadge(status) {
+  const normalized = String(status || '').toLowerCase();
+  const map = {
+    pending_review: ['badge-pending_manager', 'Pending Review'],
+    approved: ['badge-approved', 'Approved'],
+    udin_updated: ['badge-approved', 'UDIN Updated'],
+    revocation_pending: ['badge-pending_partner', 'Revocation Pending'],
+    revoked: ['badge-rejected', 'Revoked'],
+    rejected: ['badge-rejected', 'Rejected']
+  };
+  const [cls, label] = map[normalized] || ['badge-draft', status || 'Draft'];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function clearForm() {
+  document.getElementById('selected-id').value = '';
+  document.getElementById('udin-form').reset();
+  document.getElementById('date-of-request').value = today();
+  document.getElementById('financial-year').value = `${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+  document.getElementById('detail-id').textContent = '-';
+  document.getElementById('detail-status').textContent = '-';
+  document.getElementById('detail-internal-ref').textContent = '-';
+  document.getElementById('detail-revocable').textContent = '-';
+  document.getElementById('detail-title').textContent = 'Create Request';
+  document.getElementById('detail-subtitle').textContent = 'New items start in the reviewer queue.';
+  document.getElementById('file-list').innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Select a request to see attachments.</div>';
+  selectedItem = null;
+}
+
+function fillForm(item) {
+  document.getElementById('selected-id').value = item.id || '';
+  document.getElementById('detail-id').textContent = item.id || '-';
+  document.getElementById('detail-status').textContent = item.approval_status || item.workflow_status || '-';
+  document.getElementById('detail-internal-ref').textContent = item.internal_reference_for_udin || '-';
+  document.getElementById('detail-revocable').textContent = item.revocable ? 'Yes' : 'No';
+  document.getElementById('detail-title').textContent = item.unique_id || 'UDIN Request';
+  document.getElementById('detail-subtitle').textContent = item.entity_name || '';
+
+  document.getElementById('original-revised').value = item.original_revised || '';
+  document.getElementById('date-of-request').value = item.date_of_request || today();
+  document.getElementById('unique-id').value = item.unique_id || '';
+  document.getElementById('entity-name').value = item.entity_name || '';
+  document.getElementById('assignment-type').value = item.assignment_type || '';
+  document.getElementById('party-name').value = item.party_name || '';
+  document.getElementById('branch').value = item.branch || '';
+  document.getElementById('location-id').value = item.location_id || '';
+  document.getElementById('folder-number').value = item.folder_number || '';
+  document.getElementById('financial-year').value = item.financial_year || '';
+  document.getElementById('path-for-documentation').value = item.path_for_documentation || '';
+  document.getElementById('remittance-approver').value = item.remittance_approver || '';
+  document.getElementById('original-udin').value = item.original_udin || '';
+  document.getElementById('original-income-tax-acknowledgement-number').value = item.original_income_tax_acknowledgement_number || '';
+  document.getElementById('entity-short-name').value = item.entity_short_name || '';
+  document.getElementById('assignment-type-short').value = item.assignment_type_short || '';
+  document.getElementById('location-short-name').value = item.location_short_name || '';
+  document.getElementById('initiated-by').value = item.initiated_by_name || '';
+  document.getElementById('udin-value').value = item.udin || '';
+  document.getElementById('udin-generation-date').value = item.udin_generation_date || '';
+  document.getElementById('revocation-reason').value = item.revocation_reason || '';
+
+  const files = [];
+  if (item.copy_of_certificate_storage_path) {
+    files.push(`<a class="udin-file-link" href="/api/udin/files/${item.id}/copy_of_certificate" target="_blank" rel="noreferrer"><strong>Copy of Certificate</strong><span>${item.copy_of_certificate_name || 'Download'}</span></a>`);
+  }
+  if (item.income_tax_acknowledgement_storage_path) {
+    files.push(`<a class="udin-file-link" href="/api/udin/files/${item.id}/income_tax_acknowledgement" target="_blank" rel="noreferrer"><strong>Income Tax Acknowledgement</strong><span>${item.income_tax_acknowledgement_name || 'Download'}</span></a>`);
+  }
+  if (!files.length) {
+    document.getElementById('file-list').innerHTML = '<div class="empty-state"><div class="empty-icon">📎</div>No files uploaded yet.</div>';
+  } else {
+    document.getElementById('file-list').innerHTML = files.join('');
+  }
+
+  selectedItem = item;
+}
+
+function renderRows(items) {
+  const tbody = document.getElementById('udin-tbody');
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '⏳', title: 'No UDIN requests', subtitle: 'Create the first request to begin the workflow.' })}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(item => `
+    <tr class="${selectedItem?.id === item.id ? 'active' : ''}" onclick="selectRequest('${item.id}')">
+      <td data-label="Date">${formatDate(item.date_of_request)}</td>
+      <td data-label="Unique ID"><strong>${item.unique_id || '-'}</strong></td>
+      <td data-label="Entity">${item.entity_name || '-'}</td>
+      <td data-label="Party">${item.party_name || '-'}</td>
+      <td data-label="Status">${statusBadge(item.workflow_status)}</td>
+      <td data-label="UDIN" class="hide-mobile">${item.udin || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadLocations() {
+  try {
+    const result = await apiFetch('/master-data');
+    locationOptions = Array.isArray(result.locations) ? result.locations : [];
+    const select = document.getElementById('location-id');
+    select.innerHTML = '<option value="">Select location</option>' + locationOptions.map(loc => `<option value="${loc.id}">${loc.label}</option>`).join('');
+  } catch (err) {
+    document.getElementById('location-id').innerHTML = '<option value="">Unable to load locations</option>';
+  }
+}
+
+async function loadSummary() {
+  const scope = document.getElementById('scope-filter').value;
+  const q = document.getElementById('search-box').value.trim();
+  const status = document.getElementById('status-filter').value;
+  persistState();
+  const params = new URLSearchParams();
+  if (scope) params.set('scope', scope);
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  try {
+    const result = await apiFetch(`/udin/summary?${params.toString()}`);
+    document.getElementById('stat-total').textContent = String(result.summary?.total || 0);
+    document.getElementById('stat-pending').textContent = String(result.summary?.pending_review || 0);
+    document.getElementById('stat-approved').textContent = String(result.summary?.approved || 0);
+    document.getElementById('stat-needs-udin').textContent = String(result.summary?.needs_udin || 0);
+    document.getElementById('stat-signed-copy').textContent = String(result.summary?.signed_copy_pending || 0);
+    document.getElementById('stat-revocable').textContent = String(result.summary?.revocable || 0);
+  } catch (err) {
+    toast(err.message || 'Unable to load UDIN summary', 'error');
+  }
+}
+
+async function loadUdins() {
+  const scope = document.getElementById('scope-filter').value;
+  const q = document.getElementById('search-box').value.trim();
+  const status = document.getElementById('status-filter').value;
+  persistState();
+  setSync('Refreshing...', 'loading');
+  const params = new URLSearchParams();
+  if (scope) params.set('scope', scope);
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  try {
+    const items = await apiFetch(`/udin?${params.toString()}`);
+    currentItems = Array.isArray(items) ? items : [];
+    renderRows(currentItems);
+    setSync(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
+    await loadSummary();
+    if (!selectedItem && currentItems.length) {
+      selectRequest(currentItems[0].id);
+    } else if (selectedItem) {
+      const refreshed = currentItems.find(item => item.id === selectedItem.id);
+      if (refreshed) fillForm(refreshed);
+    }
+  } catch (err) {
+    setSync('Load failed', 'error');
+    toast(err.message || 'Unable to load UDIN requests', 'error');
+    document.getElementById('udin-tbody').innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '⚠', title: 'UDIN requests could not load', subtitle: 'Please try again in a moment.', actionLabel: 'Retry', action: 'loadUdins()' })}</td></tr>`;
+  }
+}
+
+async function selectRequest(id) {
+  const item = currentItems.find(entry => entry.id === id);
+  if (!item) return;
+  fillForm(item);
+  renderRows(currentItems);
+}
+
+async function saveRequest(event) {
+  event.preventDefault();
+  const selectedId = document.getElementById('selected-id').value;
+  const payload = {
+    original_revised: document.getElementById('original-revised').value,
+    date_of_request: document.getElementById('date-of-request').value,
+    unique_id: document.getElementById('unique-id').value,
+    entity_name: document.getElementById('entity-name').value,
+    assignment_type: document.getElementById('assignment-type').value,
+    party_name: document.getElementById('party-name').value,
+    branch: document.getElementById('branch').value,
+    location_id: document.getElementById('location-id').value,
+    folder_number: document.getElementById('folder-number').value,
+    financial_year: document.getElementById('financial-year').value,
+    path_for_documentation: document.getElementById('path-for-documentation').value,
+    remittance_approver: document.getElementById('remittance-approver').value,
+    original_udin: document.getElementById('original-udin').value,
+    original_income_tax_acknowledgement_number: document.getElementById('original-income-tax-acknowledgement-number').value,
+    entity_short_name: document.getElementById('entity-short-name').value,
+    assignment_type_short: document.getElementById('assignment-type-short').value,
+    location_short_name: document.getElementById('location-short-name').value,
+    initiated_by_name: document.getElementById('initiated-by').value
+  };
+  try {
+    if (selectedId) {
+      await apiFetch(`/udin/${selectedId}`, { method: 'PUT', body: payload });
+      toast('Request updated', 'success');
+    } else {
+      await apiFetch('/udin', { method: 'POST', body: payload });
+      toast('Request created', 'success');
+    }
+    clearForm();
+    await loadUdins();
+  } catch (err) {
+    toast(err.message || 'Unable to save request', 'error');
+  }
+}
+
+async function reviewRequest(action) {
+  if (!selectedItem) return toast('Select a request first', 'info');
+  try {
+    await apiFetch(`/udin/${selectedItem.id}/review`, {
+      method: 'POST',
+      body: {
+        action,
+        comment: action === 'reject' ? document.getElementById('revocation-reason').value : ''
+      }
+    });
+    toast(action === 'approve' ? 'Request approved' : 'Request rejected', action === 'approve' ? 'success' : 'info');
+    await loadUdins();
+  } catch (err) {
+    toast(err.message || 'Unable to review request', 'error');
+  }
+}
+
+async function updateUdin() {
+  if (!selectedItem) return toast('Select a request first', 'info');
+  try {
+    await apiFetch(`/udin/${selectedItem.id}/update`, {
+      method: 'POST',
+      body: {
+        udin: document.getElementById('udin-value').value,
+        udin_generation_date: document.getElementById('udin-generation-date').value
+      }
+    });
+    toast('UDIN updated', 'success');
+    await loadUdins();
+  } catch (err) {
+    toast(err.message || 'Unable to update UDIN', 'error');
+  }
+}
+
+async function uploadFiles() {
+  if (!selectedItem) return toast('Select a request first', 'info');
+  const formData = new FormData();
+  const copy = document.getElementById('copy-of-certificate').files[0];
+  const ack = document.getElementById('income-tax-acknowledgement').files[0];
+  if (copy) formData.append('copy_of_certificate', copy);
+  if (ack) formData.append('income_tax_acknowledgement', ack);
+  if (!copy && !ack) return toast('Choose at least one file', 'info');
+  try {
+    await apiFetch(`/udin/${selectedItem.id}/upload`, { method: 'POST', body: formData });
+    toast('Files uploaded', 'success');
+    await loadUdins();
+  } catch (err) {
+    toast(err.message || 'Unable to upload files', 'error');
+  }
+}
+
+async function revokeUdin() {
+  if (!selectedItem) return toast('Select a request first', 'info');
+  const reason = document.getElementById('revocation-reason').value.trim();
+  if (!reason) return toast('Please add a revocation reason', 'info');
+  try {
+    await apiFetch(`/udin/${selectedItem.id}/revoke`, {
+      method: 'POST',
+      body: { reason }
+    });
+    toast('UDIN revoked', 'success');
+    await loadUdins();
+  } catch (err) {
+    toast(err.message || 'Unable to revoke UDIN', 'error');
+  }
+}
+
+document.getElementById('udin-form').addEventListener('submit', saveRequest);
+document.getElementById('search-box').addEventListener('input', () => loadUdins());
+document.getElementById('scope-filter').addEventListener('change', () => loadUdins());
+document.getElementById('status-filter').addEventListener('change', () => loadUdins());
+
+function openSidebar() {
+  document.getElementById('sidebar-el').classList.add('open');
+  document.getElementById('sb-overlay').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar-el').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('open');
+}
+
+loadLocations().then(() => {
+  clearForm();
+  loadUdins();
+});
+</script>
+</body>
+</html>

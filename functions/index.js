@@ -1,11 +1,12 @@
 const functions = require('firebase-functions/v1');
+const { onRequest } = require('firebase-functions/v2/https');
 const { app } = require('./app');
 const {
   sendDailyManagementReport,
   sendWeeklyManagementReport
 } = require('./management-report-mailer');
 
-exports.api = functions.https.onRequest(app);
+exports.api = onRequest(app);
 exports.dailyManagementReport = functions.pubsub
   .schedule('0 20 * * *')
   .timeZone('Asia/Kolkata')
