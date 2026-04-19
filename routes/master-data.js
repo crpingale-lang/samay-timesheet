@@ -23,9 +23,9 @@ router.get('/', (req, res) => {
     work_classifications: listCategory('work_classification'),
     udin_assignments: listCategory('udin_assignment'),
     financial_years: listCategory('financial_year'),
-    locations: db.prepare(`
-      SELECT id, location AS label, short_name, latitude, longitude, radius_meters, active
-      FROM location_master
+    udin_locations: db.prepare(`
+      SELECT id, location AS label, short_name, active
+      FROM udin_location_master
       WHERE active = 1
       ORDER BY location ASC
     `).all()
@@ -87,8 +87,8 @@ router.put('/category/:category/:id', (req, res) => {
 
 router.get('/locations/all', (req, res) => {
   const items = db.prepare(`
-    SELECT id, location AS label, short_name, latitude, longitude, radius_meters, active
-    FROM location_master
+    SELECT id, location AS label, short_name, active
+    FROM udin_location_master
     ORDER BY active DESC, location ASC
   `).all();
   res.json({ items });
@@ -96,19 +96,16 @@ router.get('/locations/all', (req, res) => {
 
 router.post('/locations', (req, res) => {
   if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
-  const { label, short_name, latitude, longitude, radius_meters, active } = req.body || {};
+  const { label, short_name, active } = req.body || {};
   const location = String(label || '').trim();
   if (!location) return res.status(400).json({ error: 'Location name is required' });
   try {
     const result = db.prepare(`
-      INSERT INTO location_master (location, short_name, latitude, longitude, radius_meters, active, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      INSERT INTO udin_location_master (location, short_name, active, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
     `).run(
       location,
       String(short_name || '').trim() || null,
-      latitude === '' || latitude == null ? null : Number(latitude),
-      longitude === '' || longitude == null ? null : Number(longitude),
-      radius_meters ? Number(radius_meters) : 50,
       active === undefined ? 1 : (active ? 1 : 0)
     );
     res.json({ id: result.lastInsertRowid });
@@ -120,20 +117,17 @@ router.post('/locations', (req, res) => {
 
 router.put('/locations/:id', (req, res) => {
   if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
-  const { label, short_name, latitude, longitude, radius_meters, active } = req.body || {};
+  const { label, short_name, active } = req.body || {};
   const location = String(label || '').trim();
   if (!location) return res.status(400).json({ error: 'Location name is required' });
   try {
     db.prepare(`
-      UPDATE location_master
-      SET location = ?, short_name = ?, latitude = ?, longitude = ?, radius_meters = ?, active = ?, updated_at = datetime('now')
+      UPDATE udin_location_master
+      SET location = ?, short_name = ?, active = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
       location,
       String(short_name || '').trim() || null,
-      latitude === '' || latitude == null ? null : Number(latitude),
-      longitude === '' || longitude == null ? null : Number(longitude),
-      radius_meters ? Number(radius_meters) : 50,
       active ? 1 : 0,
       req.params.id
     );

@@ -107,8 +107,8 @@ function canAccessUdin(req) {
 
 function loadLocationMap() {
   const rows = db.prepare(`
-    SELECT id, location, radius_meters
-    FROM location_master
+    SELECT id, location, short_name
+    FROM udin_location_master
     WHERE active = 1
     ORDER BY location ASC
   `).all();

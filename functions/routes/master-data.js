@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { getMasterDataItems, getLocationMasterItems, invalidateCache } = require('../data-cache');
+const { getMasterDataItems, getUdinLocationMasterItems, invalidateCache } = require('../data-cache');
 
 const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification', 'udin_assignment', 'financial_year']);
 
@@ -121,7 +121,7 @@ function normalizeLocationItem(item) {
 }
 
 async function listLocations() {
-  const items = await getLocationMasterItems();
+  const items = await getUdinLocationMasterItems();
   return items
     .map(normalizeLocationItem)
     .filter(item => item.active)
@@ -136,7 +136,7 @@ router.get('/', async (req, res) => {
       work_classifications: await listCategory('work_classification'),
       udin_assignments: await listCategory('udin_assignment'),
       financial_years: await listCategory('financial_year'),
-      locations: await listLocations()
+      udin_locations: await listLocations()
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -213,7 +213,7 @@ router.put('/category/:category/:id', async (req, res) => {
 
 router.get('/locations/all', async (req, res) => {
   try {
-    const items = await getLocationMasterItems();
+    const items = await getUdinLocationMasterItems();
     const normalized = items.map(normalizeLocationItem).sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label));
     res.json({ items: normalized });
   } catch (e) {
@@ -226,18 +226,15 @@ router.post('/locations', async (req, res) => {
   const label = String(req.body?.label || '').trim();
   if (!label) return res.status(400).json({ error: 'Location name is required' });
   try {
-    const items = await getLocationMasterItems();
+    const items = await getUdinLocationMasterItems();
     const exists = items.some(item => String(item.location || item.label || '').trim().toLowerCase() === label.toLowerCase());
     if (exists) return res.status(400).json({ error: 'Location already exists' });
-    const docRef = await db.collection('location_master').add({
+    const docRef = await db.collection('udin_location_master').add({
       location: label,
       short_name: String(req.body?.short_name || '').trim(),
-      latitude: req.body?.latitude === '' || req.body?.latitude == null ? null : Number(req.body.latitude),
-      longitude: req.body?.longitude === '' || req.body?.longitude == null ? null : Number(req.body.longitude),
-      radius_meters: req.body?.radius_meters ? Number(req.body.radius_meters) : 50,
       active: req.body?.active === undefined ? true : !!req.body.active
     });
-    invalidateCache('location-master:all');
+    invalidateCache('udin-location-master:all');
     res.json({ id: docRef.id });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -249,18 +246,15 @@ router.put('/locations/:id', async (req, res) => {
   const label = String(req.body?.label || '').trim();
   if (!label) return res.status(400).json({ error: 'Location name is required' });
   try {
-    const items = await getLocationMasterItems();
+    const items = await getUdinLocationMasterItems();
     const exists = items.some(item => String(item.id) !== String(req.params.id) && String(item.location || item.label || '').trim().toLowerCase() === label.toLowerCase());
     if (exists) return res.status(400).json({ error: 'Location already exists' });
-    await db.collection('location_master').doc(req.params.id).update({
+    await db.collection('udin_location_master').doc(req.params.id).update({
       location: label,
       short_name: String(req.body?.short_name || '').trim(),
-      latitude: req.body?.latitude === '' || req.body?.latitude == null ? null : Number(req.body.latitude),
-      longitude: req.body?.longitude === '' || req.body?.longitude == null ? null : Number(req.body.longitude),
-      radius_meters: req.body?.radius_meters ? Number(req.body.radius_meters) : 50,
       active: !!req.body.active
     });
-    invalidateCache('location-master:all');
+    invalidateCache('udin-location-master:all');
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
