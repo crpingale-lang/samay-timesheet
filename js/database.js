@@ -237,6 +237,15 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS udin_location_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location TEXT NOT NULL UNIQUE,
+    short_name TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS udin_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     original_revised TEXT DEFAULT 'Original',
@@ -514,6 +523,23 @@ if (!locationCols.includes('short_name')) {
   db.exec("ALTER TABLE location_master ADD COLUMN short_name TEXT");
 }
 
+const udinLocationCols = db.prepare("PRAGMA table_info(udin_location_master)").all().map(c => c.name);
+if (!udinLocationCols.length) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS udin_location_master (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      location TEXT NOT NULL UNIQUE,
+      short_name TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+if (!udinLocationCols.includes('short_name')) {
+  db.exec("ALTER TABLE udin_location_master ADD COLUMN short_name TEXT");
+}
+
 const udinCols = db.prepare("PRAGMA table_info(udin_requests)").all().map(c => c.name);
 if (!udinCols.length) {
   db.exec(`
@@ -669,6 +695,14 @@ if (locationCount.cnt === 0) {
     INSERT INTO location_master (location, short_name, latitude, longitude, radius_meters, active, updated_at)
     VALUES (?, ?, ?, ?, ?, 1, datetime('now'))
   `).run('Main Office', 'MO', 19.0760, 72.8777, 75);
+}
+
+const udinLocationCount = db.prepare("SELECT COUNT(*) as cnt FROM udin_location_master").get();
+if (udinLocationCount.cnt === 0) {
+  db.prepare(`
+    INSERT INTO udin_location_master (location, short_name, active, updated_at)
+    VALUES (?, ?, 1, datetime('now'))
+  `).run('Main Office', 'MO');
 }
 
 module.exports = db;

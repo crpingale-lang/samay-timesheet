@@ -78,12 +78,20 @@ async function getLocationMasterItems() {
   });
 }
 
+async function getUdinLocationMasterItems() {
+  return remember('udin-location-master:all', 300000, async () => {
+    const snapshot = await db.collection('udin_location_master').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  });
+}
+
 module.exports = {
   remember,
   getUsersMap,
   getClientsMap,
   getMasterDataItems,
   getLocationMasterItems,
+  getUdinLocationMasterItems,
   invalidateCache,
   invalidateCacheByPrefix
 };

@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { db, admin } = require('../db');
-const { getUsersMap, getLocationMasterItems, invalidateCacheByPrefix } = require('../data-cache');
+const { getUsersMap, getUdinLocationMasterItems, invalidateCacheByPrefix } = require('../data-cache');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -143,7 +143,7 @@ async function audit(action, requestId, actor, payload = {}) {
 async function getLookupMaps() {
   const [usersMap, locations] = await Promise.all([
     getUsersMap(),
-    getLocationMasterItems()
+    getUdinLocationMasterItems()
   ]);
   const locationById = new Map();
   locations.forEach(item => {
@@ -369,6 +369,7 @@ router.post('/', async (req, res) => {
       location_short_name: normalizeText(req.body?.location_short_name || ''),
       party_name: partyName,
       folder_number: folderNumber,
+      financial_year: normalizeText(req.body?.financial_year),
       path_for_documentation: normalizeText(req.body?.path_for_documentation),
       initiated_by_user_id: normalizeText(req.body?.initiated_by_user_id || req.user.id),
       initiated_by_name: normalizeText(req.body?.initiated_by_name || req.user.name || req.user.username || ''),
@@ -423,6 +424,9 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Approved requests can only be changed by reviewers or partners' });
     }
 
+    const { locationById } = await getLookupMaps();
+    const locationId = normalizeText(req.body?.location_id || existing.location_id);
+    const location = locationId ? locationById.get(String(locationId)) : null;
     const updates = {
       original_revised: normalizeText(req.body?.original_revised || existing.original_revised),
       entity_name: normalizeText(req.body?.entity_name || existing.entity_name),
@@ -430,11 +434,12 @@ router.put('/:id', async (req, res) => {
       branch: normalizeText(req.body?.branch || existing.branch),
       assignment_type: normalizeText(req.body?.assignment_type || existing.assignment_type),
       assignment_type_short: normalizeText(req.body?.assignment_type_short || existing.assignment_type_short),
-      location_id: normalizeText(req.body?.location_id || existing.location_id),
-      location_name: normalizeText(req.body?.location_name || existing.location_name),
+      location_id: locationId,
+      location_name: location?.location || location?.name || normalizeText(req.body?.location_name || existing.location_name),
       location_short_name: normalizeText(req.body?.location_short_name || existing.location_short_name),
       party_name: normalizeText(req.body?.party_name || existing.party_name),
       folder_number: normalizeText(req.body?.folder_number || existing.folder_number),
+      financial_year: normalizeText(req.body?.financial_year || existing.financial_year),
       path_for_documentation: normalizeText(req.body?.path_for_documentation || existing.path_for_documentation),
       original_udin: normalizeText(req.body?.original_udin || existing.original_udin),
       original_income_tax_acknowledgement_number: normalizeText(req.body?.original_income_tax_acknowledgement_number || existing.original_income_tax_acknowledgement_number),
@@ -445,8 +450,8 @@ router.put('/:id', async (req, res) => {
     await ref.update(updates);
     await audit('update', req.params.id, req.user, updates);
     const updated = await ref.get();
-    const { usersMap, locationById } = await getLookupMaps();
-    res.json(hydrateRequest(updated.id, updated.data() || {}, usersMap, locationById));
+    const { usersMap, locationById: refreshedLocationById } = await getLookupMaps();
+    res.json(hydrateRequest(updated.id, updated.data() || {}, usersMap, refreshedLocationById));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

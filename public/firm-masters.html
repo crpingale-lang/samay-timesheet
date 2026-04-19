@@ -50,7 +50,7 @@
             <h1 class="page-hero-title">Manage the dropdown sources used by the UDIN module.</h1>
             <p class="page-hero-copy">
               Client master already powers entity selection and user master already powers entered-by ownership.
-              This page adds the remaining shared masters: assignment, financial year, and location.
+              This page adds the remaining UDIN-only masters: assignment, financial year, and location.
             </p>
           </div>
           <div class="page-hero-note" id="masters-access-note">Loading access…</div>
@@ -60,7 +60,7 @@
           <span class="masters-chip"><strong>User</strong> User master</span>
           <span class="masters-chip"><strong>Assignment</strong> This page</span>
           <span class="masters-chip"><strong>FY</strong> This page</span>
-          <span class="masters-chip"><strong>Location</strong> This page</span>
+          <span class="masters-chip"><strong>UDIN Location</strong> This page</span>
         </div>
       </section>
 
@@ -120,25 +120,20 @@
           <div class="card-header">
             <div>
               <div class="card-title">Location Master</div>
-              <div class="card-subtitle">Feeds the UDIN location dropdown and gives each location a reusable short name.</div>
+              <div class="card-subtitle">Feeds the UDIN location dropdown only. This is separate from attendance and client-site locations.</div>
             </div>
           </div>
           <form class="masters-form" id="location-form">
             <input type="hidden" id="location-edit-id">
             <div class="form-group"><label class="form-label">Location Name *</label><input class="form-control" id="location-label" required></div>
             <div class="form-group"><label class="form-label">Short Name *</label><input class="form-control" id="location-short" required></div>
-            <div class="form-row">
-              <div class="form-group"><label class="form-label">Latitude</label><input class="form-control" id="location-latitude" type="number" step="any"></div>
-              <div class="form-group"><label class="form-label">Longitude</label><input class="form-control" id="location-longitude" type="number" step="any"></div>
-            </div>
-            <div class="form-group"><label class="form-label">Radius (Meters)</label><input class="form-control" id="location-radius" type="number" min="1" value="50"></div>
             <div class="form-group"><div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="location-active" checked><span class="toggle-slider"></span></label></div></div>
             <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
               <button class="btn btn-ghost" type="button" onclick="resetLocationForm()">Clear</button>
               <button class="btn btn-primary" type="submit" id="location-save-btn">Save Location</button>
             </div>
           </form>
-          <div class="masters-note">Latitude and longitude are optional here so the same location master can serve both UDIN and attendance use cases.</div>
+          <div class="masters-note">This list is dedicated to UDIN request creation and Unique ID calculation. It does not reuse the attendance location master.</div>
           <div class="table-wrapper">
             <table class="mobile-stack-table masters-table">
               <thead><tr><th>Location</th><th>Short</th><th>Status</th><th>Action</th></tr></thead>
@@ -216,7 +211,7 @@ function renderLocationTable() {
   }
   tbody.innerHTML = locationItems.map(item => `
     <tr>
-      <td data-label="Location"><strong>${item.label}</strong><small>Radius ${item.radius_meters || 50}m</small></td>
+      <td data-label="Location"><strong>${item.label}</strong><small>Used in Unique ID generation</small></td>
       <td data-label="Short">${item.short_name || '-'}</td>
       <td data-label="Status">${statusBadgeFromActive(item.active)}</td>
       <td data-label="Action">${canManageMasters ? `<button class="btn btn-ghost btn-sm" onclick='editLocation(${JSON.stringify(item)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
@@ -242,7 +237,6 @@ function resetLocationForm() {
   document.getElementById('location-form').reset();
   document.getElementById('location-edit-id').value = '';
   document.getElementById('location-active').checked = true;
-  document.getElementById('location-radius').value = '50';
 }
 
 function editAssignment(item) {
@@ -264,9 +258,6 @@ function editLocation(item) {
   document.getElementById('location-edit-id').value = item.id;
   document.getElementById('location-label').value = item.label || '';
   document.getElementById('location-short').value = item.short_name || '';
-  document.getElementById('location-latitude').value = item.latitude ?? '';
-  document.getElementById('location-longitude').value = item.longitude ?? '';
-  document.getElementById('location-radius').value = item.radius_meters || 50;
   document.getElementById('location-active').checked = !!item.active;
 }
 
@@ -337,9 +328,6 @@ document.getElementById('location-form').addEventListener('submit', async event 
   const payload = {
     label: document.getElementById('location-label').value.trim(),
     short_name: document.getElementById('location-short').value.trim(),
-    latitude: document.getElementById('location-latitude').value,
-    longitude: document.getElementById('location-longitude').value,
-    radius_meters: Number(document.getElementById('location-radius').value || 50),
     active: document.getElementById('location-active').checked
   };
   try {
