@@ -7,6 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
   <style>
+    html{scroll-padding-top:84px}
     .udin-hero{border:1px solid var(--border);border-radius:22px;padding:22px;background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(255,255,255,.98) 52%,rgba(67,56,202,.06));box-shadow:0 18px 50px rgba(15,23,42,.05)}
     .udin-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
     .udin-kicker{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
@@ -38,6 +39,8 @@
     .udin-file-list{display:grid;gap:8px}
     .udin-file-link{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
     .udin-file-link span{font-size:13px;color:var(--text-muted)}
+    .udin-sidebar-note{padding:0 14px 14px;font-size:12px;line-height:1.55;color:rgba(255,255,255,.82)}
+    .udin-sidebar-note strong{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ecfeff;margin-bottom:4px}
     @media (max-width: 960px){
       .udin-grid,.udin-summary,.udin-toolbar,.udin-form-grid,.udin-info-grid{grid-template-columns:1fr}
     }
@@ -63,7 +66,7 @@
     </header>
 
     <div class="page-content">
-      <section class="udin-hero">
+      <section class="udin-hero" id="overview-section">
         <div class="udin-hero-top">
           <div>
             <div class="udin-kicker">Assurance workflow</div>
@@ -92,7 +95,7 @@
       </div>
 
       <section class="udin-section udin-grid">
-        <div class="card udin-list">
+        <div class="card udin-list" id="requests-section">
           <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
             <div>
               <div class="card-title">UDIN Requests</div>
@@ -147,7 +150,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="create-section">
           <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
             <div>
               <div class="card-title" id="detail-title">Create Request</div>
@@ -244,9 +247,11 @@ if (!hasPermission('udin.dashboard.view') && !hasPermission('udin.view_own') && 
   window.location.replace(getDefaultLandingPage());
 }
 
-document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
+document.getElementById('sidebar-el').innerHTML = UDIN_SIDEBAR_HTML();
 buildSidebar();
+syncUdinSidebarActive();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+window.addEventListener('hashchange', syncUdinSidebarActive);
 
 const state = readViewState('udin') || {};
 document.getElementById('scope-filter').value = state.scope || 'all';
@@ -258,6 +263,56 @@ document.getElementById('financial-year').value = `${new Date().getFullYear()}-$
 let currentItems = [];
 let selectedItem = null;
 let locationOptions = [];
+
+function UDIN_SIDEBAR_HTML() {
+  return `
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">CA</div>
+        <div><div class="logo-text">Samay</div><div class="logo-sub">UDIN Workspace</div></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">UDIN Workspace</span>
+      <a class="nav-item nav-item-udin-overview" href="#overview-section"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Overview</span></a>
+      <a class="nav-item nav-item-udin-requests" href="#requests-section"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Request Queue</span></a>
+      <a class="nav-item nav-item-udin-create" href="#create-section"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Create / Update</span></a>
+      <span class="nav-section-label" data-permissions="modules.view,firm.dashboard.view">Navigation</span>
+      <a class="nav-item nav-item-modules" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">All Modules</span></a>
+      <a class="nav-item nav-item-firm-dashboard" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
+    </nav>
+    <div class="udin-sidebar-note">
+      <strong>Dedicated Module</strong>
+      This page is the landing workspace for the full UDIN workflow.
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">User</div>
+          <div class="user-role" id="sidebar-user-role">Role</div>
+        </div>
+        <button class="user-menu-btn" onclick="logout()" title="Logout">↪</button>
+      </div>
+    </div>
+  `;
+}
+
+function syncUdinSidebarActive() {
+  const hash = window.location.hash || '#overview-section';
+  const map = {
+    '#overview-section': 'nav-item-udin-overview',
+    '#requests-section': 'nav-item-udin-requests',
+    '#create-section': 'nav-item-udin-create'
+  };
+  document.querySelectorAll('.sidebar .nav-item').forEach(el => {
+    if (!el.classList.contains('nav-item-modules') && !el.classList.contains('nav-item-firm-dashboard')) {
+      el.classList.remove('active');
+    }
+  });
+  const activeClass = map[hash] || 'nav-item-udin-overview';
+  document.querySelector(`.sidebar .${activeClass}`)?.classList.add('active');
+}
 
 function persistState() {
   writeViewState('udin', {
