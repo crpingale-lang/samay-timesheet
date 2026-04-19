@@ -113,15 +113,19 @@ function requestKeyParts(request) {
 }
 
 function buildInternalReference(request) {
-  return normalizeText(
+  const source = normalizeText(request.unique_id) || normalizeText(
     [
       request.assignment_type_short || request.assignment_type || '',
       request.location_short_name || request.location || '',
       request.financial_year || '',
       request.entity_short_name || request.entity_name || '',
       request.folder_number || ''
-    ].filter(Boolean).join('-')
-  ).replace(/[\/()]/g, '');
+    ].filter(Boolean).join('/')
+  );
+  return source
+    .replaceAll('/', '-')
+    .replaceAll('(', '_')
+    .replaceAll(')', '');
 }
 
 async function audit(action, requestId, actor, payload = {}) {

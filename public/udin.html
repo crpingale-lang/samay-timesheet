@@ -267,24 +267,26 @@
             <form id="udin-form">
               <input type="hidden" id="selected-id">
               <div class="udin-form-grid">
-                <div class="form-group"><label class="form-label">Original / Revised</label><input class="form-control" id="original-revised" placeholder="Original"></div>
-                <div class="form-group"><label class="form-label">Date of Request</label><input class="form-control" id="date-of-request" type="date"></div>
-                <div class="form-group"><label class="form-label">Unique ID *</label><input class="form-control" id="unique-id" required></div>
-                <div class="form-group"><label class="form-label">Entity Name *</label><input class="form-control" id="entity-name" required></div>
-                <div class="form-group"><label class="form-label">Assignment Type *</label><input class="form-control" id="assignment-type" required></div>
+                <div class="form-group"><label class="form-label">Sr No.</label><input class="form-control" id="sr-no" value="Auto" readonly></div>
+                <div class="form-group"><label class="form-label">Original / Revised *</label><select class="form-control" id="original-revised" required><option value="Original">Original</option><option value="Revised">Revised</option></select></div>
+                <div class="form-group"><label class="form-label">Name of Entity *</label><select class="form-control" id="entity-name" required><option value="">Select entity</option></select></div>
+                <div class="form-group"><label class="form-label">Type of Assignment *</label><select class="form-control" id="assignment-type" required><option value="">Select assignment type</option></select></div>
+                <div class="form-group"><label class="form-label">Location *</label><select class="form-control" id="location-id" required><option value="">Loading...</option></select></div>
+                <div class="form-group"><label class="form-label">Financial Year *</label><select class="form-control" id="financial-year" required><option value="">Select financial year</option></select></div>
+                <div class="form-group"><label class="form-label">Unique ID *</label><input class="form-control" id="unique-id" required readonly></div>
+                <div class="form-group"><label class="form-label">Date of Request</label><input class="form-control" id="date-of-request" type="date" readonly></div>
+                <div class="form-group"><label class="form-label">Internal Reference Number</label><input class="form-control" id="internal-reference-number" readonly></div>
                 <div class="form-group"><label class="form-label">Party Name *</label><input class="form-control" id="party-name" required></div>
                 <div class="form-group"><label class="form-label">Branch</label><input class="form-control" id="branch"></div>
-                <div class="form-group"><label class="form-label">Location</label><select class="form-control" id="location-id"><option value="">Loading...</option></select></div>
-                <div class="form-group"><label class="form-label">Folder Number</label><input class="form-control" id="folder-number"></div>
-                <div class="form-group"><label class="form-label">Financial Year</label><input class="form-control" id="financial-year" placeholder="2025-26"></div>
-                <div class="form-group"><label class="form-label">Path for Documentation</label><input class="form-control" id="path-for-documentation"></div>
+                <div class="form-group"><label class="form-label">Enter Folder Number *</label><input class="form-control" id="folder-number" required></div>
+                <div class="form-group"><label class="form-label">Path for Documentation *</label><input class="form-control" id="path-for-documentation" required></div>
                 <div class="form-group"><label class="form-label">Remittance Approver</label><input class="form-control" id="remittance-approver"></div>
                 <div class="form-group"><label class="form-label">Original UDIN</label><input class="form-control" id="original-udin"></div>
                 <div class="form-group"><label class="form-label">IT Ack. No.</label><input class="form-control" id="original-income-tax-acknowledgement-number"></div>
-                <div class="form-group"><label class="form-label">Entity Short Name</label><input class="form-control" id="entity-short-name"></div>
-                <div class="form-group"><label class="form-label">Assignment Short Name</label><input class="form-control" id="assignment-type-short"></div>
-                <div class="form-group"><label class="form-label">Location Short Name</label><input class="form-control" id="location-short-name"></div>
-                <div class="form-group"><label class="form-label">Initiated By</label><input class="form-control" id="initiated-by"></div>
+                <div class="form-group"><label class="form-label">Entity Short Name</label><input class="form-control" id="entity-short-name" readonly></div>
+                <div class="form-group"><label class="form-label">Assignment Short Name</label><input class="form-control" id="assignment-type-short" readonly></div>
+                <div class="form-group"><label class="form-label">Location Short Name</label><input class="form-control" id="location-short-name" readonly></div>
+                <div class="form-group"><label class="form-label">Entered By</label><input class="form-control" id="initiated-by" readonly></div>
               </div>
               <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
                 <button class="btn btn-primary" type="submit" id="save-request-btn">Save Request</button>
@@ -352,14 +354,6 @@
               <h3>Audit Tracker</h3>
               <p>Pin audit-linked requests, document checkpoints, and internal readiness flags in one compact review area.</p>
             </article>
-            <article class="udin-idea-card" id="entity-master-section">
-              <h3>Entity Master</h3>
-              <p>Keep entity naming, short codes, and default assignment metadata editable without leaving the UDIN module.</p>
-            </article>
-            <article class="udin-idea-card" id="user-master-section">
-              <h3>User Master</h3>
-              <p>Maintain initiators, approvers, and assignment owners here so the sidebar can stay in one continuous workflow.</p>
-            </article>
           </div>
         </div>
       </section>
@@ -387,11 +381,178 @@ document.getElementById('scope-filter').value = state.scope || 'all';
 document.getElementById('status-filter').value = state.status || '';
 document.getElementById('search-box').value = state.q || '';
 document.getElementById('date-of-request').value = today();
-document.getElementById('financial-year').value = `${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+document.getElementById('initiated-by').value = safeUserName(getUser());
 
 let currentItems = [];
 let selectedItem = null;
 let locationOptions = [];
+let entityOptions = [];
+let assignmentOptions = [];
+let financialYearOptions = [];
+let lookupSeedItems = [];
+
+function makeShortCode(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const compact = text.replace(/[^A-Za-z0-9]+/g, ' ').trim();
+  if (!compact) return '';
+  const words = compact.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    return words[0].replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
+  }
+  return words.map(word => word[0]).join('').toUpperCase().slice(0, 6);
+}
+
+function buildFinancialYearChoices() {
+  const currentYear = new Date().getFullYear();
+  const years = new Set();
+  for (let offset = -1; offset <= 2; offset += 1) {
+    const startYear = currentYear + offset;
+    years.add(`${startYear}-${String(startYear + 1).slice(-2)}`);
+  }
+  return Array.from(years).sort();
+}
+
+function upsertLookupOption(map, key, payload) {
+  if (!key) return;
+  const existing = map.get(key) || {};
+  map.set(key, {
+    value: payload.value || existing.value || key,
+    label: payload.label || existing.label || key,
+    shortName: payload.shortName || existing.shortName || '',
+    relatedId: payload.relatedId || existing.relatedId || ''
+  });
+}
+
+function refreshDerivedOptions(items = currentItems) {
+  const entityMap = new Map(entityOptions.map(option => [option.value, option]));
+  const assignmentMap = new Map(assignmentOptions.map(option => [option.value, option]));
+  const fySet = new Set([...financialYearOptions, ...buildFinancialYearChoices()]);
+
+  items.forEach(item => {
+    const entityName = String(item.entity_name || '').trim();
+    if (entityName) {
+      upsertLookupOption(entityMap, entityName, {
+        value: entityName,
+        label: entityName,
+        shortName: item.entity_short_name || makeShortCode(entityName)
+      });
+    }
+
+    const assignmentType = String(item.assignment_type || '').trim();
+    if (assignmentType) {
+      upsertLookupOption(assignmentMap, assignmentType, {
+        value: assignmentType,
+        label: assignmentType,
+        shortName: item.assignment_type_short || makeShortCode(assignmentType)
+      });
+    }
+
+    if (item.financial_year) fySet.add(item.financial_year);
+
+    const locationLabel = String(item.location_name || item.location_label || '').trim();
+    const locationId = String(item.location_id || '').trim();
+    if (locationLabel && locationId) {
+      const idx = locationOptions.findIndex(option => String(option.id) === locationId);
+      if (idx >= 0) {
+        locationOptions[idx] = {
+          ...locationOptions[idx],
+          short_name: locationOptions[idx].short_name || item.location_short_name || makeShortCode(locationLabel)
+        };
+      }
+    }
+  });
+
+  entityOptions = Array.from(entityMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  assignmentOptions = Array.from(assignmentMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  financialYearOptions = Array.from(fySet).sort();
+
+  renderSelectOptions();
+}
+
+function mergeLookupSeed(items = []) {
+  const byId = new Map(lookupSeedItems.map(item => [String(item.id), item]));
+  items.forEach(item => {
+    byId.set(String(item.id), item);
+  });
+  lookupSeedItems = Array.from(byId.values());
+  refreshDerivedOptions(lookupSeedItems);
+}
+
+function renderSelect(selectId, options, placeholder, selectedValue = '') {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  select.innerHTML = `<option value="">${placeholder}</option>` + options.map(option => `
+    <option value="${escapeHtml(option.value)}" ${String(option.value) === String(selectedValue) ? 'selected' : ''}>
+      ${escapeHtml(option.label)}
+    </option>
+  `).join('');
+}
+
+function renderSelectOptions() {
+  renderSelect('entity-name', entityOptions, 'Select entity', document.getElementById('entity-name')?.value || '');
+  renderSelect('assignment-type', assignmentOptions, 'Select assignment type', document.getElementById('assignment-type')?.value || '');
+  renderSelect('financial-year', financialYearOptions.map(value => ({ value, label: value })), 'Select financial year', document.getElementById('financial-year')?.value || '');
+
+  const locationSelect = document.getElementById('location-id');
+  const selectedLocationId = locationSelect?.value || '';
+  if (locationSelect) {
+    locationSelect.innerHTML = '<option value="">Select location</option>' + locationOptions.map(loc => `
+      <option value="${escapeHtml(String(loc.id))}" ${String(loc.id) === String(selectedLocationId) ? 'selected' : ''}>
+        ${escapeHtml(loc.label)}
+      </option>
+    `).join('');
+  }
+}
+
+function selectedOptionMeta(options, value) {
+  return options.find(option => String(option.value) === String(value)) || null;
+}
+
+function selectedLocationMeta() {
+  return locationOptions.find(option => String(option.id) === String(document.getElementById('location-id').value || '')) || null;
+}
+
+function computeUniqueId() {
+  const entity = selectedOptionMeta(entityOptions, document.getElementById('entity-name').value);
+  const assignment = selectedOptionMeta(assignmentOptions, document.getElementById('assignment-type').value);
+  const location = selectedLocationMeta();
+  const folderNumber = document.getElementById('folder-number').value.trim();
+  const financialYear = document.getElementById('financial-year').value.trim();
+  const originalRevised = document.getElementById('original-revised').value;
+
+  const assignmentShort = assignment?.shortName || document.getElementById('assignment-type-short').value.trim();
+  const locationShort = location?.short_name || document.getElementById('location-short-name').value.trim();
+  const entityShort = entity?.shortName || document.getElementById('entity-short-name').value.trim();
+
+  if (!assignmentShort || !locationShort || !financialYear || !entityShort || !folderNumber) return '';
+
+  const base = `${assignmentShort}-${locationShort}/${financialYear}/${entityShort}/${folderNumber}`;
+  return originalRevised === 'Revised' ? `${base}(R)` : base;
+}
+
+function computeInternalReference(uniqueId) {
+  return String(uniqueId || '')
+    .replaceAll('/', '-')
+    .replaceAll('(', '_')
+    .replaceAll(')', '');
+}
+
+function syncCalculatedFields() {
+  const entity = selectedOptionMeta(entityOptions, document.getElementById('entity-name').value);
+  const assignment = selectedOptionMeta(assignmentOptions, document.getElementById('assignment-type').value);
+  const location = selectedLocationMeta();
+
+  document.getElementById('entity-short-name').value = entity?.shortName || '';
+  document.getElementById('assignment-type-short').value = assignment?.shortName || '';
+  document.getElementById('location-short-name').value = location?.short_name || makeShortCode(location?.label || '');
+
+  const uniqueId = computeUniqueId();
+  const internalReference = computeInternalReference(uniqueId);
+  document.getElementById('unique-id').value = uniqueId;
+  document.getElementById('internal-reference-number').value = internalReference;
+  document.getElementById('detail-internal-ref').textContent = internalReference || '-';
+}
 
 function udinNavIcon(name) {
   const icons = {
@@ -470,8 +631,6 @@ UDIN_SIDEBAR_HTML = function () {
       <a class="nav-item" href="#create-section" data-nav-key="add-request" data-hash="#create-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('hand')}</span><span class="nav-label">Add UDIN request for Approval</span></a>
       <a class="nav-item" href="#audit-section" data-nav-key="audit-tracker" data-hash="#audit-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('calc')}</span><span class="nav-label">Audit Tracker</span></a>
       <a class="nav-item" href="#requests-section" data-nav-key="approve-assignment" data-hash="#requests-section" data-scope="review"><span class="nav-icon" aria-hidden="true">${udinNavIcon('check')}</span><span class="nav-label">Approve assignment</span></a>
-      <a class="nav-item" href="#entity-master-section" data-nav-key="entity-master" data-hash="#entity-master-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('building')}</span><span class="nav-label">Entity Master</span></a>
-      <a class="nav-item" href="#user-master-section" data-nav-key="user-master" data-hash="#user-master-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('users')}</span><span class="nav-label">User Master</span></a>
       <a class="nav-item" href="#update-udin-section" data-nav-key="update-udin" data-hash="#update-udin-section" data-focus="udin-value"><span class="nav-icon" aria-hidden="true">${udinNavIcon('bolt')}</span><span class="nav-label">Update UDIN Data</span></a>
       <a class="nav-item" href="#upload-signed-section" data-nav-key="upload-signed" data-hash="#upload-signed-section" data-focus="copy-of-certificate"><span class="nav-icon" aria-hidden="true">${udinNavIcon('upload')}</span><span class="nav-label">Upload Signed Copy</span></a>
     </nav>
@@ -520,8 +679,6 @@ syncUdinSidebarActive = function () {
     '#overview-section': 'dashboard',
     '#expiry-section': 'udin-expiry',
     '#audit-section': 'audit-tracker',
-    '#entity-master-section': 'entity-master',
-    '#user-master-section': 'user-master',
     '#update-udin-section': 'update-udin',
     '#upload-signed-section': 'upload-signed'
   };
@@ -574,8 +731,13 @@ function statusBadge(status) {
 function clearForm() {
   document.getElementById('selected-id').value = '';
   document.getElementById('udin-form').reset();
+  document.getElementById('sr-no').value = 'Auto';
   document.getElementById('date-of-request').value = today();
-  document.getElementById('financial-year').value = `${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+  document.getElementById('original-revised').value = 'Original';
+  renderSelectOptions();
+  if (!document.getElementById('financial-year').value && financialYearOptions.length) {
+    document.getElementById('financial-year').value = financialYearOptions[0];
+  }
   document.getElementById('detail-id').textContent = '-';
   document.getElementById('detail-status').textContent = '-';
   document.getElementById('detail-internal-ref').textContent = '-';
@@ -583,11 +745,16 @@ function clearForm() {
   document.getElementById('detail-title').textContent = 'Create Request';
   document.getElementById('detail-subtitle').textContent = 'New items start in the reviewer queue.';
   document.getElementById('file-list').innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Select a request to see attachments.</div>';
+  document.getElementById('initiated-by').value = safeUserName(getUser());
+  document.getElementById('internal-reference-number').value = '';
+  document.getElementById('unique-id').value = '';
+  syncCalculatedFields();
   selectedItem = null;
 }
 
 function fillForm(item) {
   document.getElementById('selected-id').value = item.id || '';
+  document.getElementById('sr-no').value = item.id || 'Auto';
   document.getElementById('detail-id').textContent = item.id || '-';
   document.getElementById('detail-status').textContent = item.approval_status || item.workflow_status || '-';
   document.getElementById('detail-internal-ref').textContent = item.internal_reference_for_udin || '-';
@@ -613,6 +780,7 @@ function fillForm(item) {
   document.getElementById('assignment-type-short').value = item.assignment_type_short || '';
   document.getElementById('location-short-name').value = item.location_short_name || '';
   document.getElementById('initiated-by').value = item.initiated_by_name || '';
+  document.getElementById('internal-reference-number').value = item.internal_reference_for_udin || '';
   document.getElementById('udin-value').value = item.udin || '';
   document.getElementById('udin-generation-date').value = item.udin_generation_date || '';
   document.getElementById('revocation-reason').value = item.revocation_reason || '';
@@ -630,6 +798,14 @@ function fillForm(item) {
     document.getElementById('file-list').innerHTML = files.join('');
   }
 
+  renderSelectOptions();
+  document.getElementById('entity-name').value = item.entity_name || '';
+  document.getElementById('assignment-type').value = item.assignment_type || '';
+  document.getElementById('location-id').value = item.location_id || '';
+  document.getElementById('financial-year').value = item.financial_year || '';
+  syncCalculatedFields();
+  document.getElementById('unique-id').value = item.unique_id || '';
+  document.getElementById('internal-reference-number').value = item.internal_reference_for_udin || '';
   selectedItem = item;
 }
 
@@ -654,10 +830,28 @@ function renderRows(items) {
 
 async function loadLocations() {
   try {
-    const result = await apiFetch('/master-data');
+    const [result, clients] = await Promise.all([
+      apiFetch('/master-data'),
+      apiFetch('/clients')
+    ]);
     locationOptions = Array.isArray(result.locations) ? result.locations : [];
-    const select = document.getElementById('location-id');
-    select.innerHTML = '<option value="">Select location</option>' + locationOptions.map(loc => `<option value="${loc.id}">${loc.label}</option>`).join('');
+    locationOptions = locationOptions.map(loc => ({
+      ...loc,
+      short_name: loc.short_name || makeShortCode(loc.label)
+    }));
+    const clientItems = Array.isArray(clients) ? clients : (Array.isArray(clients.items) ? clients.items : []);
+    entityOptions = clientItems.filter(client => client.active !== 0 && client.active !== false).map(client => ({
+      value: client.name,
+      label: client.name,
+      shortName: client.code || makeShortCode(client.name)
+    })).sort((a, b) => a.label.localeCompare(b.label));
+    assignmentOptions = (Array.isArray(result.udin_assignments) ? result.udin_assignments : []).filter(item => item.active !== 0 && item.active !== false).map(item => ({
+      value: item.label,
+      label: item.label,
+      shortName: item.short_label || makeShortCode(item.label)
+    })).sort((a, b) => a.label.localeCompare(b.label));
+    financialYearOptions = (Array.isArray(result.financial_years) ? result.financial_years : []).filter(item => item.active !== 0 && item.active !== false).map(item => item.label).sort();
+    refreshDerivedOptions(lookupSeedItems);
   } catch (err) {
     document.getElementById('location-id').innerHTML = '<option value="">Unable to load locations</option>';
   }
@@ -698,6 +892,7 @@ async function loadUdins() {
   try {
     const items = await apiFetch(`/udin?${params.toString()}`);
     currentItems = Array.isArray(items) ? items : [];
+    mergeLookupSeed(currentItems);
     renderRows(currentItems);
     setSync(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
     await loadSummary();
@@ -724,6 +919,10 @@ async function selectRequest(id) {
 async function saveRequest(event) {
   event.preventDefault();
   const selectedId = document.getElementById('selected-id').value;
+  syncCalculatedFields();
+  if (!document.getElementById('unique-id').value) {
+    return toast('Please complete Original/Revised, Entity, Assignment, Location, Financial Year, and Folder Number', 'info');
+  }
   const payload = {
     original_revised: document.getElementById('original-revised').value,
     date_of_request: document.getElementById('date-of-request').value,
@@ -830,6 +1029,10 @@ document.getElementById('udin-form').addEventListener('submit', saveRequest);
 document.getElementById('search-box').addEventListener('input', () => loadUdins());
 document.getElementById('scope-filter').addEventListener('change', () => loadUdins());
 document.getElementById('status-filter').addEventListener('change', () => loadUdins());
+['original-revised', 'entity-name', 'assignment-type', 'location-id', 'financial-year'].forEach(id => {
+  document.getElementById(id).addEventListener('change', syncCalculatedFields);
+});
+document.getElementById('folder-number').addEventListener('input', syncCalculatedFields);
 
 function openSidebar() {
   document.getElementById('sidebar-el').classList.add('open');
@@ -841,9 +1044,9 @@ function closeSidebar() {
   document.getElementById('sb-overlay').classList.remove('open');
 }
 
-loadLocations().then(() => {
+loadLocations().then(async () => {
+  await loadUdins();
   clearForm();
-  loadUdins();
 });
 </script>
 </body>

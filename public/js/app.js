@@ -939,7 +939,9 @@ function fmtCurrency(v) { return 'Rs ' + (parseFloat(v)||0).toLocaleString('en-I
 const MASTER_DATA_CACHE_KEY = 'ts_master_data_cache';
 let MASTER_DATA = {
   work_categories: [],
-  work_classifications: []
+  work_classifications: [],
+  udin_assignments: [],
+  financial_years: []
 };
 
 const TIMESHEET_MASTER_CACHE_KEY = 'ts_timesheet_master_cache';
@@ -966,7 +968,9 @@ function humanizeKey(value = '') {
 function setMasterData(data = {}) {
   MASTER_DATA = {
     work_categories: Array.isArray(data.work_categories) ? data.work_categories : [],
-    work_classifications: Array.isArray(data.work_classifications) ? data.work_classifications : []
+    work_classifications: Array.isArray(data.work_classifications) ? data.work_classifications : [],
+    udin_assignments: Array.isArray(data.udin_assignments) ? data.udin_assignments : [],
+    financial_years: Array.isArray(data.financial_years) ? data.financial_years : []
   };
   try {
     localStorage.setItem(MASTER_DATA_CACHE_KEY, JSON.stringify(MASTER_DATA));
@@ -1332,40 +1336,6 @@ function TIMESHEET_SIDEBAR_HTML() {
     </div>`;
 }
 
-function TIMESHEET_SIDEBAR_HTML() {
-  return `
-    <div class="sidebar-logo">
-      <div class="logo-mark">
-        <div class="logo-icon">CA</div>
-        <div><div class="logo-text">Samay</div><div class="logo-sub">Practice Management</div></div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Workspace</span>
-      <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
-      <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
-      <a class="nav-item nav-item-timesheet-masters" data-page="timesheet-masters.html" href="/timesheet-masters.html" data-permissions="timesheets.masters.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Timesheet Masters</span></a>
-      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
-      <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
-      <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
-      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
-      <span class="nav-section-label" data-permissions="firm.dashboard.view,modules.view">Firm</span>
-      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
-      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">-</div>
-          <div class="user-role" id="sidebar-user-role">-</div>
-        </div>
-        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
-      </div>
-    </div>`;
-}
-
 // Sidebar HTML for Form 15CB module
 function FORM15CB_SIDEBAR_HTML() {
   return `
@@ -1408,6 +1378,7 @@ function FIRM_SIDEBAR_HTML() {
     <nav class="sidebar-nav">
       <span class="nav-section-label">Firm</span>
       <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
+      <a class="nav-item nav-item-firm-masters" data-page="firm-masters.html" href="/firm-masters.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Firm Masters</span></a>
       <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
       <a class="nav-item nav-item-users" data-page="users.html" href="/users.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Users</span></a>
       <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>
