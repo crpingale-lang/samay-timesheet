@@ -232,8 +232,9 @@
         </div>
         <div class="form-group">
           <label class="form-label">Client / Matter</label>
-          <input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client">
-          <datalist id="client-list"></datalist>
+          <select class="form-control" id="modal-client-search">
+            <option value="">Select client</option>
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Work Category</label>
@@ -371,8 +372,8 @@ function populateMasterDataSelects() {
   bootMobileListPickers(document.getElementById('entry-modal'));
 }
 
-document.getElementById('modal-client-search').addEventListener('input', e => {
-  const match = allClientsStore.find(c => `${c.name} [${c.code}]` === e.target.value);
+document.getElementById('modal-client-search').addEventListener('change', e => {
+  const match = allClientsStore.find(c => String(c.id) === String(e.target.value));
   document.getElementById('modal-client-search').dataset.clientId = match ? match.id : '';
   if (match) applyClientShiftDefaults(match.id, { force: !document.getElementById('modal-start-time').value || !document.getElementById('modal-end-time').value });
   renderModalTimeline();
@@ -1040,8 +1041,8 @@ function renderSelectedDayTimeline() {
 function renderModalTimeline() {
   const entryId = document.getElementById('modal-entry-id').value;
   const dateStr = document.getElementById('modal-date').value || selectedDate;
-  const clientText = document.getElementById('modal-client-search').value;
-  const matchedClient = allClientsStore.find(c => `${c.name} [${c.code}]` === clientText);
+  const clientId = document.getElementById('modal-client-search').value;
+  const matchedClient = allClientsStore.find(c => String(c.id) === String(clientId));
   const entry = {
     task_type: document.getElementById('modal-task-type').value,
     description: document.getElementById('modal-description').value,
@@ -1050,7 +1051,7 @@ function renderModalTimeline() {
     start_time: document.getElementById('modal-start-time').value || null,
     end_time: document.getElementById('modal-end-time').value || null
   };
-  if (clientText) entry.client_label = clientText;
+  if (matchedClient) entry.client_label = `${matchedClient.name} [${matchedClient.code}]`;
   applyModalTimeInputLimits();
   updateModalGuidance();
   renderTimeline('modal-day-timeline', dateStr, entry, entryId || null);
@@ -1101,9 +1102,7 @@ function renderAll() {
 }
 
 function clientDisplay(entry) {
-  if (!entry?.client_id) return '';
-  const client = allClientsStore.find(c => c.id == entry.client_id);
-  return client ? `${client.name} [${client.code}]` : '';
+  return entry?.client_id ? String(entry.client_id) : '';
 }
 
 function getConfiguredClientSite(clientId) {
@@ -1358,8 +1357,8 @@ function validateModalTimeline(payload, currentId = '') {
 function modalPayload() {
   finalizeModalTimeField('modal-start-time');
   finalizeModalTimeField('modal-end-time');
-  const clientText = document.getElementById('modal-client-search').value;
-  const matchedClient = allClientsStore.find(c => `${c.name} [${c.code}]` === clientText);
+  const clientId = document.getElementById('modal-client-search').value;
+  const matchedClient = allClientsStore.find(c => String(c.id) === String(clientId));
   return {
     entry_date: document.getElementById('modal-date').value,
     client_id: matchedClient ? matchedClient.id : null,
@@ -1466,12 +1465,16 @@ async function loadClients() {
     await ensureTimesheetMastersLoaded();
     const clients = await apiFetch('/clients');
     const configuredClientIds = new Set(getConfiguredTimesheetClients().map(client => String(client.id)));
-    allClientsStore = clients.filter(c => c.active && configuredClientIds.has(String(c.id)));
-    document.getElementById('client-list').innerHTML = allClientsStore.map(c => `<option value="${c.name} [${c.code}]">`).join('');
+    const activeClients = clients.filter(c => c.active);
+    allClientsStore = configuredClientIds.size
+      ? activeClients.filter(c => configuredClientIds.has(String(c.id)))
+      : activeClients;
+    document.getElementById('modal-client-search').innerHTML = '<option value="">Select client</option>' +
+      allClientsStore.map(c => `<option value="${c.id}">${c.name} [${c.code}]</option>`).join('');
     bootMobileListPickers(document.getElementById('entry-modal'));
   } catch (e) {
     allClientsStore = [];
-    document.getElementById('client-list').innerHTML = '';
+    document.getElementById('modal-client-search').innerHTML = '<option value="">Select client</option>';
     bootMobileListPickers(document.getElementById('entry-modal'));
     console.warn('Client list unavailable on Log Time', e);
   }
