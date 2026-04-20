@@ -76,11 +76,17 @@
       <div class="step-panel active card" id="step1">
         <div class="card-header"><div><div class="card-title">Upload Form 15CB XML</div><div class="card-subtitle">Exported from the ITD eFiling portal</div></div></div>
         <div class="drop-zone" id="drop-zone" onclick="document.getElementById('xml-file').click()">
-          <input type="file" id="xml-file" accept=".xml" onchange="handleFileSelect(this.files[0])">
           <div style="font-size:36px;margin-bottom:10px;">📁</div>
           <div style="font-weight:600;margin-bottom:4px;">Drop your 15CB XML here</div>
           <div style="font-size:13px;color:var(--text-muted);">or click to browse</div>
           <div id="file-name" style="margin-top:12px;font-size:13px;font-weight:600;color:#059669;display:none;"></div>
+        </div>
+        <div class="form-group" style="margin-top:16px;margin-bottom:0;">
+          <label class="form-label" for="xml-file">Choose XML file</label>
+          <input class="form-control" type="file" id="xml-file" accept=".xml,text/xml,application/xml">
+          <div id="upload-status" style="margin-top:8px;font-size:13px;color:var(--text-muted);">
+            Select the old 15CB XML exported from the portal, then click parse.
+          </div>
         </div>
         <div style="margin-top:16px;display:flex;justify-content:flex-end;">
           <button class="btn btn-primary" id="parse-btn" disabled onclick="parseXml()">Parse XML →</button>
@@ -175,6 +181,8 @@ document.querySelector('#step4 .card-subtitle').textContent = 'Review XML values
 const API = '/api/form15cb';
 const token = getToken();
 const authHeaders = { 'Authorization': `Bearer ${token}` };
+const fileInput = document.getElementById('xml-file');
+const uploadStatus = document.getElementById('upload-status');
 
 let state = {
   step: 1,
@@ -202,13 +210,37 @@ dropZone.addEventListener('drop', e => {
   const f = e.dataTransfer.files[0];
   if (f) handleFileSelect(f);
 });
+fileInput.addEventListener('change', e => handleFileSelect(e.target.files[0]));
 
 function handleFileSelect(file) {
   if (!file) return;
+  const fileName = String(file.name || '').trim();
+  if (!/\.xml$/i.test(fileName)) {
+    state.file = null;
+    document.getElementById('parse-btn').disabled = true;
+    uploadStatus.style.color = '#b91c1c';
+    uploadStatus.textContent = 'Please choose a valid .xml file.';
+    fileInput.value = '';
+    return;
+  }
   state.file = file;
   const fn = document.getElementById('file-name');
   fn.textContent = file.name; fn.style.display = '';
   document.getElementById('parse-btn').disabled = false;
+  uploadStatus.style.color = '#065f46';
+  uploadStatus.textContent = `Selected: ${file.name}`;
+}
+
+async function readJsonResponse(res) {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    if (!res.ok) {
+      throw new Error(raw || `Request failed with status ${res.status}`);
+    }
+    throw new Error('The server returned an unexpected response.');
+  }
 }
 
 // ── Step navigation ──────────────────────────────────────────────────────────
@@ -226,11 +258,13 @@ function goStep(n) {
 async function parseXml() {
   const btn = document.getElementById('parse-btn');
   btn.disabled = true; btn.textContent = 'Parsing…';
+  uploadStatus.style.color = '#1d4ed8';
+  uploadStatus.textContent = 'Uploading and parsing XML...';
   try {
     const fd = new FormData();
     fd.append('xml', state.file);
     const res  = await fetch(`${API}/parse`, { method:'POST', headers: authHeaders, body: fd });
-    const data = await res.json();
+    const data = await readJsonResponse(res);
     if (data.error) throw new Error(data.error);
 
     state.fields = data.fields;
@@ -247,8 +281,12 @@ async function parseXml() {
     renderGapFields();
     renderRemitteeHistory();
     loadPartners(state.lookupMatches?.partner?.id || '');
+    uploadStatus.style.color = '#065f46';
+    uploadStatus.textContent = 'XML parsed successfully. Review the extracted fields below.';
     goStep(2);
   } catch(e) {
+    uploadStatus.style.color = '#b91c1c';
+    uploadStatus.textContent = `Upload failed: ${e.message}`;
     toast('Parse failed: ' + e.message, 'error');
   } finally {
     btn.disabled = false; btn.textContent = 'Parse XML →';
@@ -442,7 +480,7 @@ async function doConvert() {
       headers: { ...authHeaders, 'Content-Type':'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res);
     if (data.error) throw new Error(data.error);
 
     state.transactionId = data.transactionId;
@@ -553,7 +591,7 @@ async function loadPreview() {
         firmId,
       }),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res);
     if (data.error) throw new Error(data.error);
 
     state.form146 = data.form146;
@@ -591,7 +629,7 @@ doConvert = async function() {
       headers: { ...authHeaders, 'Content-Type':'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res);
     if (data.error) throw new Error(data.error);
 
     state.transactionId = data.transactionId;
@@ -620,6 +658,7 @@ function renderDownloadStep(data) {
       <strong>Remittee:</strong> ${esc(remittee)}<br>
       <strong>Amount:</strong> ${esc(amount)} ${esc(currency)}
       ${data.hardcodedReport?.length ? `<br><span style="color:#92400e;">⚠️ ${data.hardcodedReport.length} field(s) were hardcoded — see report.</span>` : ''}
+      ${data.persistenceWarning ? `<br><span style="color:#92400e;">⚠️ ${esc(data.persistenceWarning)}</span>` : ''}
     </p>`;
 
   const btns = document.getElementById('download-buttons');
@@ -654,6 +693,9 @@ function resetWizard() {
     warnings:[], remitteeHistory:[], lookupMatches:{}, filename:'', userInputs:{}, mappingAudit:{},
     hardcodedKeys:[], transactionId:null, form146:null, reportText:'' };
   document.getElementById('file-name').style.display = 'none';
+  document.getElementById('xml-file').value = '';
+  uploadStatus.style.color = 'var(--text-muted)';
+  uploadStatus.textContent = 'Select the old 15CB XML exported from the portal, then click parse.';
   document.getElementById('parse-btn').disabled = true;
   goStep(1);
 }
