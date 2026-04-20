@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transactions — Form 15CB — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <meta name="theme-color" content="#059669">
+  <style>
+    .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end;}
+    .filter-bar .form-group{margin-bottom:0;min-width:200px;}
+    .tx-drawer{display:none;position:fixed;top:0;right:0;width:480px;max-width:100vw;height:100vh;background:var(--bg-card);box-shadow:-4px 0 24px rgba(0,0,0,.15);z-index:300;overflow-y:auto;padding:24px;}
+    .tx-drawer.open{display:block;}
+    .tx-drawer-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);}
+    .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:299;}
+    .drawer-overlay.open{display:block;}
+    .field-dl dt{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:12px;}
+    .field-dl dd{margin:2px 0 0;word-break:break-all;font-size:13px;}
+    .hc-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:12px;}
+    .status-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+    .status-badge.hc{background:#fef3c7;color:#92400e;}
+    .status-badge.ok{background:#d1fae5;color:#065f46;}
+  </style>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <button class="hamburger" onclick="openSidebar()">&#9776;</button>
+        <div class="topbar-title">Transaction History</div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/form15cb-convert.html" class="btn btn-primary btn-sm">+ New</a>
+        <a href="/form15cb.html" class="btn btn-ghost btn-sm">← Dashboard</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <div class="filter-bar">
+        <div class="form-group">
+          <label class="form-label">Filter by Remittee</label>
+          <input class="form-control" id="filter-remittee" placeholder="Type remittee name…" oninput="applyFilter()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Currency</label>
+          <select class="form-control" id="filter-currency" onchange="applyFilter()">
+            <option value="">All currencies</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:auto;">
+          <label class="form-label">&nbsp;</label>
+          <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Clear filters</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrapper">
+          <table class="mobile-stack-table">
+            <thead>
+              <tr>
+                <th>Remittee</th>
+                <th>Remitter</th>
+                <th>Foreign Amt</th>
+                <th>Currency</th>
+                <th>Nature</th>
+                <th>Proposed Date</th>
+                <th>Tax Year</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tx-body">
+              <tr><td colspan="10"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="pagination-bar" style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Transaction detail drawer -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="tx-drawer" id="tx-drawer">
+  <button class="tx-drawer-close" onclick="closeDrawer()">✕</button>
+  <div id="drawer-content"></div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+document.getElementById('sidebar-el').innerHTML = FORM15CB_SIDEBAR_HTML();
+buildSidebar();
+
+const API   = '/api/form15cb';
+const token = getToken();
+const H     = { 'Authorization': `Bearer ${token}` };
+
+let allTx = [];
+let filtered = [];
+
+// ── Load transactions ────────────────────────────────────────────────────
+async function loadTransactions() {
+  try {
+    const res  = await fetch(`${API}/transactions?limit=200`, { headers: H });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    allTx = data;
+
+    // Populate currency filter
+    const currencies = [...new Set(allTx.map(t => t.currency).filter(Boolean))].sort();
+    const sel = document.getElementById('filter-currency');
+    currencies.forEach(c => { const o = document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+
+    applyFilter();
+  } catch(e) {
+    document.getElementById('tx-body').innerHTML =
+      `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">⚠️</div>Error: ${esc(e.message)}</div></td></tr>`;
+  }
+}
+
+// ── Filtering ────────────────────────────────────────────────────────────
+function applyFilter() {
+  const rmtee = document.getElementById('filter-remittee').value.toLowerCase().trim();
+  const cur   = document.getElementById('filter-currency').value;
+  filtered = allTx.filter(t => {
+    const nameMatch = !rmtee || (t.remiteeName||'').toLowerCase().includes(rmtee);
+    const curMatch  = !cur   || t.currency === cur;
+    return nameMatch && curMatch;
+  });
+  renderTable();
+}
+
+function clearFilters() {
+  document.getElementById('filter-remittee').value = '';
+  document.getElementById('filter-currency').value = '';
+  applyFilter();
+}
+
+// ── Render table ─────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('tx-body');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📭</div>No transactions found. <a href="/form15cb-convert.html">Start a conversion →</a></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(t => {
+    const hcCount = (t.hardcodedReport||[]).length;
+    const statusBadge = hcCount
+      ? `<span class="status-badge hc">⚠ ${hcCount} hardcoded</span>`
+      : '<span class="status-badge ok">✓ Complete</span>';
+    const date = t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN') : '—';
+    return `<tr>
+      <td data-label="Remittee">${esc(t.remiteeName)}</td>
+      <td data-label="Remitter">${esc(t.remiterName)}</td>
+      <td data-label="Foreign Amt">${esc(t.amtForeign)}</td>
+      <td data-label="Currency">${esc(t.currency)}</td>
+      <td data-label="Nature">${esc(t.natureRemittance)}</td>
+      <td data-label="Proposed Date">${esc(t.proposedDate)}</td>
+      <td data-label="Tax Year">${esc(t.taxYear)}</td>
+      <td data-label="Status">${statusBadge}</td>
+      <td data-label="Date">${date}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="viewTx('${t.id}')">View</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadTx('${t.id}')">⬇ JSON</button>
+        <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteTx('${t.id}')">Delete</button>
+      </td></tr>`;
+  }).join('');
+}
+
+// ── View transaction in drawer ────────────────────────────────────────────
+async function viewTx(id) {
+  document.getElementById('drawer-content').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Loading…</div>';
+  openDrawer();
+  try {
+    const res  = await fetch(`${API}/transactions/${id}`, { headers: H });
+    const tx   = await res.json();
+    if (tx.error) throw new Error(tx.error);
+
+    const f = tx.form146 || {};
+    const hcItems = tx.hardcodedReport || [];
+
+    let html = `<h2 style="margin:0 0 4px;font-size:18px;">${esc(tx.remiteeName||'—')}</h2>
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        ${tx.createdAt ? new Date(tx.createdAt).toLocaleString('en-IN') : ''}
+      </div>`;
+
+    if (hcItems.length) {
+      html += `<div class="hc-warn">⚠️ ${hcItems.length} field(s) were hardcoded. Update before importing.</div>`;
+    }
+
+    html += '<dl class="field-dl">';
+
+    const sections = [
+      { label: 'Remitter', keys: ['form19bf8RemitterName','form19bf8PAN','form19bf8Email','form19bf8MobileNumber'] },
+      { label: 'Remittee', keys: ['form19bf8RemiteeName','form19bf8RemiteeCountry','form19bf8BusinPlace','form19bf8RemiteeTIN','form19bf8RemiteeEmail'] },
+      { label: 'Remittance', keys: ['form19bf8AmtPayableFore','form19bf8AmtPayableInd','form19bf8Currency','form19bf8NatureRemittance','form19bf8Purposecode','form19bf8Subcode','form19bf8ProposedDate'] },
+      { label: 'IT Act', keys: ['form19bf8RemittanceTax','form19bf8Taxable','form19bf8TaxableInc','form19bf8TaxLiability'] },
+      { label: 'DTAA', keys: ['form19bf8ReliefClaimed','form19bf8TaxResidency','form19bf8Article','form19bf8TaxbleIncome','form19bf8TaxbleLiablity'] },
+      { label: 'TDS', keys: ['form19bf8TDSIndian','form19bf8RateTDS','form19bf8DateAmtTDS','form19bf8AmountTDS'] },
+      { label: 'CA / Accountant', keys: ['form19bf8NameAcc','form19bf8CAMemberNo','form19f8Namefirm','form19bf8FirmRegNo','form19bf8CertPlace','form19bf8CertDate'] },
+      { label: 'Bank', keys: ['form19bf8IFSCcode','form19bf8NameBank','form19bf8Branch','form19bf8BSRcode'] },
+    ];
+
+    for (const sec of sections) {
+      html += `<dt style="font-size:13px;font-weight:700;color:#059669;margin-top:18px;border-bottom:1px solid var(--border);padding-bottom:4px;">${esc(sec.label)}</dt>`;
+      for (const k of sec.keys) {
+        const v = f[k];
+        const isHc = hcItems.some(h => h.key === k);
+        const disp = (v===null||v===undefined||v==='') ? '—' : esc(String(v));
+        html += `<dt>${esc(k)}</dt><dd style="${isHc?'color:#d97706;font-weight:600;':''}">${disp}${isHc?' <small>(hardcoded)</small>':''}</dd>`;
+      }
+    }
+    html += '</dl>';
+
+    html += `<div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="downloadTx('${id}')">⬇ Download JSON</button>`;
+    if (hcItems.length) {
+      html += `<button class="btn btn-ghost btn-sm" onclick="downloadReport('${id}')">⬇ Hardcoded Report</button>`;
+    }
+    html += '</div>';
+
+    document.getElementById('drawer-content').innerHTML = html;
+
+    // Store tx for download
+    window._currentTx = tx;
+  } catch(e) {
+    document.getElementById('drawer-content').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div>Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function openDrawer() {
+  document.getElementById('tx-drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('tx-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+// ── Download helpers ──────────────────────────────────────────────────────
+async function downloadTx(id) {
+  try {
+    let tx = window._currentTx && window._currentTx.id === id ? window._currentTx : null;
+    if (!tx) {
+      const res = await fetch(`${API}/transactions/${id}`, { headers: H });
+      tx = await res.json();
+    }
+    const blob = new Blob([JSON.stringify(tx.form146, null, 2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `form146_${(tx.remiteeName||id).replace(/\s+/g,'_')}.json`;
+    a.click();
+  } catch(e) { toast('Download failed: '+e.message,'error'); }
+}
+
+async function downloadReport(id) {
+  try {
+    let tx = window._currentTx && window._currentTx.id === id ? window._currentTx : null;
+    if (!tx || !tx.hardcodedReport) return;
+    const lines = tx.hardcodedReport.map(h => `${h.key.padEnd(42)}${h.label.padEnd(36)}${h.value}`);
+    const text = ['='*70, 'HARDCODED FIELDS REPORT', ...lines].join('\n');
+    const blob = new Blob([text], { type:'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hardcoded_report_${id}.txt`;
+    a.click();
+  } catch(e) { toast('Download failed: '+e.message,'error'); }
+}
+
+async function deleteTx(id) {
+  if (!confirm('Delete this transaction? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`${API}/transactions/${id}`, { method:'DELETE', headers: H });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    toast('Transaction deleted','success');
+    allTx = allTx.filter(t => t.id !== id);
+    applyFilter();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+function esc(v) {
+  if (v===null||v===undefined) return '';
+  return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadTransactions();
+</script>
+</body>
+</html>

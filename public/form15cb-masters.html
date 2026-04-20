@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Masters — Form 15CB — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <meta name="theme-color" content="#059669">
+  <style>
+    .tab-bar{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+    .tab-btn{padding:8px 18px;border:none;background:none;cursor:pointer;font-weight:600;font-size:14px;color:var(--text-muted);border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:4px 4px 0 0;}
+    .tab-btn.active{color:#059669;border-bottom-color:#059669;background:#f0fdf4;}
+    .tab-panel{display:none;} .tab-panel.active{display:block;}
+    .master-form{background:var(--bg-soft);border-radius:8px;padding:18px;margin-bottom:20px;}
+    .master-form h3{margin:0 0 14px;font-size:15px;}
+    .f-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+    .action-cell{white-space:nowrap;}
+    .badge-active{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#d1fae5;color:#065f46;font-weight:600;}
+  </style>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <button class="hamburger" onclick="openSidebar()">&#9776;</button>
+        <div class="topbar-title">Masters</div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/form15cb.html" class="btn btn-ghost btn-sm">← Dashboard</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('partners')">Partners / CAs</button>
+        <button class="tab-btn"        onclick="switchTab('remitters')">Remitters</button>
+        <button class="tab-btn"        onclick="switchTab('remittees')">Remittees</button>
+        <button class="tab-btn"        onclick="switchTab('banks')">Banks</button>
+      </div>
+
+      <!-- ── Partners ────────────────────────────────────────────────────── -->
+      <div class="tab-panel active card" id="tab-partners">
+
+        <div class="master-form" id="partner-form-wrap">
+          <h3 id="partner-form-title">Add Partner / CA</h3>
+          <input type="hidden" id="partner-edit-id">
+          <div class="f-grid">
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">CA Full Name *</label><input class="form-control" id="p-caName" placeholder="CA Rajesh Kumar"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Membership No *</label><input class="form-control" id="p-memberNumber" placeholder="ARCA012345"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Firm Name</label><input class="form-control" id="p-firmName" placeholder="M/s Kumar & Associates"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Firm Reg. No.</label><input class="form-control" id="p-firmRegNo" placeholder="FRN123456W"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Email</label><input class="form-control" id="p-email" placeholder="ca@firm.com"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">PAN</label><input class="form-control" id="p-pan" placeholder="AAAPL1234C"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Firm ID (for linking)</label><input class="form-control" id="p-firmId" placeholder="firm001"></div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="savePartner()">Save Partner</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearPartnerForm()">Clear</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="mobile-stack-table">
+            <thead><tr><th>CA Name</th><th>Membership No</th><th>Firm</th><th>Reg No</th><th>Email</th><th class="action-cell">Actions</th></tr></thead>
+            <tbody id="partners-body"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Remitters ───────────────────────────────────────────────────── -->
+      <div class="tab-panel card" id="tab-remitters">
+        <div class="master-form">
+          <h3 id="remitter-form-title">Add Remitter</h3>
+          <input type="hidden" id="remitter-edit-id">
+          <div class="f-grid">
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Remitter Name *</label><input class="form-control" id="r-name" placeholder="ABC Pvt Ltd"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">PAN *</label><input class="form-control" id="r-pan" placeholder="AAACB1234D"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Address Line 1</label><input class="form-control" id="r-addr1" placeholder="123 MG Road"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">City</label><input class="form-control" id="r-city" placeholder="Mumbai"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">State</label><input class="form-control" id="r-state" placeholder="Maharashtra"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">PIN Code</label><input class="form-control" id="r-pin" placeholder="400001"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Email</label><input class="form-control" id="r-email" placeholder="accounts@abc.com"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Mobile</label><input class="form-control" id="r-mobile" placeholder="9876543210"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Status</label><input class="form-control" id="r-status" placeholder="Company / Individual"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Firm ID</label><input class="form-control" id="r-firmId" placeholder="firm001"></div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="saveRemitter()">Save Remitter</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearRemitterForm()">Clear</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="mobile-stack-table">
+            <thead><tr><th>Name</th><th>PAN</th><th>City</th><th>Email</th><th class="action-cell">Actions</th></tr></thead>
+            <tbody id="remitters-body"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Remittees ───────────────────────────────────────────────────── -->
+      <div class="tab-panel card" id="tab-remittees">
+        <div class="master-form">
+          <h3 id="remittee-form-title">Add Remittee</h3>
+          <input type="hidden" id="remittee-edit-id">
+          <div class="f-grid">
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Remittee Name *</label><input class="form-control" id="rm-name" placeholder="Foreign Co Ltd"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Country</label><input class="form-control" id="rm-country" placeholder="China / USA"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">TIN (Tax ID No.)</label><input class="form-control" id="rm-tin" placeholder="91-1234567"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Email</label><input class="form-control" id="rm-email" placeholder="accounts@foreign.com"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Address</label><input class="form-control" id="rm-address" placeholder="123 Street, City"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Nature of Business</label><input class="form-control" id="rm-nature" placeholder="Technology Services"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">DTAA Country</label><input class="form-control" id="rm-dtaaCountry" placeholder="IN-CN / IN-US"></div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="saveRemittee()">Save Remittee</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearRemitteeForm()">Clear</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="mobile-stack-table">
+            <thead><tr><th>Name</th><th>Country</th><th>TIN</th><th>Email</th><th>DTAA</th><th class="action-cell">Actions</th></tr></thead>
+            <tbody id="remittees-body"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Banks ───────────────────────────────────────────────────────── -->
+      <div class="tab-panel card" id="tab-banks">
+        <div class="master-form">
+          <h3 id="bank-form-title">Add Bank</h3>
+          <input type="hidden" id="bank-edit-id">
+          <div class="f-grid">
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Bank Name *</label><input class="form-control" id="b-bankName" placeholder="ICICI Bank"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">IFSC Code *</label><input class="form-control" id="b-ifsc" placeholder="ICIC0001234"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">Branch Name</label><input class="form-control" id="b-branchName" placeholder="Bandra West"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">BSR Code</label><input class="form-control" id="b-bsrCode" placeholder="0000123"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="form-label">City</label><input class="form-control" id="b-city" placeholder="Mumbai"></div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="saveBank()">Save Bank</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearBankForm()">Clear</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="mobile-stack-table">
+            <thead><tr><th>Bank Name</th><th>IFSC</th><th>Branch</th><th>BSR Code</th><th>City</th><th class="action-cell">Actions</th></tr></thead>
+            <tbody id="banks-body"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">⏳</div>Loading…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+document.getElementById('sidebar-el').innerHTML = FORM15CB_SIDEBAR_HTML();
+buildSidebar();
+
+const API = '/api/form15cb';
+const token = getToken();
+const H = { 'Authorization': `Bearer ${token}` };
+const HJ = { ...H, 'Content-Type':'application/json' };
+
+// Tab switching
+const TABS = ['partners','remitters','remittees','banks'];
+function switchTab(tab) {
+  TABS.forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t===tab);
+  });
+  document.querySelectorAll('.tab-btn').forEach((btn,i) => {
+    btn.classList.toggle('active', TABS[i]===tab);
+  });
+  loadTab(tab);
+}
+
+// Check URL param for initial tab
+const urlTab = new URLSearchParams(location.search).get('tab');
+
+// ── Generic helpers ──────────────────────────────────────────────────────
+function esc(v) { return (v===null||v===undefined)?'':String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadTab(tab) { window['load' + cap(tab)](); }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+async function apiGet(path) {
+  const res = await fetch(`${API}/${path}`, { headers: H });
+  return res.json();
+}
+async function apiPost(path, data) {
+  const res = await fetch(`${API}/${path}`, { method:'POST', headers:HJ, body:JSON.stringify(data) });
+  return res.json();
+}
+async function apiPut(path, data) {
+  const res = await fetch(`${API}/${path}`, { method:'PUT', headers:HJ, body:JSON.stringify(data) });
+  return res.json();
+}
+async function apiDel(path) {
+  const res = await fetch(`${API}/${path}`, { method:'DELETE', headers:H });
+  return res.json();
+}
+
+function actionBtns(id, tab) {
+  return `<button class="btn btn-ghost btn-sm" onclick="edit${cap(tab)}('${id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="del${cap(tab)}('${id}')">Delete</button>`;
+}
+
+// ── Partners ─────────────────────────────────────────────────────────────
+async function loadPartners() {
+  try {
+    const items = await apiGet('partners');
+    const tb = document.getElementById('partners-body');
+    tb.innerHTML = items.length
+      ? items.map(p => `<tr>
+          <td data-label="CA Name">${esc(p.caName)}</td>
+          <td data-label="Membership No">${esc(p.memberNumber)}</td>
+          <td data-label="Firm">${esc(p.firmName)}</td>
+          <td data-label="Reg No">${esc(p.firmRegNo)}</td>
+          <td data-label="Email">${esc(p.email)}</td>
+          <td class="action-cell">${actionBtns(p.id,'Partners')}</td></tr>`).join('')
+      : '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">👤</div>No partners yet. Add one above.</div></td></tr>';
+  } catch(e) { toast('Error loading partners: '+e.message,'error'); }
+}
+async function savePartner() {
+  const id = document.getElementById('partner-edit-id').value;
+  const data = {
+    caName: document.getElementById('p-caName').value.trim(),
+    memberNumber: document.getElementById('p-memberNumber').value.trim(),
+    firmName: document.getElementById('p-firmName').value.trim(),
+    firmRegNo: document.getElementById('p-firmRegNo').value.trim(),
+    email: document.getElementById('p-email').value.trim(),
+    pan: document.getElementById('p-pan').value.trim(),
+    firmId: document.getElementById('p-firmId').value.trim(),
+  };
+  if (!data.caName || !data.memberNumber) { toast('CA Name and Membership No are required','error'); return; }
+  try {
+    if (id) await apiPut(`partners/${id}`, data);
+    else    await apiPost('partners', data);
+    toast('Partner saved','success'); clearPartnerForm(); loadPartners();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function editPartners(id) {
+  try {
+    const items = await apiGet('partners');
+    const p = items.find(x => x.id === id); if (!p) return;
+    document.getElementById('partner-edit-id').value = id;
+    document.getElementById('p-caName').value       = p.caName || '';
+    document.getElementById('p-memberNumber').value = p.memberNumber || '';
+    document.getElementById('p-firmName').value     = p.firmName || '';
+    document.getElementById('p-firmRegNo').value    = p.firmRegNo || '';
+    document.getElementById('p-email').value        = p.email || '';
+    document.getElementById('p-pan').value          = p.pan || '';
+    document.getElementById('p-firmId').value       = p.firmId || '';
+    document.getElementById('partner-form-title').textContent = 'Edit Partner';
+    document.getElementById('partner-form-wrap').scrollIntoView({ behavior:'smooth' });
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function delPartners(id) {
+  if (!confirm('Delete this partner?')) return;
+  try { await apiDel(`partners/${id}`); toast('Deleted','success'); loadPartners(); }
+  catch(e) { toast('Error: '+e.message,'error'); }
+}
+function clearPartnerForm() {
+  ['caName','memberNumber','firmName','firmRegNo','email','pan','firmId'].forEach(f => document.getElementById('p-'+f).value='');
+  document.getElementById('partner-edit-id').value='';
+  document.getElementById('partner-form-title').textContent='Add Partner / CA';
+}
+
+// ── Remitters ─────────────────────────────────────────────────────────────
+async function loadRemitters() {
+  try {
+    const items = await apiGet('remitters');
+    const tb = document.getElementById('remitters-body');
+    tb.innerHTML = items.length
+      ? items.map(r => `<tr>
+          <td data-label="Name">${esc(r.name)}</td>
+          <td data-label="PAN">${esc(r.pan)}</td>
+          <td data-label="City">${esc(r.city)}</td>
+          <td data-label="Email">${esc(r.email)}</td>
+          <td class="action-cell">${actionBtns(r.id,'Remitters')}</td></tr>`).join('')
+      : '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🏢</div>No remitters yet.</div></td></tr>';
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function saveRemitter() {
+  const id = document.getElementById('remitter-edit-id').value;
+  const data = {
+    name: document.getElementById('r-name').value.trim(),
+    pan:  document.getElementById('r-pan').value.trim(),
+    addr1: document.getElementById('r-addr1').value.trim(),
+    city: document.getElementById('r-city').value.trim(),
+    state: document.getElementById('r-state').value.trim(),
+    pin:  document.getElementById('r-pin').value.trim(),
+    email: document.getElementById('r-email').value.trim(),
+    mobile: document.getElementById('r-mobile').value.trim(),
+    status: document.getElementById('r-status').value.trim(),
+    firmId: document.getElementById('r-firmId').value.trim(),
+  };
+  if (!data.name || !data.pan) { toast('Name and PAN are required','error'); return; }
+  try {
+    if (id) await apiPut(`remitters/${id}`, data);
+    else    await apiPost('remitters', data);
+    toast('Remitter saved','success'); clearRemitterForm(); loadRemitters();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function editRemitters(id) {
+  const items = await apiGet('remitters');
+  const r = items.find(x => x.id===id); if (!r) return;
+  document.getElementById('remitter-edit-id').value = id;
+  ['name','pan','addr1','city','state','pin','email','mobile','status','firmId'].forEach(f => {
+    const el = document.getElementById('r-'+f); if(el) el.value = r[f==='addr1'?'addr1':f] || '';
+  });
+  document.getElementById('r-addr1').value = r.addr1||'';
+  document.getElementById('remitter-form-title').textContent = 'Edit Remitter';
+}
+async function delRemitters(id) {
+  if (!confirm('Delete this remitter?')) return;
+  try { await apiDel(`remitters/${id}`); toast('Deleted','success'); loadRemitters(); }
+  catch(e) { toast('Error: '+e.message,'error'); }
+}
+function clearRemitterForm() {
+  ['name','pan','addr1','city','state','pin','email','mobile','status','firmId'].forEach(f => {
+    const el = document.getElementById('r-'+f); if(el) el.value='';
+  });
+  document.getElementById('remitter-edit-id').value='';
+  document.getElementById('remitter-form-title').textContent='Add Remitter';
+}
+
+// ── Remittees ─────────────────────────────────────────────────────────────
+async function loadRemittees() {
+  try {
+    const items = await apiGet('remittees');
+    const tb = document.getElementById('remittees-body');
+    tb.innerHTML = items.length
+      ? items.map(r => `<tr>
+          <td data-label="Name">${esc(r.name)}</td>
+          <td data-label="Country">${esc(r.country)}</td>
+          <td data-label="TIN">${esc(r.tin)}</td>
+          <td data-label="Email">${esc(r.email)}</td>
+          <td data-label="DTAA">${esc(r.dtaaCountry)}</td>
+          <td class="action-cell">${actionBtns(r.id,'Remittees')}</td></tr>`).join('')
+      : '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🌏</div>No remittees yet.</div></td></tr>';
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function saveRemittee() {
+  const id = document.getElementById('remittee-edit-id').value;
+  const data = {
+    name:        document.getElementById('rm-name').value.trim(),
+    country:     document.getElementById('rm-country').value.trim(),
+    tin:         document.getElementById('rm-tin').value.trim(),
+    email:       document.getElementById('rm-email').value.trim(),
+    address:     document.getElementById('rm-address').value.trim(),
+    nature:      document.getElementById('rm-nature').value.trim(),
+    dtaaCountry: document.getElementById('rm-dtaaCountry').value.trim(),
+  };
+  if (!data.name) { toast('Remittee Name is required','error'); return; }
+  try {
+    if (id) await apiPut(`remittees/${id}`, data);
+    else    await apiPost('remittees', data);
+    toast('Remittee saved','success'); clearRemitteeForm(); loadRemittees();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function editRemittees(id) {
+  const items = await apiGet('remittees');
+  const r = items.find(x => x.id===id); if (!r) return;
+  document.getElementById('remittee-edit-id').value = id;
+  document.getElementById('rm-name').value        = r.name||'';
+  document.getElementById('rm-country').value     = r.country||'';
+  document.getElementById('rm-tin').value         = r.tin||'';
+  document.getElementById('rm-email').value       = r.email||'';
+  document.getElementById('rm-address').value     = r.address||'';
+  document.getElementById('rm-nature').value      = r.nature||'';
+  document.getElementById('rm-dtaaCountry').value = r.dtaaCountry||'';
+  document.getElementById('remittee-form-title').textContent = 'Edit Remittee';
+}
+async function delRemittees(id) {
+  if (!confirm('Delete this remittee?')) return;
+  try { await apiDel(`remittees/${id}`); toast('Deleted','success'); loadRemittees(); }
+  catch(e) { toast('Error: '+e.message,'error'); }
+}
+function clearRemitteeForm() {
+  ['name','country','tin','email','address','nature','dtaaCountry'].forEach(f => {
+    const el = document.getElementById('rm-'+f); if(el) el.value='';
+  });
+  document.getElementById('remittee-edit-id').value='';
+  document.getElementById('remittee-form-title').textContent='Add Remittee';
+}
+
+// ── Banks ─────────────────────────────────────────────────────────────────
+async function loadBanks() {
+  try {
+    const items = await apiGet('banks');
+    const tb = document.getElementById('banks-body');
+    tb.innerHTML = items.length
+      ? items.map(b => `<tr>
+          <td data-label="Bank Name">${esc(b.bankName)}</td>
+          <td data-label="IFSC">${esc(b.ifsc)}</td>
+          <td data-label="Branch">${esc(b.branchName)}</td>
+          <td data-label="BSR Code">${esc(b.bsrCode)}</td>
+          <td data-label="City">${esc(b.city)}</td>
+          <td class="action-cell">${actionBtns(b.id,'Banks')}</td></tr>`).join('')
+      : '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🏦</div>No banks yet.</div></td></tr>';
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function saveBank() {
+  const id = document.getElementById('bank-edit-id').value;
+  const data = {
+    bankName:   document.getElementById('b-bankName').value.trim(),
+    ifsc:       document.getElementById('b-ifsc').value.trim().toUpperCase(),
+    branchName: document.getElementById('b-branchName').value.trim(),
+    bsrCode:    document.getElementById('b-bsrCode').value.trim(),
+    city:       document.getElementById('b-city').value.trim(),
+  };
+  if (!data.bankName || !data.ifsc) { toast('Bank Name and IFSC are required','error'); return; }
+  try {
+    if (id) await apiPut(`banks/${id}`, data);
+    else    await apiPost('banks', data);
+    toast('Bank saved','success'); clearBankForm(); loadBanks();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+async function editBanks(id) {
+  const items = await apiGet('banks');
+  const b = items.find(x => x.id===id); if (!b) return;
+  document.getElementById('bank-edit-id').value    = id;
+  document.getElementById('b-bankName').value      = b.bankName||'';
+  document.getElementById('b-ifsc').value          = b.ifsc||'';
+  document.getElementById('b-branchName').value    = b.branchName||'';
+  document.getElementById('b-bsrCode').value       = b.bsrCode||'';
+  document.getElementById('b-city').value          = b.city||'';
+  document.getElementById('bank-form-title').textContent = 'Edit Bank';
+}
+async function delBanks(id) {
+  if (!confirm('Delete this bank?')) return;
+  try { await apiDel(`banks/${id}`); toast('Deleted','success'); loadBanks(); }
+  catch(e) { toast('Error: '+e.message,'error'); }
+}
+function clearBankForm() {
+  ['bankName','ifsc','branchName','bsrCode','city'].forEach(f => {
+    const el = document.getElementById('b-'+f); if(el) el.value='';
+  });
+  document.getElementById('bank-edit-id').value='';
+  document.getElementById('bank-form-title').textContent='Add Bank';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+const initTab = ['partners','remitters','remittees','banks'].includes(urlTab) ? urlTab : 'partners';
+switchTab(initTab);
+</script>
+</body>
+</html>
