@@ -43,6 +43,11 @@ const router   = express.Router();
 
 // ─── Multer — in-memory storage (no disk writes) ───────────────────────────
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const FIRESTORE_TIMEOUT_SENTINEL = Symbol('firestore-timeout');
+const FIRESTORE_READ_TIMEOUT_MS = Math.max(200, parseInt(process.env.FORM15CB_FIRESTORE_READ_TIMEOUT_MS || '1200', 10));
+const FIRESTORE_WRITE_TIMEOUT_MS = Math.max(500, parseInt(process.env.FORM15CB_FIRESTORE_WRITE_TIMEOUT_MS || '2000', 10));
+const FIRESTORE_BACKOFF_MS = Math.max(1000, parseInt(process.env.FORM15CB_FIRESTORE_BACKOFF_MS || '300000', 10));
+let firestoreUnavailableUntil = 0;
 
 // ─── Firestore collection names ────────────────────────────────────────────
 const COL = {
@@ -303,22 +308,69 @@ function taxYear() {
   return `${fy}-${String(fy + 1).slice(-2)}`;
 }
 
+function isFirestoreUnavailable() {
+  return Date.now() < firestoreUnavailableUntil;
+}
+
+function markFirestoreUnavailable() {
+  firestoreUnavailableUntil = Date.now() + FIRESTORE_BACKOFF_MS;
+}
+
+async function runWithTimeout(factory, timeoutMs) {
+  try {
+    return await Promise.race([
+      Promise.resolve().then(factory),
+      new Promise(resolve => setTimeout(() => resolve(FIRESTORE_TIMEOUT_SENTINEL), timeoutMs))
+    ]);
+  } catch (error) {
+    return error;
+  }
+}
+
+async function runFirestoreRead(factory, fallbackValue) {
+  if (isFirestoreUnavailable()) return fallbackValue;
+
+  const result = await runWithTimeout(factory, FIRESTORE_READ_TIMEOUT_MS);
+  if (result === FIRESTORE_TIMEOUT_SENTINEL || result instanceof Error) {
+    markFirestoreUnavailable();
+    return fallbackValue;
+  }
+  return result;
+}
+
+async function runFirestoreWrite(factory) {
+  if (isFirestoreUnavailable()) {
+    const error = new Error('Form 15CB master data backend is unavailable right now. Please try again later.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const result = await runWithTimeout(factory, FIRESTORE_WRITE_TIMEOUT_MS);
+  if (result === FIRESTORE_TIMEOUT_SENTINEL || result instanceof Error) {
+    markFirestoreUnavailable();
+    const error = new Error('Form 15CB master data backend is unavailable right now. Please try again later.');
+    error.statusCode = 503;
+    throw error;
+  }
+  return result;
+}
+
 async function findFirestoreRecord(collectionName, field, value) {
   if (!hasMeaningfulValue(value)) return null;
-  try {
-    const snap = await db.collection(collectionName).where(field, '==', value).limit(1).get();
-    if (snap.empty) return null;
-    return { id: snap.docs[0].id, ...snap.docs[0].data() };
-  } catch {
-    return null;
-  }
+  const snap = await runFirestoreRead(
+    () => db.collection(collectionName).where(field, '==', value).limit(1).get(),
+    null
+  );
+  if (!snap || snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
 async function loadLookupContext(fields, preferredPartnerId = '') {
   const partnerByIdPromise = preferredPartnerId
-    ? db.collection(COL.partners).doc(preferredPartnerId).get()
-        .then(doc => (doc.exists ? { id: doc.id, ...doc.data() } : null))
-        .catch(() => null)
+    ? runFirestoreRead(
+        () => db.collection(COL.partners).doc(preferredPartnerId).get(),
+        null
+      ).then(doc => (doc?.exists ? { id: doc.id, ...doc.data() } : null))
     : Promise.resolve(null);
 
   const [
@@ -887,10 +939,14 @@ function crudRoutes(collectionName) {
   // List
   r.get('/', async (req, res) => {
     try {
-      const snap = await db.collection(collectionName).orderBy('updatedAt','desc').get();
+      const snap = await runFirestoreRead(
+        () => db.collection(collectionName).orderBy('updatedAt','desc').get(),
+        null
+      );
+      if (!snap) return res.json([]);
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       res.json(items);
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
   });
 
   // Create
@@ -898,26 +954,26 @@ function crudRoutes(collectionName) {
     try {
       const now  = Date.now();
       const data = { ...req.body, createdBy: req.user?.id || '', createdAt: now, updatedAt: now };
-      const ref  = await db.collection(collectionName).add(data);
+      const ref  = await runFirestoreWrite(() => db.collection(collectionName).add(data));
       res.status(201).json({ id: ref.id, ...data });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
   });
 
   // Update
   r.put('/:id', async (req, res) => {
     try {
       const data = { ...req.body, updatedAt: Date.now(), updatedBy: req.user?.id || '' };
-      await db.collection(collectionName).doc(req.params.id).update(data);
+      await runFirestoreWrite(() => db.collection(collectionName).doc(req.params.id).update(data));
       res.json({ id: req.params.id, ...data });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
   });
 
   // Delete
   r.delete('/:id', async (req, res) => {
     try {
-      await db.collection(collectionName).doc(req.params.id).delete();
+      await runFirestoreWrite(() => db.collection(collectionName).doc(req.params.id).delete());
       res.json({ ok: true });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+    } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
   });
 
   return r;
@@ -939,6 +995,9 @@ router.post('/parse', upload.single('xml'), async (req, res) => {
     const parsed = parseXml(req.file.buffer);
     const { fields, warnings } = extractFromXml(parsed);
     const lookupContext = await loadLookupContext(fields);
+    if (isFirestoreUnavailable()) {
+      warnings.push('Master data lookups are unavailable right now, so XML parsing is continuing in offline mode.');
+    }
     const gaps = identifyGaps(fields, lookupContext, req.ip);
     const lookupMatches = summarizeLookupMatches(lookupContext);
 
@@ -946,16 +1005,19 @@ router.post('/parse', upload.single('xml'), async (req, res) => {
     let remitteeHistory = [];
     const rName = fields.form19bf8RemiteeName;
     if (rName) {
-      try {
-        const hSnap = await db.collection(COL.transactions)
+      const hSnap = await runFirestoreRead(
+        () => db.collection(COL.transactions)
           .orderBy('createdAt', 'desc')
           .limit(100)
-          .get();
+          .get(),
+        null
+      );
+      if (hSnap) {
         remitteeHistory = hSnap.docs
           .filter(d => d.data().remiteeName === rName)
           .slice(0, 5)
           .map(d => ({ id: d.id, ...d.data() }));
-      } catch(_) { /* not critical */ }
+      }
     }
 
     res.json({ fields, gaps, warnings, remitteeHistory, lookupMatches, filename: req.file.originalname });
@@ -1023,14 +1085,21 @@ router.post('/convert', async (req, res) => {
       updatedAt:     Date.now(),
     };
 
-    const txRef = await db.collection(COL.transactions).add(txData);
+    let txRef = null;
+    let persistenceWarning = '';
+    try {
+      txRef = await runFirestoreWrite(() => db.collection(COL.transactions).add(txData));
+    } catch (_) {
+      persistenceWarning = 'JSON generated successfully, but transaction history could not be saved because the master data backend is unavailable.';
+    }
 
     res.json({
-      transactionId: txRef.id,
+      transactionId: txRef?.id || 'LOCAL-ONLY',
       form146,
       mappingAudit,
       hardcodedReport,
       reportText,
+      persistenceWarning,
     });
   } catch(e) {
     res.status(e.statusCode || 500).json({ error: e.message });
@@ -1044,10 +1113,14 @@ router.get('/transactions', async (req, res) => {
     // Use simple orderBy (no composite index needed).
     // Client-side filter by remiteeName if provided.
     const limit = Math.min(parseInt(req.query.limit) || 200, 500);
-    const snap  = await db.collection(COL.transactions)
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get();
+    const snap = await runFirestoreRead(
+      () => db.collection(COL.transactions)
+        .orderBy('createdAt', 'desc')
+        .limit(limit)
+        .get(),
+      null
+    );
+    if (!snap) return res.json([]);
     let items = snap.docs.map(d => {
       const { form146, ...meta } = d.data();   // omit full form146 from list view
       return { id: d.id, ...meta };
@@ -1063,7 +1136,11 @@ router.get('/transactions', async (req, res) => {
 
 router.get('/transactions/:id', async (req, res) => {
   try {
-    const doc = await db.collection(COL.transactions).doc(req.params.id).get();
+    const doc = await runFirestoreRead(
+      () => db.collection(COL.transactions).doc(req.params.id).get(),
+      null
+    );
+    if (!doc) return res.status(404).json({ error: 'Not found' });
     if (!doc.exists) return res.status(404).json({ error: 'Not found' });
     res.json({ id: doc.id, ...doc.data() });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1071,22 +1148,30 @@ router.get('/transactions/:id', async (req, res) => {
 
 router.delete('/transactions/:id', async (req, res) => {
   try {
-    await db.collection(COL.transactions).doc(req.params.id).delete();
+    await runFirestoreWrite(() => db.collection(COL.transactions).doc(req.params.id).delete());
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(e.statusCode || 500).json({ error: e.message }); }
 });
 
 // Remittee transaction history (last 5)
 router.get('/remittees/:id/history', async (req, res) => {
   try {
-    const doc = await db.collection(COL.remittees).doc(req.params.id).get();
+    const doc = await runFirestoreRead(
+      () => db.collection(COL.remittees).doc(req.params.id).get(),
+      null
+    );
+    if (!doc) return res.json([]);
     if (!doc.exists) return res.status(404).json({ error: 'Remittee not found' });
     const { name } = doc.data();
     // Fetch recent transactions and filter client-side (avoids composite index)
-    const snap = await db.collection(COL.transactions)
-      .orderBy('createdAt', 'desc')
-      .limit(100)
-      .get();
+    const snap = await runFirestoreRead(
+      () => db.collection(COL.transactions)
+        .orderBy('createdAt', 'desc')
+        .limit(100)
+        .get(),
+      null
+    );
+    if (!snap) return res.json([]);
     const history = snap.docs
       .filter(d => d.data().remiteeName === name)
       .slice(0, 5)
@@ -1099,13 +1184,27 @@ router.get('/remittees/:id/history', async (req, res) => {
 
 router.get('/analytics', async (req, res) => {
   try {
-    const [txSnap, rmitterSnap, rmitteeSnap, bankSnap, partnerSnap] = await Promise.all([
-      db.collection(COL.transactions).orderBy('createdAt','desc').limit(100).get(),
-      db.collection(COL.remitters).get(),
-      db.collection(COL.remittees).get(),
-      db.collection(COL.banks).get(),
-      db.collection(COL.partners).get(),
-    ]);
+    const analyticsData = await runFirestoreRead(
+      () => Promise.all([
+        db.collection(COL.transactions).orderBy('createdAt','desc').limit(100).get(),
+        db.collection(COL.remitters).get(),
+        db.collection(COL.remittees).get(),
+        db.collection(COL.banks).get(),
+        db.collection(COL.partners).get(),
+      ]),
+      null
+    );
+    if (!analyticsData) {
+      return res.json({
+        counts: { transactions: 0, remitters: 0, remittees: 0, banks: 0, partners: 0 },
+        totalForeignAmt: 0,
+        totalIndianAmt: 0,
+        byCurrency: {},
+        byNature: {},
+        recentTransactions: [],
+      });
+    }
+    const [txSnap, rmitterSnap, rmitteeSnap, bankSnap, partnerSnap] = analyticsData;
 
     const txs = txSnap.docs.map(d => d.data());
 
