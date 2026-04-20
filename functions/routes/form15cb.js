@@ -38,6 +38,7 @@ const express  = require('express');
 const multer   = require('multer');
 const { XMLParser } = require('fast-xml-parser');
 const { db }   = require('../db');
+const form146Template = require('../form146-template.json');
 const router   = express.Router();
 
 // ─── Multer — in-memory storage (no disk writes) ───────────────────────────
@@ -111,21 +112,131 @@ const NATURE_REM_MAP = {
 };
 
 const MANDATORY_FIELDS = [
-  { key:'form19bf8IFSCcode',      label:'Bank IFSC Code',                    hardcode:'ICIC0000001' },
-  { key:'form19bf8RemiteeTIN',    label:'Remittee Tax Identification Number', hardcode:'HARDCODED_TIN' },
-  { key:'form19bf8CertPlace',     label:'CA Certification Place (City)',      hardcode:'Mumbai' },
-  { key:'form19bf8CertDate',      label:'CA Certification Date',             hardcode: new Date().toISOString().slice(0,10) },
-  { key:'form19bf8CertIPAddress', label:'System IP Address',                 hardcode:'0.0.0.0' },
+  {
+    key:'form19bf8IFSCcode',
+    label:'Bank IFSC Code',
+    description:'Required by Form 146 to identify the remitting bank.',
+    example:'ICIC0001234',
+    hardcode:'ICIC0000001'
+  },
+  {
+    key:'form19bf8RemiteeTIN',
+    label:'Remittee Tax Identification Number',
+    description:'Tax ID / TIN of the foreign remittee. Usually sourced from remittee master or supporting tax documents.',
+    example:'AB1234567',
+    hardcode:'HARDCODED_TIN'
+  },
+  {
+    key:'form19bf8CertPlace',
+    label:'CA Certification Place (City)',
+    description:'City from which the CA certification is being issued.',
+    example:'Mumbai',
+    hardcode:'Mumbai'
+  },
+  {
+    key:'form19bf8CertDate',
+    label:'CA Certification Date',
+    description:'Date printed on the CA certification / filing pack.',
+    example: new Date().toISOString().slice(0,10),
+    hardcode: new Date().toISOString().slice(0,10)
+  },
+  {
+    key:'form19bf8CertIPAddress',
+    label:'System IP Address',
+    description:'IP address from which the JSON is being prepared or submitted.',
+    example:'203.0.113.10',
+    hardcode:'0.0.0.0'
+  },
 ];
 
 const OPTIONAL_FIELDS = [
-  { key:'form19bf8RemiteeEmail',    label:'Remittee Email Address' },
-  { key:'form19bf8TaxResidNum',     label:'Tax Residency Certificate Number' },
-  { key:'form19bf8ArticleReasons',  label:'DTAA Article Reasons' },
-  { key:'form19bf8FurnishReasons',  label:'Furnish Reasons' },
-  { key:'form19bf8Basis',           label:'Basis for Tax Determination' },
-  { key:'form19bf8CertAdd',         label:'CA Additional Certification Note' },
+  {
+    key:'form19bf8RemiteeEmail',
+    label:'Remittee Email Address',
+    description:'Email of the foreign remittee if available in master data or supporting documents.',
+    example:'accounts@foreignco.com'
+  },
+  {
+    key:'form19bf8TaxResidNum',
+    label:'Tax Residency Certificate Number',
+    description:'TRC or residency certificate reference, when DTAA relief is being used.',
+    example:'TRC-2025-001'
+  },
+  {
+    key:'form19bf8ArticleReasons',
+    label:'DTAA Article Reasons',
+    description:'Short justification for the DTAA article selected.',
+    example:'Income falls under the cited DTAA article based on the service contract.'
+  },
+  {
+    key:'form19bf8FurnishReasons',
+    label:'Furnish Reasons',
+    description:'Any explanatory note needed by the offline utility when a supporting detail is unavailable.',
+    example:'TRC awaited from remittee; withholding applied conservatively as per contract.'
+  },
+  {
+    key:'form19bf8Basis',
+    label:'Basis for Tax Determination',
+    description:'Basis on which tax liability is determined.',
+    example:'Based on invoices, delivery documents and bank statements'
+  },
+  {
+    key:'form19bf8CertAdd',
+    label:'CA Additional Certification Note',
+    description:'Optional additional note from the CA for the import record.',
+    example:'Values verified with signed certificate and remittance documents.'
+  },
 ];
+
+const HIGH_CONFIDENCE_XML_FIELDS = new Set([
+  'form19bf8PAN',
+  'form19bf8RemitterName',
+  'form19bf8RemiteeName',
+  'form19bf8RemiteeName1',
+  'form19bf8RemiteeCountry',
+  'form19bf8RemittaceCntry',
+  'form19bf8AmtPayableFore',
+  'form19bf8AmtPayableInd',
+  'form19bf8Branch',
+  'form19bf8BSRcode',
+  'form19bf8ProposedDate',
+  'form19bf8GrossedTax',
+  'form19bf8Purposecode',
+  'form19bf8NatureRemittance',
+  'form19bf8RemittanceTax',
+  'form19bf8Taxable',
+  'form19bf8TaxableInc',
+  'form19bf8TaxLiability',
+  'form19bf8Taxdetermine',
+  'form19bf8ReliefClaimed',
+  'form19bf8TaxResidency',
+  'form19bf8Relevant',
+  'form19bf8Article',
+  'form19bf8TaxbleIncome',
+  'form19bf8TaxbleLiablity',
+  'form19bf8Ratededctax',
+  'form19bf8RemitanceAcc',
+  'form19bf8TaxableIncDTAA',
+  'form19bf8CaptialGains',
+  'form19bf8NaturePayment',
+  'form19bf8RemittanceDrp',
+  'form19bf8TDSforeign',
+  'form19bf8TDSIndian',
+  'form19bf8RateTDS',
+  'form19bf8DateAmtTDS',
+  'form19bf8AmtPayableFore1',
+  'form19bf8NameAcc',
+  'form19bf8CAMemberNo',
+  'form19f8Namefirm',
+  'form19bf8FirmRegNo',
+  'form19bf8CountryCode1',
+  'form19bf8CountryCodeISO',
+  'form19bf8CountryCode',
+  'form19bf8Dealer',
+  'form19bf8CertSalutation',
+  'form19bf8CerfVerSalutation',
+  'form19bf8TaxYear'
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER FUNCTIONS
@@ -156,6 +267,32 @@ function composeAddress(...parts) {
   return parts.filter(p => p && String(p).trim()).map(p => String(p).trim()).join(', ');
 }
 
+function hasMeaningfulValue(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
+}
+
+function firstMeaningfulValue(...values) {
+  for (const value of values) {
+    if (hasMeaningfulValue(value)) return value;
+  }
+  return '';
+}
+
+function normalizeLookupText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeClientIp(ip) {
+  const raw = String(ip || '').trim();
+  if (!raw) return '';
+  if (raw === '::1') return '127.0.0.1';
+  return raw.replace(/^::ffff:/, '');
+}
+
 function nowISTString() {
   return new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 }
@@ -164,6 +301,126 @@ function taxYear() {
   const now = new Date();
   const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   return `${fy}-${String(fy + 1).slice(-2)}`;
+}
+
+async function findFirestoreRecord(collectionName, field, value) {
+  if (!hasMeaningfulValue(value)) return null;
+  try {
+    const snap = await db.collection(collectionName).where(field, '==', value).limit(1).get();
+    if (snap.empty) return null;
+    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+  } catch {
+    return null;
+  }
+}
+
+async function loadLookupContext(fields, preferredPartnerId = '') {
+  const partnerByIdPromise = preferredPartnerId
+    ? db.collection(COL.partners).doc(preferredPartnerId).get()
+        .then(doc => (doc.exists ? { id: doc.id, ...doc.data() } : null))
+        .catch(() => null)
+    : Promise.resolve(null);
+
+  const [
+    bankByBsr,
+    bankByBranch,
+    remitteeByName,
+    remitterByPan,
+    remitterByName,
+    partnerByMember,
+    partnerByName,
+    partnerById
+  ] = await Promise.all([
+    findFirestoreRecord(COL.banks, 'bsrCode', fields.form19bf8BSRcode),
+    findFirestoreRecord(COL.banks, 'branchName', fields.form19bf8Branch),
+    findFirestoreRecord(COL.remittees, 'name', fields.form19bf8RemiteeName),
+    findFirestoreRecord(COL.remitters, 'pan', fields.form19bf8PAN),
+    findFirestoreRecord(COL.remitters, 'name', fields.form19bf8RemitterName),
+    findFirestoreRecord(COL.partners, 'memberNumber', fields.form19bf8CAMemberNo),
+    findFirestoreRecord(COL.partners, 'caName', fields.form19bf8NameAcc),
+    partnerByIdPromise
+  ]);
+
+  return {
+    bank: bankByBsr || bankByBranch || null,
+    remittee: remitteeByName || null,
+    remitter: remitterByPan || remitterByName || null,
+    partner: partnerById || partnerByMember || partnerByName || null,
+  };
+}
+
+function buildSuggestionMap(fields, lookupContext, requestIp = '') {
+  const bank = lookupContext?.bank || null;
+  const remittee = lookupContext?.remittee || null;
+  const today = new Date().toISOString().slice(0,10);
+
+  return {
+    form19bf8IFSCcode: firstMeaningfulValue(bank?.ifsc),
+    form19bf8RemiteeTIN: firstMeaningfulValue(remittee?.tin),
+    form19bf8CertPlace: firstMeaningfulValue(fields.form19bf8CertPlace),
+    form19bf8CertDate: today,
+    form19bf8CertIPAddress: normalizeClientIp(requestIp),
+    form19bf8RemiteeEmail: firstMeaningfulValue(remittee?.email),
+    form19bf8TaxResidNum: '',
+    form19bf8ArticleReasons: hasMeaningfulValue(fields.form19bf8Article)
+      ? `Refer DTAA article ${fields.form19bf8Article} for the withholding position.`
+      : '',
+    form19bf8FurnishReasons: fields.form19bf8TaxResidency === 'N'
+      ? 'Provide the reason if TRC or other supporting tax residency evidence is not available.'
+      : '',
+    form19bf8Basis: firstMeaningfulValue(fields.form19bf8Basis, fields.form19bf8Taxdetermine),
+    form19bf8CertAdd: firstMeaningfulValue(fields.form19bf8Basis, fields.form19bf8Taxdetermine),
+  };
+}
+
+function identifyGaps(fields, lookupContext = {}, requestIp = '') {
+  const suggestions = buildSuggestionMap(fields, lookupContext, requestIp);
+  const enrich = field => {
+    const suggestedValue = firstMeaningfulValue(suggestions[field.key]);
+    const suggestionSourceMap = {
+      form19bf8IFSCcode: lookupContext?.bank ? 'bank master' : '',
+      form19bf8RemiteeTIN: lookupContext?.remittee ? 'remittee master' : '',
+      form19bf8CertPlace: hasMeaningfulValue(fields.form19bf8CertPlace) ? 'accountant address in XML' : '',
+      form19bf8CertDate: 'current date',
+      form19bf8CertIPAddress: hasMeaningfulValue(requestIp) ? 'current request IP' : '',
+      form19bf8RemiteeEmail: lookupContext?.remittee ? 'remittee master' : '',
+      form19bf8ArticleReasons: hasMeaningfulValue(fields.form19bf8Article) ? 'DTAA article in XML' : '',
+      form19bf8FurnishReasons: fields.form19bf8TaxResidency === 'N' ? 'DTAA residency flag in XML' : '',
+      form19bf8Basis: hasMeaningfulValue(fields.form19bf8Basis) ? 'basis for tax determination in XML' : '',
+      form19bf8CertAdd: hasMeaningfulValue(fields.form19bf8Basis) ? 'basis for tax determination in XML' : '',
+    };
+
+    return {
+      ...field,
+      suggestedValue,
+      suggestedBy: suggestionSourceMap[field.key] || '',
+      fallbackValue: hasMeaningfulValue(form146Template[field.key]) ? form146Template[field.key] : '',
+    };
+  };
+
+  return {
+    mandatory: MANDATORY_FIELDS
+      .filter(field => !HIGH_CONFIDENCE_XML_FIELDS.has(field.key) || !hasMeaningfulValue(fields[field.key]))
+      .map(enrich),
+    optional: OPTIONAL_FIELDS
+      .filter(field => !HIGH_CONFIDENCE_XML_FIELDS.has(field.key) || !hasMeaningfulValue(fields[field.key]))
+      .map(enrich),
+  };
+}
+
+function summarizeLookupMatches(lookupContext = {}) {
+  const labelFor = {
+    bank: match => firstMeaningfulValue(match.bankName, match.branchName, match.ifsc),
+    remittee: match => firstMeaningfulValue(match.name, match.email),
+    remitter: match => firstMeaningfulValue(match.name, match.pan),
+    partner: match => firstMeaningfulValue(match.caName, match.firmName, match.memberNumber),
+  };
+
+  return Object.fromEntries(
+    Object.entries(lookupContext)
+      .filter(([, value]) => value && value.id)
+      .map(([key, value]) => [key, { id: value.id, label: labelFor[key](value) }])
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -179,9 +436,25 @@ const xmlParser = new XMLParser({
   isArray: () => false,
 });
 
+function stripXmlPrefixes(node) {
+  if (Array.isArray(node)) {
+    return node.map(stripXmlPrefixes);
+  }
+  if (!node || typeof node !== 'object') {
+    return node;
+  }
+
+  const normalized = {};
+  for (const [key, value] of Object.entries(node)) {
+    const nextKey = key.startsWith('@_') ? key : key.split(':').pop();
+    normalized[nextKey] = stripXmlPrefixes(value);
+  }
+  return normalized;
+}
+
 function parseXml(buffer) {
   const xmlStr = buffer.toString('utf8');
-  return xmlParser.parse(xmlStr);
+  return stripXmlPrefixes(xmlParser.parse(xmlStr));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,6 +481,7 @@ function extractFromXml(parsed) {
   // Panel 1 — Remitter
   fields._pan           = s(remitter['PAN']);
   fields._caid          = s(acctnt['MembershipNumber']);
+  fields.form19bf8PAN   = s(remitter['PAN']);
   fields.form19bf8RemitterName = s(remitter['NameRemitter']);
 
   // Panel 2 — Remittee
@@ -268,6 +542,7 @@ function extractFromXml(parsed) {
   fields.form19bf8TaxableInc    = s(itact['AmtIncChrgIt']);
   fields.form19bf8TaxLiability  = s(itact['TaxLiablIt']);
   fields.form19bf8Taxdetermine  = s(itact['BasisDeterTax']);
+  fields.form19bf8Basis         = s(itact['BasisDeterTax']);
 
   // Panel 5 — DTAA
   fields.form19bf8ReliefClaimed  = Object.keys(dtaa).length ? 'Y' : 'N';
@@ -313,9 +588,9 @@ function extractFromXml(parsed) {
     addrLine1: composeAddress(aAddr['FlatDoorBuilding'], aAddr['RoadStreet']),
     addrLine2: composeAddress(aAddr['PremisesBuildingVillage'], aAddr['AreaLocality']),
     pincode:   String(pin),
-    postOffice: '',
-    locality:  '',
-    district:  '',
+    postOffice: s(aAddr['TownCityDistrict']),
+    locality:  s(aAddr['AreaLocality']),
+    district:  s(aAddr['TownCityDistrict']),
     state,
   };
 
@@ -326,21 +601,155 @@ function extractFromXml(parsed) {
   fields.form19bf8Dealer            = 'Y';
   fields.form19bf8CertSalutation    = 'M/s.';
   fields.form19bf8CerfVerSalutation = 'M/s.';
+  fields.form19bf8CertPlace         = s(aAddr['TownCityDistrict']);
   fields.form19bf8ShortTerm         = s(itact['AmtIncChrgIt']);
   fields.form19bf8TaxYear           = taxYear();
 
   return { fields, warnings };
 }
 
+function splitNameParts(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: '', midName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], midName: '', lastName: '' };
+  if (parts.length === 2) return { firstName: parts[0], midName: '', lastName: parts[1] };
+  return {
+    firstName: parts[0],
+    midName: parts.slice(1, -1).join(' '),
+    lastName: parts[parts.length - 1]
+  };
+}
+
+function applyRemitterMaster(form146, remitter = {}) {
+  if (!remitter) return;
+
+  const remitterName = firstMeaningfulValue(remitter.name, form146.form19bf8RemitterName);
+  const pan = firstMeaningfulValue(remitter.pan, form146.form19bf8PAN);
+  const status = firstMeaningfulValue(remitter.status, form146.form19bf8Status, 'Company');
+  const address = firstMeaningfulValue(
+    remitter.form19bf8Address,
+    composeAddress(remitter.addr1, remitter.addr2, remitter.city, remitter.postOffice, remitter.district, remitter.state, remitter.pin)
+  );
+
+  form146.entityNumber = firstMeaningfulValue(form146.entityNumber, remitter.entityNumber, pan);
+  form146.entityFirstName = firstMeaningfulValue(form146.entityFirstName, remitter.entityFirstName);
+  form146.entityMidName = firstMeaningfulValue(form146.entityMidName, remitter.entityMidName);
+  form146.entityLastName = firstMeaningfulValue(form146.entityLastName, remitter.entityLastName);
+  form146.entityAddrLine1Txt = firstMeaningfulValue(form146.entityAddrLine1Txt, remitter.entityAddrLine1Txt, remitter.addr1);
+  form146.entityAddrLine2Txt = firstMeaningfulValue(form146.entityAddrLine2Txt, remitter.entityAddrLine2Txt, remitter.addr2);
+  form146.entityPinCd = firstMeaningfulValue(form146.entityPinCd, remitter.entityPinCd, remitter.pin);
+  form146.entityLocalityDesc = firstMeaningfulValue(form146.entityLocalityDesc, remitter.entityLocalityDesc, remitter.city);
+  form146.entityStateCd = firstMeaningfulValue(form146.entityStateCd, remitter.entityStateCd);
+  form146.entityStateDesc = firstMeaningfulValue(form146.entityStateDesc, remitter.entityStateDesc, remitter.state);
+  form146.entityCountryCd = firstMeaningfulValue(form146.entityCountryCd, remitter.entityCountryCd, 91);
+  form146.entityCountryName = firstMeaningfulValue(form146.entityCountryName, remitter.entityCountryName, 'INDIA');
+  form146.entityDistrictDesc = firstMeaningfulValue(form146.entityDistrictDesc, remitter.entityDistrictDesc, remitter.district);
+  form146.entityPostofficeDesc = firstMeaningfulValue(form146.entityPostofficeDesc, remitter.entityPostofficeDesc, remitter.postOffice);
+  form146.entityTaxPayerCatgCd = firstMeaningfulValue(form146.entityTaxPayerCatgCd, remitter.entityTaxPayerCatgCd);
+  form146.entityTaxPayerCatgDesc = firstMeaningfulValue(form146.entityTaxPayerCatgDesc, remitter.entityTaxPayerCatgDesc, status);
+  form146.entityPrimaryEmail = firstMeaningfulValue(form146.entityPrimaryEmail, remitter.entityPrimaryEmail, remitter.email);
+  form146.entitySecondaryEmail = firstMeaningfulValue(form146.entitySecondaryEmail, remitter.entitySecondaryEmail);
+  form146.entityPrimaryMobile = firstMeaningfulValue(form146.entityPrimaryMobile, remitter.entityPrimaryMobile, remitter.mobile);
+  form146.entityDesig = firstMeaningfulValue(form146.entityDesig, remitter.entityDesig, status);
+  form146.pcPan = firstMeaningfulValue(form146.pcPan, remitter.pcPan);
+
+  form146.form19bf8RemitterName = remitterName;
+  form146.form19bf8PAN = pan;
+  form146.form19bf8Status = status;
+  form146.form19bf8ResStatus = firstMeaningfulValue(form146.form19bf8ResStatus, 'RES');
+  form146.form19bf8Email = firstMeaningfulValue(form146.form19bf8Email, remitter.email);
+  form146.form19bf8MobileNumber = firstMeaningfulValue(form146.form19bf8MobileNumber, remitter.mobile);
+  form146.form19bf8Address = firstMeaningfulValue(form146.form19bf8Address, address);
+}
+
+function applyPartnerMaster(form146, partner = {}) {
+  if (!partner) return;
+
+  const nameParts = splitNameParts(partner.caName);
+  form146.userId = firstMeaningfulValue(form146.userId, partner.userId, partner.memberNumber ? `ARCA${partner.memberNumber}` : '');
+  form146.userFirstName = firstMeaningfulValue(form146.userFirstName, partner.userFirstName, nameParts.firstName);
+  form146.userMidName = firstMeaningfulValue(form146.userMidName, partner.userMidName, nameParts.midName);
+  form146.userLastName = firstMeaningfulValue(form146.userLastName, partner.userLastName, nameParts.lastName);
+  form146.userRoleCd = firstMeaningfulValue(form146.userRoleCd, partner.userRoleCd, 'CA');
+  form146.userPan = firstMeaningfulValue(form146.userPan, partner.userPan, partner.pan);
+  form146.userEmail = firstMeaningfulValue(form146.userEmail, partner.userEmail, partner.email);
+  form146.userMobile = firstMeaningfulValue(form146.userMobile, partner.userMobile, partner.mobile);
+
+  form146.form19bf8NameAcc = firstMeaningfulValue(form146.form19bf8NameAcc, partner.form19bf8NameAcc, partner.caName);
+  form146.form19bf8CAMemberNo = firstMeaningfulValue(form146.form19bf8CAMemberNo, partner.form19bf8CAMemberNo, partner.memberNumber);
+  form146.form19f8Namefirm = firstMeaningfulValue(form146.form19f8Namefirm, partner.form19f8Namefirm, partner.firmName);
+  form146.form19bf8FirmRegNo = firstMeaningfulValue(form146.form19bf8FirmRegNo, partner.form19bf8FirmRegNo, partner.firmRegNo);
+}
+
+function applyDerivedIdentityFallbacks(form146) {
+  const accountantNameParts = splitNameParts(form146.form19bf8NameAcc);
+
+  form146.entityNumber = firstMeaningfulValue(form146.entityNumber, form146.form19bf8PAN);
+  form146.entityPrimaryEmail = firstMeaningfulValue(form146.entityPrimaryEmail, form146.form19bf8Email);
+  form146.entityPrimaryMobile = firstMeaningfulValue(form146.entityPrimaryMobile, form146.form19bf8MobileNumber);
+
+  form146.userId = firstMeaningfulValue(
+    form146.userId,
+    hasMeaningfulValue(form146.form19bf8CAMemberNo) ? `ARCA${form146.form19bf8CAMemberNo}` : ''
+  );
+  form146.userFirstName = firstMeaningfulValue(form146.userFirstName, accountantNameParts.firstName);
+  form146.userMidName = firstMeaningfulValue(form146.userMidName, accountantNameParts.midName);
+  form146.userLastName = firstMeaningfulValue(form146.userLastName, accountantNameParts.lastName);
+  form146.userRoleCd = firstMeaningfulValue(form146.userRoleCd, 'CA');
+}
+
+function buildMappingAudit(form146, fields = {}, userInputs = {}) {
+  const audit = {};
+
+  for (const [key, jsonValue] of Object.entries(form146)) {
+    const xmlValue = fields[key];
+    const userValue = userInputs[key];
+    const fallbackValue = form146Template[key];
+    const jsonSerialized = JSON.stringify(jsonValue);
+    const xmlSerialized = JSON.stringify(xmlValue);
+    const userSerialized = JSON.stringify(userValue);
+    const fallbackSerialized = JSON.stringify(fallbackValue);
+
+    let source = 'master_or_derived';
+    if (hasMeaningfulValue(userValue) && userSerialized === jsonSerialized) {
+      source = 'user';
+    } else if (HIGH_CONFIDENCE_XML_FIELDS.has(key) && hasMeaningfulValue(xmlValue) && xmlSerialized === jsonSerialized) {
+      source = 'xml';
+    } else if (hasMeaningfulValue(fallbackValue) && fallbackSerialized === jsonSerialized) {
+      source = 'template';
+    } else if (!hasMeaningfulValue(jsonValue)) {
+      source = 'blank';
+    } else if (hasMeaningfulValue(xmlValue)) {
+      source = 'xml_review';
+    }
+
+    audit[key] = {
+      key,
+      source,
+      xmlValue: hasMeaningfulValue(xmlValue) ? xmlValue : '',
+      jsonValue,
+      fallbackValue: hasMeaningfulValue(fallbackValue) ? fallbackValue : '',
+      editable: (
+        !key.startsWith('panel')
+        && key !== 'startTime'
+        && key !== 'formVersion'
+        && key !== 'schemaVersion'
+        && key !== 'citId'
+        && typeof jsonValue !== 'object'
+      ),
+    };
+  }
+
+  return audit;
+}
+
+function validateMandatoryFields(form146) {
+  return MANDATORY_FIELDS.filter(field => !hasMeaningfulValue(form146[field.key]));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // IDENTIFY GAPS
 // ─────────────────────────────────────────────────────────────────────────────
-
-function identifyGaps(fields) {
-  const mandatory = MANDATORY_FIELDS.filter(f => !fields[f.key]);
-  const optional  = OPTIONAL_FIELDS.filter(f  => !fields[f.key]);
-  return { mandatory, optional };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BUILD FORM 146
@@ -351,75 +760,70 @@ async function buildForm146(fields, userInputs, hardcodedKeys, firmId) {
   hardcodedKeys = new Set(hardcodedKeys || []);
   const hardcodedReport = [];
 
-  const form146 = {};
+  const form146 = JSON.parse(JSON.stringify(form146Template));
+  const lookupContext = await loadLookupContext(fields, firmId);
+  const suggestionMap = buildSuggestionMap(fields, lookupContext);
 
-  // 1. Apply XML-extracted fields (skip null values)
+  applyRemitterMaster(form146, lookupContext.remitter);
+  applyPartnerMaster(form146, lookupContext.partner);
+
+  // 1. Apply XML-extracted fields on top of the base template/master values.
   for (const [k, v] of Object.entries(fields)) {
-    if (!k.startsWith('_') && v !== null && v !== undefined) {
+    if (
+      !k.startsWith('_')
+      && HIGH_CONFIDENCE_XML_FIELDS.has(k)
+      && v !== null
+      && v !== undefined
+      && hasMeaningfulValue(v)
+    ) {
       form146[k] = v;
     }
   }
+  applyDerivedIdentityFallbacks(form146);
 
-  // 2. Overlay master data from Firestore if firmId provided
-  if (firmId) {
-    try {
-      const partnerSnap = await db.collection(COL.partners).where('firmId','==',firmId).limit(1).get();
-      if (!partnerSnap.empty) {
-        const p = partnerSnap.docs[0].data();
-        if (p.caName)       form146.form19bf8NameAcc    = p.caName;
-        if (p.memberNumber) form146.form19bf8CAMemberNo = p.memberNumber;
-        if (p.firmName)     form146.form19f8Namefirm    = p.firmName;
-        if (p.firmRegNo)    form146.form19bf8FirmRegNo  = p.firmRegNo;
-      }
-    } catch(_) { /* non-fatal */ }
-  }
-
-  // 3. Apply user inputs + hardcoded values
+  // 2. Apply user inputs + hardcoded values
   const allFieldDefs = [...MANDATORY_FIELDS, ...OPTIONAL_FIELDS];
   for (const fd of allFieldDefs) {
     if (hardcodedKeys.has(fd.key)) {
-      const hval = fd.hardcode || '';
+      const hval = firstMeaningfulValue(fd.hardcode, suggestionMap[fd.key], '');
       form146[fd.key] = hval;
       hardcodedReport.push({ key: fd.key, label: fd.label, value: hval });
-    } else if (userInputs[fd.key]) {
+    } else if (hasMeaningfulValue(userInputs[fd.key])) {
       form146[fd.key] = userInputs[fd.key];
     }
   }
-  // Extra user inputs not in standard lists
+
+  // Extra user inputs not in the prompt field lists.
   for (const [k, v] of Object.entries(userInputs)) {
-    if (v) form146[k] = v;
+    if (hasMeaningfulValue(v)) form146[k] = v;
   }
 
-  // 4. Bank lookup after IFSC known
-  const ifsc = form146.form19bf8IFSCcode;
-  if (ifsc) {
-    try {
-      const bankSnap = await db.collection(COL.banks).where('ifsc','==',ifsc).limit(1).get();
-      if (!bankSnap.empty) {
-        const b = bankSnap.docs[0].data();
-        if (b.bankName)   form146.form19bf8NameBank = b.bankName;
-        if (b.branchName) form146.form19bf8Branch   = b.branchName;
-        if (b.bankName)   form146.form19bf8Subcode1 = b.bankName;
-      }
-    } catch(_) { /* non-fatal */ }
+  const bankRecord = lookupContext.bank
+    || await findFirestoreRecord(COL.banks, 'ifsc', form146.form19bf8IFSCcode);
+  if (bankRecord) {
+    if (bankRecord.ifsc) {
+      form146.form19bf8IFSCcode = firstMeaningfulValue(form146.form19bf8IFSCcode, bankRecord.ifsc);
+    }
+    if (bankRecord.bankName) {
+      form146.form19bf8NameBank = firstMeaningfulValue(form146.form19bf8NameBank, bankRecord.bankName);
+      form146.form19bf8Subcode1 = firstMeaningfulValue(form146.form19bf8Subcode1, bankRecord.bankName);
+    }
+    if (bankRecord.branchName) {
+      form146.form19bf8Branch = firstMeaningfulValue(form146.form19bf8Branch, bankRecord.branchName);
+    }
   }
 
-  // 5. Remittee lookup — populate TIN etc. if in master
-  const remiteeName = form146.form19bf8RemiteeName;
-  if (remiteeName) {
-    try {
-      const rmtSnap = await db.collection(COL.remittees)
-        .where('name','==',remiteeName).limit(1).get();
-      if (!rmtSnap.empty) {
-        const rm = rmtSnap.docs[0].data();
-        if (rm.tin && !form146.form19bf8RemiteeTIN)   form146.form19bf8RemiteeTIN = rm.tin;
-        if (rm.email && !form146.form19bf8RemiteeEmail) form146.form19bf8RemiteeEmail = rm.email;
-      }
-    } catch(_) { /* non-fatal */ }
+  if (lookupContext.remittee) {
+    if (lookupContext.remittee.tin) {
+      form146.form19bf8RemiteeTIN = firstMeaningfulValue(form146.form19bf8RemiteeTIN, lookupContext.remittee.tin);
+    }
+    if (lookupContext.remittee.email) {
+      form146.form19bf8RemiteeEmail = firstMeaningfulValue(form146.form19bf8RemiteeEmail, lookupContext.remittee.email);
+    }
   }
 
-  // 6. Panel flags
-  for (let i = 0; i < 8; i++) {
+  // 3. Panel flags expected by the reference utility/import shape.
+  for (let i = 1; i <= 7; i++) {
     form146[`panel${i}flag`] = true;
     form146[`panel${i}Fl`]   = true;
     form146[`panel${i}Save`] = false;
@@ -427,7 +831,15 @@ async function buildForm146(fields, userInputs, hardcodedKeys, firmId) {
 
   form146.startTime = new Date().toString();
 
-  return { form146, hardcodedReport };
+  const missingMandatory = validateMandatoryFields(form146);
+  if (missingMandatory.length) {
+    const labels = missingMandatory.map(field => field.label).join(', ');
+    const error = new Error(`Missing required Form 146 fields: ${labels}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return { form146, hardcodedReport, mappingAudit: buildMappingAudit(form146, fields, userInputs) };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -526,7 +938,9 @@ router.post('/parse', upload.single('xml'), async (req, res) => {
 
     const parsed = parseXml(req.file.buffer);
     const { fields, warnings } = extractFromXml(parsed);
-    const gaps = identifyGaps(fields);
+    const lookupContext = await loadLookupContext(fields);
+    const gaps = identifyGaps(fields, lookupContext, req.ip);
+    const lookupMatches = summarizeLookupMatches(lookupContext);
 
     // Fetch remittee history if remittee name found (client-side filter, no composite index)
     let remitteeHistory = [];
@@ -544,9 +958,29 @@ router.post('/parse', upload.single('xml'), async (req, res) => {
       } catch(_) { /* not critical */ }
     }
 
-    res.json({ fields, gaps, warnings, remitteeHistory, filename: req.file.originalname });
+    res.json({ fields, gaps, warnings, remitteeHistory, lookupMatches, filename: req.file.originalname });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.statusCode || 500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/form15cb/preview
+ * Body (JSON): { fields, userInputs, hardcodedKeys, firmId }
+ * Returns: { form146, mappingAudit }
+ */
+router.post('/preview', async (req, res) => {
+  try {
+    const { fields, userInputs, hardcodedKeys, firmId } = req.body;
+    if (!fields) return res.status(400).json({ error: 'fields required' });
+
+    const { form146, mappingAudit } = await buildForm146(
+      fields, userInputs || {}, hardcodedKeys || [], firmId
+    );
+
+    res.json({ form146, mappingAudit });
+  } catch(e) {
+    res.status(e.statusCode || 500).json({ error: e.message });
   }
 });
 
@@ -560,7 +994,7 @@ router.post('/convert', async (req, res) => {
     const { fields, userInputs, hardcodedKeys, firmId, xmlFilename } = req.body;
     if (!fields) return res.status(400).json({ error: 'fields required' });
 
-    const { form146, hardcodedReport } = await buildForm146(
+    const { form146, hardcodedReport, mappingAudit } = await buildForm146(
       fields, userInputs || {}, hardcodedKeys || [], firmId
     );
 
@@ -582,6 +1016,7 @@ router.post('/convert', async (req, res) => {
       taxYear:       form146.form19bf8TaxYear        || '',
       ifsc:          form146.form19bf8IFSCcode       || '',
       form146,
+      mappingAudit,
       hardcodedReport,
       createdBy:     req.user?.id || '',
       createdAt:     Date.now(),
@@ -593,11 +1028,12 @@ router.post('/convert', async (req, res) => {
     res.json({
       transactionId: txRef.id,
       form146,
+      mappingAudit,
       hardcodedReport,
       reportText,
     });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.statusCode || 500).json({ error: e.message });
   }
 });
 

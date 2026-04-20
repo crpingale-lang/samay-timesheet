@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convert 15CB — Samay</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <meta name="theme-color" content="#059669">
+  <style>
+    .wizard-steps{display:flex;gap:0;margin-bottom:24px;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+    .wizard-step{flex:1;padding:10px 6px;text-align:center;font-size:12px;font-weight:600;background:var(--bg-card);color:var(--text-muted);border-right:1px solid var(--border);cursor:default;transition:background .2s,color .2s;}
+    .wizard-step:last-child{border-right:none;}
+    .wizard-step.active{background:#059669;color:#fff;}
+    .wizard-step.done{background:#d1fae5;color:#065f46;}
+    .step-panel{display:none;} .step-panel.active{display:block;}
+    .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:40px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg-soft);}
+    .drop-zone:hover,.drop-zone.dragover{border-color:#059669;background:#f0fdf4;}
+    .drop-zone input[type=file]{display:none;}
+    .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+    @media(max-width:640px){.field-row{grid-template-columns:1fr;}}
+    .extracted-table td:first-child{font-weight:600;color:var(--text-muted);font-size:12px;width:220px;}
+    .extracted-table td:last-child{word-break:break-all;}
+    .gap-field{background:var(--bg-soft);border-radius:8px;padding:14px 16px;margin-bottom:10px;}
+    .gap-field label{font-weight:600;font-size:13px;display:block;margin-bottom:4px;}
+    .gap-field .desc{font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+    .gap-field .suggestion{font-size:12px;color:#065f46;margin-bottom:8px;}
+    .gap-field .fallback{font-size:12px;color:#92400e;margin-top:8px;}
+    .history-card{background:var(--bg-soft);border-radius:8px;padding:12px 14px;margin-bottom:8px;font-size:13px;}
+    .history-card .hdr{font-weight:600;display:flex;justify-content:space-between;}
+    .result-box{background:#f0fdf4;border:1px solid #6ee7b7;border-radius:8px;padding:20px;margin-bottom:16px;}
+    .result-box h3{color:#065f46;margin:0 0 8px;}
+    .download-btn{display:inline-flex;align-items:center;gap:8px;background:#059669;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;text-decoration:none;margin-right:10px;}
+    .download-btn:hover{background:#047857;}
+    .warning-box{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e;margin-bottom:12px;}
+    .mapping-group{border:1px solid var(--border);border-radius:10px;background:var(--bg-card);margin-bottom:14px;overflow:hidden;}
+    .mapping-group summary{cursor:pointer;list-style:none;padding:14px 16px;font-weight:700;background:var(--bg-soft);}
+    .mapping-group summary::-webkit-details-marker{display:none;}
+    .mapping-meta{padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);}
+    .mapping-table td,.mapping-table th{vertical-align:top;font-size:12px;}
+    .mapping-source{font-weight:600;text-transform:capitalize;}
+    .mapping-source.xml{color:#065f46;}
+    .mapping-source.user{color:#1d4ed8;}
+    .mapping-source.template{color:#92400e;}
+    .mapping-source.master_or_derived{color:#6b7280;}
+    .mapping-source.xml_review{color:#7c3aed;}
+    .mapping-source.blank{color:#ef4444;}
+    .mapping-edit{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px;}
+  </style>
+</head>
+<body>
+<div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar-el"></aside>
+  <div class="main-content">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <button class="hamburger" onclick="openSidebar()">&#9776;</button>
+        <div class="topbar-title">Convert Form 15CB</div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/form15cb.html" class="btn btn-ghost btn-sm">← Dashboard</a>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- Wizard steps -->
+      <div class="wizard-steps">
+        <div class="wizard-step active" id="ws1">1 Upload XML</div>
+        <div class="wizard-step" id="ws2">2 Review Fields</div>
+        <div class="wizard-step" id="ws3">3 Fill Gaps</div>
+        <div class="wizard-step" id="ws4">4 Confirm</div>
+        <div class="wizard-step" id="ws5">5 Download</div>
+      </div>
+
+      <!-- Step 1: Upload -->
+      <div class="step-panel active card" id="step1">
+        <div class="card-header"><div><div class="card-title">Upload Form 15CB XML</div><div class="card-subtitle">Exported from the ITD eFiling portal</div></div></div>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('xml-file').click()">
+          <input type="file" id="xml-file" accept=".xml" onchange="handleFileSelect(this.files[0])">
+          <div style="font-size:36px;margin-bottom:10px;">📁</div>
+          <div style="font-weight:600;margin-bottom:4px;">Drop your 15CB XML here</div>
+          <div style="font-size:13px;color:var(--text-muted);">or click to browse</div>
+          <div id="file-name" style="margin-top:12px;font-size:13px;font-weight:600;color:#059669;display:none;"></div>
+        </div>
+        <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+          <button class="btn btn-primary" id="parse-btn" disabled onclick="parseXml()">Parse XML →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Review extracted fields -->
+      <div class="step-panel card" id="step2">
+        <div class="card-header"><div><div class="card-title">Extracted Fields</div><div class="card-subtitle">Review what was read from the XML</div></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="goStep(1)">← Back</button>
+            <button class="btn btn-primary btn-sm" onclick="goStep(3)">Fill Gaps →</button>
+          </div>
+        </div>
+        <div id="warnings-box"></div>
+        <div class="table-wrapper">
+          <table class="mobile-stack-table extracted-table" id="extracted-table">
+            <thead><tr><th>Field</th><th>Value</th></tr></thead>
+            <tbody id="extracted-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Step 3: Fill gaps -->
+      <div class="step-panel card" id="step3">
+        <div class="card-header"><div><div class="card-title">Fill Required Fields</div><div class="card-subtitle">Add anything the XML does not clearly provide. If you skip, the company template defaults will be used.</div></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="goStep(2)">← Back</button>
+            <button class="btn btn-primary btn-sm" onclick="goStep(4)">Review →</button>
+          </div>
+        </div>
+
+        <div id="remittee-history-box" style="display:none;margin-bottom:16px;">
+          <div style="font-weight:700;margin-bottom:8px;color:#059669;">📋 Last 5 Transactions for this Remittee</div>
+          <div id="remittee-history-list"></div>
+        </div>
+
+        <div style="font-weight:700;margin-bottom:10px;">Mandatory Fields</div>
+        <div id="mandatory-gaps"></div>
+
+        <div style="font-weight:700;margin:16px 0 10px;">Optional Fields</div>
+        <div id="optional-gaps"></div>
+
+        <div style="margin-top:16px;padding:14px 16px;background:var(--bg-soft);border-radius:8px;font-size:13px;">
+          <strong>Partner / CA</strong><br>
+          <div class="field-row" style="margin-top:8px;margin-bottom:0;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label">Select Partner (optional)</label>
+              <select class="form-control" id="partner-select">
+                <option value="">Use from XML / CA master</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Confirm / Final review -->
+      <div class="step-panel card" id="step4">
+        <div class="card-header"><div><div class="card-title">Final Review</div><div class="card-subtitle">All 131 Form 146 fields — verify before generating</div></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="goStep(3)">← Back</button>
+            <button class="btn btn-primary btn-sm" id="convert-btn" onclick="doConvert()">Generate Form 146 →</button>
+          </div>
+        </div>
+        <div id="final-review-box"></div>
+      </div>
+
+      <!-- Step 5: Download -->
+      <div class="step-panel card" id="step5">
+        <div class="card-header"><div><div class="card-title">Done! Download Your Files</div><div class="card-subtitle">Import the JSON into the ITD tax utility</div></div></div>
+        <div class="result-box" id="result-box"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;" id="download-buttons"></div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+          <button class="btn btn-ghost" onclick="resetWizard()">↩ Convert Another</button>
+          <a href="/form15cb-transactions.html" class="btn btn-ghost" style="margin-left:8px;">📋 View All Transactions</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+requireAuth();
+document.getElementById('sidebar-el').innerHTML = FORM15CB_SIDEBAR_HTML();
+buildSidebar();
+document.getElementById('ws4').textContent = '4 Mapping';
+document.querySelector('#step4 .card-title').textContent = 'Mapping Comparison';
+document.querySelector('#step4 .card-subtitle').textContent = 'Review XML values, mapped JSON values, and company-template fallbacks before generating';
+
+const API = '/api/form15cb';
+const token = getToken();
+const authHeaders = { 'Authorization': `Bearer ${token}` };
+
+let state = {
+  step: 1,
+  file: null,
+  fields: null,
+  gaps: { mandatory: [], optional: [] },
+  warnings: [],
+  remitteeHistory: [],
+  lookupMatches: {},
+  filename: '',
+  userInputs: {},
+  hardcodedKeys: [],
+  mappingAudit: {},
+  transactionId: null,
+  form146: null,
+  reportText: '',
+};
+
+// ── Drag and drop ────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFileSelect(f);
+});
+
+function handleFileSelect(file) {
+  if (!file) return;
+  state.file = file;
+  const fn = document.getElementById('file-name');
+  fn.textContent = file.name; fn.style.display = '';
+  document.getElementById('parse-btn').disabled = false;
+}
+
+// ── Step navigation ──────────────────────────────────────────────────────────
+function goStep(n) {
+  state.step = n;
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById(`step${i}`).classList.toggle('active', i === n);
+    const ws = document.getElementById(`ws${i}`);
+    ws.classList.toggle('active', i === n);
+    ws.classList.toggle('done', i < n);
+  }
+}
+
+// ── Step 1 → 2: Parse XML ─────────────────────────────────────────────────
+async function parseXml() {
+  const btn = document.getElementById('parse-btn');
+  btn.disabled = true; btn.textContent = 'Parsing…';
+  try {
+    const fd = new FormData();
+    fd.append('xml', state.file);
+    const res  = await fetch(`${API}/parse`, { method:'POST', headers: authHeaders, body: fd });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    state.fields = data.fields;
+    state.gaps   = data.gaps;
+    state.warnings = data.warnings || [];
+    state.remitteeHistory = data.remitteeHistory || [];
+    state.lookupMatches = data.lookupMatches || {};
+    state.filename = data.filename || state.file.name;
+    state.userInputs = {};
+    state.hardcodedKeys = [];
+    state.mappingAudit = {};
+
+    renderExtractedFields();
+    renderGapFields();
+    renderRemitteeHistory();
+    loadPartners(state.lookupMatches?.partner?.id || '');
+    goStep(2);
+  } catch(e) {
+    toast('Parse failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Parse XML →';
+  }
+}
+
+// ── Render extracted fields table ─────────────────────────────────────────
+const FIELD_LABELS = {
+  form19bf8RemitterName:'Remitter Name', form19bf8RemiteeName:'Remittee Name',
+  form19bf8Currency:'Currency', form19bf8AmtPayableFore:'Foreign Amount',
+  form19bf8AmtPayableInd:'Indian Amount (₹)', form19bf8NatureRemittance:'Nature of Remittance',
+  form19bf8Purposecode:'Purpose Code', form19bf8Subcode:'Purpose Sub-Code',
+  form19bf8ProposedDate:'Proposed Remittance Date', form19bf8NameAcc:'CA Name',
+  form19bf8CAMemberNo:'CA Membership No', form19f8Namefirm:'Firm Name',
+  form19bf8FirmRegNo:'Firm Reg. No.', form19bf8TaxYear:'Tax Year',
+  form19bf8TDSIndian:'TDS Indian (₹)', form19bf8RateTDS:'TDS Rate',
+  form19bf8RemittanceTax:'Chargeable in India?', form19bf8Taxable:'Section',
+  form19bf8ReliefClaimed:'DTAA Relief Claimed?', form19bf8TaxResidency:'Tax Residency Cert?',
+  form19bf8Article:'DTAA Article', form19bf8BusinPlace:'Business Place',
+  form19bf8RemiteeCountry:'Remittee Country Code',
+};
+
+function renderExtractedFields() {
+  const warnBox = document.getElementById('warnings-box');
+  const notices = [
+    ...state.warnings.map(w => `<div class="warning-box">⚠️ ${esc(w)}</div>`),
+    ...Object.entries(state.lookupMatches || {}).map(([key, match]) =>
+      `<div class="warning-box" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;">Matched ${esc(key)} master: <strong>${esc(match.label || match.id || '')}</strong></div>`)
+  ];
+  warnBox.innerHTML = notices.join('');
+
+  const showKeys = Object.keys(FIELD_LABELS);
+  const tbody = document.getElementById('extracted-body');
+  tbody.innerHTML = showKeys.map(k => {
+    const v = state.fields[k];
+    const display = (v === null || v === undefined || v === '') ? '<span style="color:#ef4444">Not found</span>' : esc(String(v));
+    return `<tr><td>${FIELD_LABELS[k]}</td><td>${display}</td></tr>`;
+  }).join('');
+}
+
+// ── Render gap fields ─────────────────────────────────────────────────────
+function renderGapFields() {
+  renderGapGroup('mandatory-gaps', state.gaps.mandatory, true);
+  renderGapGroup('optional-gaps',  state.gaps.optional,  false);
+}
+
+function seedSuggestedInputs() {
+  [...(state.gaps.mandatory || []), ...(state.gaps.optional || [])].forEach(f => {
+    if (state.userInputs[f.key] === undefined && f.suggestedValue) {
+      state.userInputs[f.key] = f.suggestedValue;
+    }
+  });
+}
+
+function getGapFieldDef(key) {
+  return [...(state.gaps.mandatory || []), ...(state.gaps.optional || [])].find(f => f.key === key);
+}
+
+function renderGapGroup(containerId, fields, isMandatory) {
+  const cont = document.getElementById(containerId);
+  if (!fields.length) {
+    cont.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">
+      ${isMandatory ? '✅ All mandatory fields found in XML.' : '✅ All optional fields found in XML.'}</div>`;
+    return;
+  }
+  cont.innerHTML = fields.map(f => `
+    <div class="gap-field" id="gf-${f.key}">
+      <label>${esc(f.label)}${isMandatory ? ' <span style="color:#ef4444">*</span>' : ''}</label>
+      <div class="desc">${esc(f.description || '')}</div>
+      ${f.suggestedValue ? `<div class="suggestion">Suggested: <strong>${esc(f.suggestedValue)}</strong>${f.suggestedBy ? ` <span style="color:var(--text-muted)">from ${esc(f.suggestedBy)}</span>` : ''}</div>` : ''}
+      <input class="form-control" type="text" id="inp-${f.key}"
+        placeholder="${esc(f.example || f.hardcode || '')}"
+        value="${esc(state.userInputs[f.key] || '')}"
+        oninput="updateUserInput('${f.key}', this.value)">
+      ${f.fallbackValue ? `<div class="fallback">If you leave this blank, the company template default will be used: <code>${esc(formatValue(f.fallbackValue))}</code></div>` : ''}
+    </div>`).join('');
+}
+
+function updateUserInput(key, val) {
+  state.userInputs[key] = val;
+}
+
+function toggleHardcode(key, checked) {
+  const inp = document.getElementById(`inp-${key}`);
+  const fieldDef = getGapFieldDef(key);
+  inp.disabled = checked;
+  if (checked) {
+    state.hardcodedKeys = [...new Set([...state.hardcodedKeys, key])];
+    if (fieldDef?.hardcode) {
+      inp.value = fieldDef.hardcode;
+    }
+  } else {
+    state.hardcodedKeys = state.hardcodedKeys.filter(k => k !== key);
+    if (!state.userInputs[key] && fieldDef?.suggestedValue) {
+      state.userInputs[key] = fieldDef.suggestedValue;
+      inp.value = fieldDef.suggestedValue;
+    }
+  }
+}
+
+// ── Remittee history ──────────────────────────────────────────────────────
+function renderRemitteeHistory() {
+  const box  = document.getElementById('remittee-history-box');
+  const list = document.getElementById('remittee-history-list');
+  if (!state.remitteeHistory.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  list.innerHTML = state.remitteeHistory.map(t => `
+    <div class="history-card">
+      <div class="hdr"><span>${esc(t.remiteeName)}</span><span>${t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN') : ''}</span></div>
+      <div style="margin-top:4px;">
+        <span>Amount: <strong>${esc(t.amtForeign)} ${esc(t.currency)}</strong></span> &nbsp;|&nbsp;
+        <span>Nature: <strong>${esc(t.natureRemittance)}</strong></span> &nbsp;|&nbsp;
+        <span>TDS Rate: <strong>${esc(t.form146?.form19bf8RateTDS || '')}</strong></span>
+      </div>
+    </div>`).join('');
+}
+
+// ── Load partners for dropdown ────────────────────────────────────────────
+async function loadPartners(preferredId = '') {
+  try {
+    const res  = await fetch(`${API}/partners`, { headers: authHeaders });
+    const data = await res.json();
+    const sel  = document.getElementById('partner-select');
+    if (Array.isArray(data) && data.length) {
+      sel.innerHTML = '<option value="">Use from XML / CA master</option>' +
+        data.map(p => `<option value="${p.id}">${esc(p.caName || p.firmName)}</option>`).join('');
+      if (preferredId && data.some(p => p.id === preferredId)) {
+        sel.value = preferredId;
+      }
+    }
+  } catch(_) {}
+}
+
+// ── Step 3 → 4: Build final review ───────────────────────────────────────
+function goToReview() {
+  goStep(4);
+  const box = document.getElementById('final-review-box');
+  const all = { ...state.fields };
+  // Apply user inputs
+  for (const [k,v] of Object.entries(state.userInputs)) { if(v) all[k] = v; }
+  state.hardcodedKeys.forEach(k => {
+    const fd = [...(state.gaps.mandatory||[]), ...(state.gaps.optional||[])].find(f => f.key===k);
+    if (fd) all[k] = fd.hardcode || '';
+  });
+
+  const rows = Object.entries(all)
+    .filter(([k]) => !k.startsWith('_') && !k.startsWith('panel') && k !== 'startTime')
+    .sort(([a],[b]) => a.localeCompare(b));
+
+  box.innerHTML = `<div class="table-wrapper"><table class="mobile-stack-table extracted-table">
+    <thead><tr><th>Field Key</th><th>Value</th></tr></thead>
+    <tbody>${rows.map(([k,v]) => {
+      const display = (v===null||v===undefined||v==='') ? '<span style="color:#ef4444">EMPTY</span>' : esc(JSON.stringify(v));
+      const highlight = state.hardcodedKeys.includes(k) ? 'style="background:#fffbeb"' : '';
+      return `<tr ${highlight}><td>${esc(k)}</td><td>${display}</td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">
+      🟡 Yellow rows = hardcoded defaults — update in JSON before import.
+    </div>`;
+}
+
+// Override goStep to trigger review build
+const _goStep = goStep;
+window.goStep = function(n) {
+  _goStep(n);
+  if (n === 4) goToReview();
+};
+
+// ── Step 4 → 5: Generate ─────────────────────────────────────────────────
+async function doConvert() {
+  const btn = document.getElementById('convert-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  try {
+    const missingMandatory = (state.gaps.mandatory || []).filter(f =>
+      !state.hardcodedKeys.includes(f.key) && !(state.userInputs[f.key] || '').trim()
+    );
+    if (missingMandatory.length) {
+      throw new Error(`Please fill these mandatory fields before generating: ${missingMandatory.map(f => f.label).join(', ')}`);
+    }
+
+    const firmId = document.getElementById('partner-select')?.value || '';
+    const body = {
+      fields:        state.fields,
+      userInputs:    state.userInputs,
+      hardcodedKeys: state.hardcodedKeys,
+      firmId,
+      xmlFilename:   state.filename,
+    };
+    const res  = await fetch(`${API}/convert`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type':'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    state.transactionId = data.transactionId;
+    state.form146       = data.form146;
+    state.reportText    = data.reportText;
+
+    renderDownloadStep(data);
+    goStep(5);
+  } catch(e) {
+    toast('Conversion failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generate Form 146 →';
+  }
+}
+
+let previewRefreshTimer = null;
+const REVIEW_GROUPS = [
+  { title:'Entity And System', keys:['entityNumber','entityFirstName','entityMidName','entityLastName','entityAddrLine1Txt','entityAddrLine2Txt','entityPinCd','entityLocalityDesc','entityStateCd','entityStateDesc','entityCountryCd','entityCountryName','entityDistrictDesc','entityPostofficeDesc','entityTaxPayerCatgCd','entityTaxPayerCatgDesc','entityPrimaryEmail','entitySecondaryEmail','entityPrimaryMobile','entityDesig','citId','pcPan','formVersion','schemaVersion','startTime'] },
+  { title:'User Profile', keys:['userId','userFirstName','userMidName','userLastName','userRoleCd','userPan','userEmail','userMobile'] },
+  { title:'Panel 1 Remitter', keys:['form19bf8RemitterName','form19bf8Address','form19bf8PAN','form19bf8TaxYear','form19bf8Status','form19bf8ResStatus','form19bf8Email','form19bf8MobileNumber','form19bf8CountryCode1','form19bf8CountryCodeISO','form19bf8CountryCode'] },
+  { title:'Panel 2 Remittee', keys:['form19bf8RemiteeName','form19bf8RemiteeTIN','form19bf8RemiteeCountry','form19bf8RemiteeFullAddr','form19bf8BusinPlace','form19bf8RemiteeEmail','form19bf8RemiteeName1','tyForm19BF8AddressP2'] },
+  { title:'Panel 3 Remittance', keys:['form19bf8RemittaceCntry','form19bf8Currency','form19bf8AmtPayableFore','form19bf8AmtPayableInd','form19bf8IFSCcode','form19bf8NameBank','form19bf8Branch','form19bf8BSRcode','form19bf8Dealer','form19bf8ProposedDate','form19bf8RemittanceName','form19bf8Purposecode','form19bf8Subcode','form19bf8GrossedTax','form19bf8Subcode1','form19bf8Subcode2','form19bf8NatureRemittance','form19bf8RemittanceAddr'] },
+  { title:'Panel 4 Taxability', keys:['form19bf8RemittanceTax','form19bf8Taxable','form19bf8TaxableInc','form19bf8TaxLiability','form19bf8Taxdetermine','form19bf8Basis','form19bf8NaturePayment'] },
+  { title:'Panel 5 DTAA', keys:['form19bf8ReliefClaimed','form19bf8TaxResidency','form19bf8Relevant','form19bf8Article','form19bf8TaxbleIncome','form19bf8TaxbleLiablity','form19bf8Ratededctax','form19bf8TaxResidNum','form19bf8RemitanceAcc','form19bf8RemittanceDrp','form19bf8ArticleReasons','form19bf8CaptialGains','form19bf8ShortTerm','form19bf8TaxableIncDTAA','form19bf8FurnishReasons','form19bf8CertAdd'] },
+  { title:'Panel 6 TDS', keys:['form19bf8AmountTDS','form19bf8TDSforeign','form19bf8TDSIndian','form19bf8RateTDS','form19bf8OthersTDS','form19bf8DateAmtTDS','form19bf8AmtPayableFore1'] },
+  { title:'Panel 7 Accountant', keys:['form19bf8CertSalutation','form19bf8CerfVerSalutation','form19bf8NameAcc','form19bf8CAMemberNo','form19f8Namefirm','form19bf8FirmRegNo','form19bf8CertPlace','form19bf8CertDate','form19bf8CertIPAddress','tyForm19BF8AddressP3'] }
+];
+
+function humanizeFieldKey(key) {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  return key.replace(/^form19bf8/, '').replace(/^form19f8/, '').replace(/^tyForm19BF8/, '').replace(/([A-Z])/g, ' $1').replace(/\s+/g, ' ').trim() || key;
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function updateReviewInput(key, val) {
+  state.userInputs[key] = val;
+  clearTimeout(previewRefreshTimer);
+  previewRefreshTimer = setTimeout(() => {
+    if (state.step === 4) loadPreview();
+  }, 350);
+}
+
+function renderReviewGroup(title, keys) {
+  const rows = keys.filter(key => state.mappingAudit[key]).map(key => {
+    const audit = state.mappingAudit[key];
+    const xmlValue = formatValue(audit.xmlValue);
+    const jsonValue = formatValue(audit.jsonValue);
+    const fallbackValue = formatValue(audit.fallbackValue);
+    const editable = audit.editable && ['template', 'blank', 'xml_review', 'user'].includes(audit.source);
+
+    return `<tr>
+      <td><strong>${esc(humanizeFieldKey(key))}</strong><div style="color:var(--text-muted);margin-top:4px;">${esc(key)}</div></td>
+      <td>${xmlValue ? `<code>${esc(xmlValue)}</code>` : '<span style="color:var(--text-muted);">No confident XML mapping</span>'}</td>
+      <td>${jsonValue ? `<code>${esc(jsonValue)}</code>` : '<span style="color:#ef4444;">Blank</span>'}</td>
+      <td><span class="mapping-source ${esc(audit.source)}">${esc(audit.source.replace(/_/g, ' '))}</span></td>
+      <td>${editable ? `<div class="mapping-edit"><input class="form-control" type="text" value="${esc(state.userInputs[key] || '')}" placeholder="${esc(fallbackValue || '')}" oninput="updateReviewInput('${key}', this.value)"></div>` : '<span style="color:var(--text-muted);">Auto</span>'}</td>
+    </tr>`;
+  });
+
+  if (!rows.length) return '';
+  return `<details class="mapping-group" open>
+    <summary>${esc(title)}</summary>
+    <div class="table-wrapper">
+      <table class="mobile-stack-table mapping-table">
+        <thead><tr><th>Field</th><th>15CB XML</th><th>146 JSON</th><th>Source</th><th>User Input</th></tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </div>
+  </details>`;
+}
+
+function renderReviewBox() {
+  const box = document.getElementById('final-review-box');
+  const groupedKeys = new Set();
+  const groupsHtml = REVIEW_GROUPS.map(group => {
+    group.keys.forEach(key => groupedKeys.add(key));
+    return renderReviewGroup(group.title, group.keys);
+  }).join('');
+  const otherKeys = Object.keys(state.mappingAudit || {}).filter(key => !groupedKeys.has(key) && !key.startsWith('panel')).sort();
+
+  box.innerHTML = `
+    <div class="mapping-meta">
+      Green means confident XML mapping. Blue means user-entered override. Amber means company template fallback. Purple means XML had a value but confidence was below the auto-map threshold, so it stayed reviewable.
+    </div>
+    ${groupsHtml}
+    ${renderReviewGroup('Other Fields', otherKeys)}
+  `;
+}
+
+async function loadPreview() {
+  const box = document.getElementById('final-review-box');
+  box.innerHTML = '<div class="warning-box" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;">Building mapping comparison...</div>';
+
+  try {
+    const firmId = document.getElementById('partner-select')?.value || '';
+    const res = await fetch(`${API}/preview`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        fields: state.fields,
+        userInputs: state.userInputs,
+        hardcodedKeys: [],
+        firmId,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    state.form146 = data.form146;
+    state.mappingAudit = data.mappingAudit || {};
+    renderReviewBox();
+  } catch (e) {
+    box.innerHTML = `<div class="warning-box">Preview failed: ${esc(e.message)}</div>`;
+    toast('Preview failed: ' + e.message, 'error');
+  }
+}
+
+goToReview = function() {
+  loadPreview();
+};
+
+window.goStep = function(n) {
+  _goStep(n);
+  if (n === 4) goToReview();
+};
+
+doConvert = async function() {
+  const btn = document.getElementById('convert-btn');
+  btn.disabled = true; btn.textContent = 'Generating...';
+  try {
+    const firmId = document.getElementById('partner-select')?.value || '';
+    const body = {
+      fields:        state.fields,
+      userInputs:    state.userInputs,
+      hardcodedKeys: [],
+      firmId,
+      xmlFilename:   state.filename,
+    };
+    const res  = await fetch(`${API}/convert`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type':'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    state.transactionId = data.transactionId;
+    state.form146       = data.form146;
+    state.mappingAudit  = data.mappingAudit || {};
+    state.reportText    = data.reportText;
+
+    renderDownloadStep(data);
+    _goStep(5);
+  } catch(e) {
+    toast('Conversion failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generate Form 146 ->';
+  }
+};
+
+function renderDownloadStep(data) {
+  const box = document.getElementById('result-box');
+  const remittee = data.form146?.form19bf8RemiteeName || '';
+  const amount   = data.form146?.form19bf8AmtPayableFore || '';
+  const currency = data.form146?.form19bf8Currency || '';
+  box.innerHTML = `
+    <h3>✅ Form 146 Generated Successfully</h3>
+    <p style="margin:0;font-size:14px;">
+      <strong>Transaction ID:</strong> ${esc(data.transactionId)}<br>
+      <strong>Remittee:</strong> ${esc(remittee)}<br>
+      <strong>Amount:</strong> ${esc(amount)} ${esc(currency)}
+      ${data.hardcodedReport?.length ? `<br><span style="color:#92400e;">⚠️ ${data.hardcodedReport.length} field(s) were hardcoded — see report.</span>` : ''}
+    </p>`;
+
+  const btns = document.getElementById('download-buttons');
+  btns.innerHTML = '';
+
+  // JSON download
+  const jsonBlob = new Blob([JSON.stringify(data.form146, null, 2)], { type:'application/json' });
+  const jsonUrl  = URL.createObjectURL(jsonBlob);
+  const jsonA    = document.createElement('a');
+  jsonA.href = jsonUrl;
+  jsonA.download = `form146_${remittee.replace(/\s+/g,'_') || 'output'}.json`;
+  jsonA.className = 'download-btn';
+  jsonA.innerHTML = '⬇ Download Form 146 JSON';
+  btns.appendChild(jsonA);
+
+  // Report download (only if hardcoded fields exist)
+  if (data.reportText) {
+    const rptBlob = new Blob([data.reportText], { type:'text/plain' });
+    const rptUrl  = URL.createObjectURL(rptBlob);
+    const rptA    = document.createElement('a');
+    rptA.href = rptUrl;
+    rptA.download = `hardcoded_fields_${new Date().toISOString().slice(0,10)}.txt`;
+    rptA.className = 'download-btn';
+    rptA.style.background = '#d97706';
+    rptA.innerHTML = '⬇ Hardcoded Fields Report';
+    btns.appendChild(rptA);
+  }
+}
+
+function resetWizard() {
+  state = { step:1, file:null, fields:null, gaps:{mandatory:[],optional:[]},
+    warnings:[], remitteeHistory:[], lookupMatches:{}, filename:'', userInputs:{}, mappingAudit:{},
+    hardcodedKeys:[], transactionId:null, form146:null, reportText:'' };
+  document.getElementById('file-name').style.display = 'none';
+  document.getElementById('parse-btn').disabled = true;
+  goStep(1);
+}
+
+function esc(str) {
+  if (str===null||str===undefined) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>
