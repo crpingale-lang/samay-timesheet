@@ -18,7 +18,7 @@
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div>
           <div class="topbar-title">Timesheet Masters</div>
-          <div style="font-size:12px;color:var(--text-muted);">Holiday, shift and client site configuration</div>
+          <div style="font-size:12px;color:var(--text-muted);">Holiday, shift, client site, and work master configuration</div>
         </div>
       </div>
       <div class="topbar-actions">
@@ -28,13 +28,14 @@
 
     <div class="page-content">
       <div class="alert alert-info" style="margin-bottom:16px;">
-        Holidays are stored as configurable master data and shown in `DD/MM/YYYY` format. Client sites are what make a client selectable in timesheet entry, and their shift defaults drive the add-entry modal.
+        Holidays, shifts, client sites, work categories, and work classifications drive the timesheet experience. Client sites make clients selectable in entry screens, and work categories/classifications are sourced from the shared `master_data` collection.
       </div>
 
       <div class="proto-tabs" style="margin-bottom:18px;">
         <button class="proto-tab active" id="tab-holidays" onclick="switchTab('holidays')">Holidays</button>
         <button class="proto-tab" id="tab-sites" onclick="switchTab('sites')">Client Sites</button>
         <button class="proto-tab" id="tab-shifts" onclick="switchTab('shifts')">Shifts</button>
+        <button class="proto-tab" id="tab-work" onclick="switchTab('work')">Work Setup</button>
       </div>
 
       <section id="section-holidays">
@@ -173,6 +174,77 @@
           </div>
         </div>
       </section>
+
+      <section id="section-work" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Work Category Master</div>
+              <div class="card-subtitle">These entries populate the work category picker while logging time.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="resetWorkCategoryForm()">Clear</button>
+            </div>
+          </div>
+          <form id="work-category-form" class="master-form">
+            <input type="hidden" id="work-category-id">
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Label</label><input class="form-control" type="text" id="work-category-label" placeholder="GST Filing"></div>
+              <div class="form-group"><label class="form-label">Key</label><input class="form-control" type="text" id="work-category-key" placeholder="Auto from label if blank"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Sort Order</label><input class="form-control" type="number" id="work-category-sort-order" value="0" step="1"></div>
+              <div class="form-group">
+                <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="work-category-active" checked><span class="toggle-slider"></span></label></div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;" id="work-category-save-btn">Save Work Category</button>
+            </div>
+          </form>
+          <div class="table-wrapper" style="margin-top:14px;">
+            <table class="mobile-stack-table">
+              <thead><tr><th>Label</th><th>Key</th><th>Sort</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="work-categories-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Work Classification Master</div>
+              <div class="card-subtitle">These entries define the classification badges and reporting groups used in timesheets.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="resetWorkClassificationForm()">Clear</button>
+            </div>
+          </div>
+          <form id="work-classification-form" class="master-form">
+            <input type="hidden" id="work-classification-id">
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Label</label><input class="form-control" type="text" id="work-classification-label" placeholder="Client Work"></div>
+              <div class="form-group"><label class="form-label">Key</label><input class="form-control" type="text" id="work-classification-key" placeholder="Auto from label if blank"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Short Label</label><input class="form-control" type="text" id="work-classification-short-label" placeholder="Client"></div>
+              <div class="form-group"><label class="form-label">Sort Order</label><input class="form-control" type="number" id="work-classification-sort-order" value="0" step="1"></div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row"><label class="toggle-label">Active</label><label class="toggle"><input type="checkbox" id="work-classification-active" checked><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;" id="work-classification-save-btn">Save Work Classification</button>
+            </div>
+          </form>
+          <div class="table-wrapper" style="margin-top:14px;">
+            <table class="mobile-stack-table">
+              <thead><tr><th>Label</th><th>Key</th><th>Short</th><th>Sort</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="work-classifications-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -217,18 +289,26 @@ document.getElementById('sidebar-el').innerHTML = TIMESHEET_SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
+const canCreateTimesheetMaster = hasPermission('timesheets.masters.create');
+const canEditTimesheetMaster = hasPermission('timesheets.masters.edit');
+const canDeleteTimesheetMaster = hasPermission('timesheets.masters.delete');
+const canImportTimesheetMaster = hasPermission('timesheets.masters.import');
 let timesheetMasters = { holidays: [], shifts: [], client_sites: [], configured_clients: [] };
 let activeTab = 'holidays';
 let clientsStore = [];
+let workCategoryMasters = [];
+let workClassificationMasters = [];
 
 function switchTab(tab) {
   activeTab = tab;
   document.getElementById('section-holidays').style.display = tab === 'holidays' ? '' : 'none';
   document.getElementById('section-sites').style.display = tab === 'sites' ? '' : 'none';
   document.getElementById('section-shifts').style.display = tab === 'shifts' ? '' : 'none';
+  document.getElementById('section-work').style.display = tab === 'work' ? '' : 'none';
   document.getElementById('tab-holidays').classList.toggle('active', tab === 'holidays');
   document.getElementById('tab-sites').classList.toggle('active', tab === 'sites');
   document.getElementById('tab-shifts').classList.toggle('active', tab === 'shifts');
+  document.getElementById('tab-work').classList.toggle('active', tab === 'work');
 }
 
 function parseFlexibleDate(value) {
@@ -248,6 +328,45 @@ function formatDisplayDate(isoDate) {
 
 function isTrue(value) {
   return value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true';
+}
+
+function slugifyMasterKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function renderMasterActionButtons(editAction, deleteAction) {
+  const buttons = [];
+  if (canEditTimesheetMaster && editAction) {
+    buttons.push(`<button class="btn btn-ghost btn-sm" type="button" onclick="${editAction}">Edit</button>`);
+  }
+  if (canDeleteTimesheetMaster && deleteAction) {
+    buttons.push(`<button class="btn btn-danger btn-sm" type="button" onclick="${deleteAction}">Delete</button>`);
+  }
+  return buttons.length ? buttons.join(' ') : '<span style="color:var(--text-faint);font-size:12px;">View only</span>';
+}
+
+function setFormReadOnly(formId, saveButtonId, disabled) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  form.querySelectorAll('input, textarea, select').forEach(field => {
+    if (field.type === 'hidden') return;
+    field.disabled = disabled;
+  });
+  const saveButton = document.getElementById(saveButtonId);
+  if (saveButton) saveButton.style.display = disabled ? 'none' : '';
+}
+
+function applyPermissionState() {
+  const canWrite = canCreateTimesheetMaster || canEditTimesheetMaster;
+  setFormReadOnly('holiday-form', 'holiday-save-btn', !canWrite);
+  setFormReadOnly('shift-form', 'shift-save-btn', !canWrite);
+  setFormReadOnly('client-site-form', 'client-site-save-btn', !canWrite);
+  setFormReadOnly('work-category-form', 'work-category-save-btn', !canWrite);
+  setFormReadOnly('work-classification-form', 'work-classification-save-btn', !canWrite);
 }
 
 function delimitedRows(text) {
@@ -311,6 +430,22 @@ function resetClientSiteForm() {
   document.getElementById('client-site-save-btn').textContent = 'Save Client Site';
 }
 
+function resetWorkCategoryForm() {
+  document.getElementById('work-category-id').value = '';
+  document.getElementById('work-category-form').reset();
+  document.getElementById('work-category-sort-order').value = '0';
+  document.getElementById('work-category-active').checked = true;
+  document.getElementById('work-category-save-btn').textContent = 'Save Work Category';
+}
+
+function resetWorkClassificationForm() {
+  document.getElementById('work-classification-id').value = '';
+  document.getElementById('work-classification-form').reset();
+  document.getElementById('work-classification-sort-order').value = '0';
+  document.getElementById('work-classification-active').checked = true;
+  document.getElementById('work-classification-save-btn').textContent = 'Save Work Classification';
+}
+
 function setHolidayForm(row) {
   document.getElementById('holiday-id').value = row.id || '';
   document.getElementById('holiday-date').value = row.holiday_date_display || formatDisplayDate(row.holiday_date || '');
@@ -346,6 +481,43 @@ function setSiteForm(row) {
   document.getElementById('client-site-save-btn').textContent = row.id ? 'Save Changes' : 'Save Client Site';
 }
 
+function setWorkCategoryForm(row) {
+  document.getElementById('work-category-id').value = row.id || '';
+  document.getElementById('work-category-label').value = row.label || '';
+  document.getElementById('work-category-key').value = row.key || '';
+  document.getElementById('work-category-sort-order').value = row.sort_order || 0;
+  document.getElementById('work-category-active').checked = isTrue(row.active);
+  document.getElementById('work-category-save-btn').textContent = row.id ? 'Save Changes' : 'Save Work Category';
+}
+
+function setWorkClassificationForm(row) {
+  document.getElementById('work-classification-id').value = row.id || '';
+  document.getElementById('work-classification-label').value = row.label || '';
+  document.getElementById('work-classification-key').value = row.key || '';
+  document.getElementById('work-classification-short-label').value = row.short_label || '';
+  document.getElementById('work-classification-sort-order').value = row.sort_order || 0;
+  document.getElementById('work-classification-active').checked = isTrue(row.active);
+  document.getElementById('work-classification-save-btn').textContent = row.id ? 'Save Changes' : 'Save Work Classification';
+}
+
+function editWorkCategory(id) {
+  if (!canEditTimesheetMaster) return;
+  const row = workCategoryMasters.find(item => String(item.id) === String(id));
+  if (!row) return;
+  setWorkCategoryForm(row);
+  switchTab('work');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function editWorkClassification(id) {
+  if (!canEditTimesheetMaster) return;
+  const row = workClassificationMasters.find(item => String(item.id) === String(id));
+  if (!row) return;
+  setWorkClassificationForm(row);
+  switchTab('work');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function renderHolidayRows() {
   const tbody = document.getElementById('holidays-tbody');
   if (!timesheetMasters.holidays.length) {
@@ -359,10 +531,7 @@ function renderHolidayRows() {
       <td data-label="Type">${row.holiday_type || '-'}</td>
       <td data-label="Notes" class="hide-mobile">${row.notes || '-'}</td>
       <td data-label="Status">${row.active ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
-      <td data-label="Action">
-        <button class="btn btn-ghost btn-sm" type="button" onclick='setHolidayForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:"smooth"})'>Edit</button>
-        <button class="btn btn-danger btn-sm" type="button" onclick="deleteHoliday('${row.id}')">Delete</button>
-      </td>
+      <td data-label="Action">${renderMasterActionButtons(`setHolidayForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:&quot;smooth&quot;})`, `deleteHoliday('${row.id}')`)}</td>
     </tr>
   `).join('');
 }
@@ -379,10 +548,7 @@ function renderShiftRows() {
       <td data-label="Code">${row.shift_code}</td>
       <td data-label="Times">${row.start_time} - ${row.end_time}${row.default_for_new_clients ? ' • default' : ''}</td>
       <td data-label="Status">${row.active ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
-      <td data-label="Action">
-        <button class="btn btn-ghost btn-sm" type="button" onclick='setShiftForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:"smooth"})'>Edit</button>
-        <button class="btn btn-danger btn-sm" type="button" onclick="deleteShift('${row.id}')">Delete</button>
-      </td>
+      <td data-label="Action">${renderMasterActionButtons(`setShiftForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:&quot;smooth&quot;})`, `deleteShift('${row.id}')`)}</td>
     </tr>
   `).join('');
 }
@@ -400,10 +566,42 @@ function renderSiteRows() {
       <td data-label="Coords">${Number(row.latitude).toFixed(6)}, ${Number(row.longitude).toFixed(6)}</td>
       <td data-label="Shift" class="hide-mobile">${row.shift_start} - ${row.shift_end}${row.shift_label ? ` • ${row.shift_label}` : ''}</td>
       <td data-label="Status">${row.active ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
-      <td data-label="Action">
-        <button class="btn btn-ghost btn-sm" type="button" onclick='setSiteForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:"smooth"})'>Edit</button>
-        <button class="btn btn-danger btn-sm" type="button" onclick="deleteSite('${row.id}')">Delete</button>
-      </td>
+      <td data-label="Action">${renderMasterActionButtons(`setSiteForm(${JSON.stringify(row).replace(/'/g, "&apos;")});window.scrollTo({top:0,behavior:&quot;smooth&quot;})`, `deleteSite('${row.id}')`)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderWorkCategoryRows() {
+  const tbody = document.getElementById('work-categories-tbody');
+  if (!workCategoryMasters.length) {
+    tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: 'â—¦', title: 'No work categories configured', subtitle: 'Add categories here to make them available in timesheet entry.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = workCategoryMasters.map(row => `
+    <tr>
+      <td data-label="Label">${row.label}</td>
+      <td data-label="Key"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${row.key}</code></td>
+      <td data-label="Sort">${row.sort_order || 0}</td>
+      <td data-label="Status">${isTrue(row.active) ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
+      <td data-label="Action">${renderMasterActionButtons(`editWorkCategory('${row.id}')`, `deleteWorkCategory('${row.id}')`)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderWorkClassificationRows() {
+  const tbody = document.getElementById('work-classifications-tbody');
+  if (!workClassificationMasters.length) {
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: 'â—¦', title: 'No work classifications configured', subtitle: 'Add classifications here to control labels and badge grouping in timesheets.' })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = workClassificationMasters.map(row => `
+    <tr>
+      <td data-label="Label">${row.label}</td>
+      <td data-label="Key"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${row.key}</code></td>
+      <td data-label="Short">${row.short_label || '-'}</td>
+      <td data-label="Sort">${row.sort_order || 0}</td>
+      <td data-label="Status">${isTrue(row.active) ? '<span class="badge badge-approved">Active</span>' : '<span class="badge badge-draft">Inactive</span>'}</td>
+      <td data-label="Action">${renderMasterActionButtons(`editWorkClassification('${row.id}')`, `deleteWorkClassification('${row.id}')`)}</td>
     </tr>
   `).join('');
 }
@@ -431,21 +629,41 @@ function syncShiftFieldsFromSelection() {
 }
 
 async function loadMasters() {
-  timesheetMasters = await ensureTimesheetMastersLoaded(true);
-  clientsStore = await apiFetch('/clients');
+  const [timesheetMasterData, , clients, workCategoryResult, workClassificationResult] = await Promise.all([
+    ensureTimesheetMastersLoaded(true),
+    ensureMasterDataLoaded(true),
+    apiFetch('/clients'),
+    apiFetch('/master-data/all/work_category'),
+    apiFetch('/master-data/all/work_classification')
+  ]);
+  timesheetMasters = timesheetMasterData;
+  clientsStore = clients;
+  workCategoryMasters = Array.isArray(workCategoryResult.items) ? workCategoryResult.items : [];
+  workClassificationMasters = Array.isArray(workClassificationResult.items) ? workClassificationResult.items : [];
   renderHolidayRows();
   renderShiftRows();
   renderSiteRows();
+  renderWorkCategoryRows();
+  renderWorkClassificationRows();
   populateClientSelects();
+  applyPermissionState();
 }
 
 function openHolidayImport() {
+  if (!canImportTimesheetMaster) {
+    toast('Import access required', 'error');
+    return;
+  }
   document.getElementById('holiday-import-text').value = '';
   document.getElementById('holiday-import-file').value = '';
   openModal('holiday-import-modal');
 }
 
 async function importHolidayRows() {
+  if (!canImportTimesheetMaster) {
+    showHolidayError('Import access required');
+    return;
+  }
   const fileInput = document.getElementById('holiday-import-file');
   const text = document.getElementById('holiday-import-text').value.trim();
   if (!fileInput.files.length && !text) {
@@ -472,6 +690,12 @@ async function importHolidayRows() {
 
 async function saveHoliday(event) {
   event.preventDefault();
+  const id = document.getElementById('holiday-id').value;
+  const neededPermission = id ? 'timesheets.masters.edit' : 'timesheets.masters.create';
+  if (!hasPermission(neededPermission)) {
+    toast(`${id ? 'Edit' : 'Create'} access required`, 'error');
+    return;
+  }
   const payload = {
     holiday_date: document.getElementById('holiday-date').value,
     title: document.getElementById('holiday-title').value,
@@ -479,7 +703,6 @@ async function saveHoliday(event) {
     notes: document.getElementById('holiday-notes').value,
     active: document.getElementById('holiday-active').checked
   };
-  const id = document.getElementById('holiday-id').value;
   try {
     if (id) await apiFetch(`/timesheet-masters/holidays/${id}`, { method: 'PUT', body: payload });
     else await apiFetch('/timesheet-masters/holidays', { method: 'POST', body: payload });
@@ -492,6 +715,7 @@ async function saveHoliday(event) {
 }
 
 async function deleteHoliday(id) {
+  if (!canDeleteTimesheetMaster) { toast('Delete access required', 'error'); return; }
   if (!confirm('Delete this holiday?')) return;
   try {
     await apiFetch(`/timesheet-masters/holidays/${id}`, { method: 'DELETE' });
@@ -504,6 +728,12 @@ async function deleteHoliday(id) {
 
 async function saveShift(event) {
   event.preventDefault();
+  const id = document.getElementById('shift-id').value;
+  const neededPermission = id ? 'timesheets.masters.edit' : 'timesheets.masters.create';
+  if (!hasPermission(neededPermission)) {
+    toast(`${id ? 'Edit' : 'Create'} access required`, 'error');
+    return;
+  }
   const payload = {
     label: document.getElementById('shift-label').value,
     shift_code: document.getElementById('shift-code').value,
@@ -512,7 +742,6 @@ async function saveShift(event) {
     default_for_new_clients: document.getElementById('shift-default').checked,
     active: document.getElementById('shift-active').checked
   };
-  const id = document.getElementById('shift-id').value;
   try {
     if (id) await apiFetch(`/timesheet-masters/shifts/${id}`, { method: 'PUT', body: payload });
     else await apiFetch('/timesheet-masters/shifts', { method: 'POST', body: payload });
@@ -525,6 +754,7 @@ async function saveShift(event) {
 }
 
 async function deleteShift(id) {
+  if (!canDeleteTimesheetMaster) { toast('Delete access required', 'error'); return; }
   if (!confirm('Delete this shift?')) return;
   try {
     await apiFetch(`/timesheet-masters/shifts/${id}`, { method: 'DELETE' });
@@ -537,6 +767,12 @@ async function deleteShift(id) {
 
 async function saveClientSite(event) {
   event.preventDefault();
+  const id = document.getElementById('client-site-id').value;
+  const neededPermission = id ? 'timesheets.masters.edit' : 'timesheets.masters.create';
+  if (!hasPermission(neededPermission)) {
+    toast(`${id ? 'Edit' : 'Create'} access required`, 'error');
+    return;
+  }
   const payload = {
     client_id: document.getElementById('client-site-client').value,
     site_name: document.getElementById('client-site-name').value,
@@ -548,7 +784,6 @@ async function saveClientSite(event) {
     radius_meters: document.getElementById('client-site-radius').value,
     active: document.getElementById('client-site-active').checked
   };
-  const id = document.getElementById('client-site-id').value;
   try {
     if (id) await apiFetch(`/timesheet-masters/client-sites/${id}`, { method: 'PUT', body: payload });
     else await apiFetch('/timesheet-masters/client-sites', { method: 'POST', body: payload });
@@ -561,6 +796,7 @@ async function saveClientSite(event) {
 }
 
 async function deleteSite(id) {
+  if (!canDeleteTimesheetMaster) { toast('Delete access required', 'error'); return; }
   if (!confirm('Delete this client site?')) return;
   try {
     await apiFetch(`/timesheet-masters/client-sites/${id}`, { method: 'DELETE' });
@@ -572,12 +808,20 @@ async function deleteSite(id) {
 }
 
 function openMapSearch() {
+  if (!(canCreateTimesheetMaster || canEditTimesheetMaster)) {
+    toast('Edit access required', 'error');
+    return;
+  }
   const query = document.getElementById('client-site-name').value || document.getElementById('client-site-client').selectedOptions[0]?.textContent || '';
   const url = `https://www.google.com/maps/search/${encodeURIComponent(query || 'office location')}`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function fillCurrentLocation() {
+  if (!(canCreateTimesheetMaster || canEditTimesheetMaster)) {
+    toast('Edit access required', 'error');
+    return;
+  }
   if (!navigator.geolocation) {
     toast('Geolocation is unavailable in this browser', 'error');
     return;
@@ -591,9 +835,98 @@ function fillCurrentLocation() {
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
 }
 
+async function saveWorkCategory(event) {
+  event.preventDefault();
+  const id = document.getElementById('work-category-id').value;
+  const neededPermission = id ? 'timesheets.masters.edit' : 'timesheets.masters.create';
+  if (!hasPermission(neededPermission)) {
+    toast(`${id ? 'Edit' : 'Create'} access required`, 'error');
+    return;
+  }
+  const label = document.getElementById('work-category-label').value.trim();
+  const key = document.getElementById('work-category-key').value.trim() || slugifyMasterKey(label);
+  if (!label || !key) {
+    toast('Label and key are required', 'error');
+    return;
+  }
+  const payload = {
+    label,
+    key,
+    sort_order: document.getElementById('work-category-sort-order').value,
+    active: document.getElementById('work-category-active').checked
+  };
+  try {
+    if (id) await apiFetch(`/master-data/category/work_category/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/master-data/category/work_category', { method: 'POST', body: payload });
+    toast('Work category saved', 'success');
+    resetWorkCategoryForm();
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to save work category', 'error');
+  }
+}
+
+async function deleteWorkCategory(id) {
+  if (!canDeleteTimesheetMaster) { toast('Delete access required', 'error'); return; }
+  if (!confirm('Delete this work category?')) return;
+  try {
+    await apiFetch(`/master-data/category/work_category/${id}`, { method: 'DELETE' });
+    toast('Work category deleted', 'success');
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to delete work category', 'error');
+  }
+}
+
+async function saveWorkClassification(event) {
+  event.preventDefault();
+  const id = document.getElementById('work-classification-id').value;
+  const neededPermission = id ? 'timesheets.masters.edit' : 'timesheets.masters.create';
+  if (!hasPermission(neededPermission)) {
+    toast(`${id ? 'Edit' : 'Create'} access required`, 'error');
+    return;
+  }
+  const label = document.getElementById('work-classification-label').value.trim();
+  const key = document.getElementById('work-classification-key').value.trim() || slugifyMasterKey(label);
+  if (!label || !key) {
+    toast('Label and key are required', 'error');
+    return;
+  }
+  const payload = {
+    label,
+    key,
+    short_label: document.getElementById('work-classification-short-label').value.trim(),
+    sort_order: document.getElementById('work-classification-sort-order').value,
+    active: document.getElementById('work-classification-active').checked
+  };
+  try {
+    if (id) await apiFetch(`/master-data/category/work_classification/${id}`, { method: 'PUT', body: payload });
+    else await apiFetch('/master-data/category/work_classification', { method: 'POST', body: payload });
+    toast('Work classification saved', 'success');
+    resetWorkClassificationForm();
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to save work classification', 'error');
+  }
+}
+
+async function deleteWorkClassification(id) {
+  if (!canDeleteTimesheetMaster) { toast('Delete access required', 'error'); return; }
+  if (!confirm('Delete this work classification?')) return;
+  try {
+    await apiFetch(`/master-data/category/work_classification/${id}`, { method: 'DELETE' });
+    toast('Work classification deleted', 'success');
+    await loadMasters();
+  } catch (error) {
+    toast(error.message || 'Unable to delete work classification', 'error');
+  }
+}
+
 document.getElementById('holiday-form').addEventListener('submit', saveHoliday);
 document.getElementById('shift-form').addEventListener('submit', saveShift);
 document.getElementById('client-site-form').addEventListener('submit', saveClientSite);
+document.getElementById('work-category-form').addEventListener('submit', saveWorkCategory);
+document.getElementById('work-classification-form').addEventListener('submit', saveWorkClassification);
 document.getElementById('client-site-shift').addEventListener('change', syncShiftFieldsFromSelection);
 
 loadMasters().catch(error => toast(error.message || 'Unable to load masters', 'error'));

@@ -4,6 +4,7 @@ const { db } = require('../db');
 const { getMasterDataItems, getUdinLocationMasterItems, invalidateCache } = require('../data-cache');
 
 const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification', 'udin_assignment', 'financial_year']);
+const TIMESHEET_MASTER_CATEGORIES = new Set(['work_category', 'work_classification']);
 
 const DEFAULT_MASTER_DATA = {
   work_classification: [
@@ -47,6 +48,26 @@ const DEFAULT_MASTER_DATA = {
 
 function canManageMasters(req) {
   return req.user?.role === 'partner' || (Array.isArray(req.user?.permissions) && req.user.permissions.includes('access.manage'));
+}
+
+function hasPermission(req, permission) {
+  return Array.isArray(req.user?.permissions) && req.user.permissions.includes(permission);
+}
+
+function canManageCategory(req, category, permission) {
+  if (canManageMasters(req)) return true;
+  if (!TIMESHEET_MASTER_CATEGORIES.has(category)) return false;
+  return hasPermission(req, permission);
+}
+
+function normalizeMasterDataPayload(body = {}) {
+  return {
+    key: String(body.key || '').trim(),
+    label: String(body.label || '').trim(),
+    short_label: String(body.short_label || '').trim() || null,
+    sort_order: Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+    active: body.active === undefined ? true : !!body.active
+  };
 }
 
 async function ensureMasterData() {
@@ -158,15 +179,15 @@ router.get('/all/:category', async (req, res) => {
 });
 
 router.post('/category/:category', async (req, res) => {
-  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
+  if (!canManageCategory(req, req.params.category, 'timesheets.masters.create')) return res.status(403).json({ error: 'Access denied' });
   const { category } = req.params;
   if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
-  const { key, label, short_label, sort_order, active } = req.body;
+  const { key, label, short_label, sort_order, active } = normalizeMasterDataPayload(req.body);
   if (!key || !label) return res.status(400).json({ error: 'Key and label are required' });
 
   try {
     const existing = await getMasterDataItems();
-    const exists = existing.some(item => item.category === category && item.key === key);
+    const exists = existing.some(item => item.category === category && String(item.key || '').trim().toLowerCase() === key.toLowerCase());
     if (exists) return res.status(400).json({ error: 'Key already exists for this category' });
 
     const docRef = await db.collection('master_data').add({
@@ -185,15 +206,15 @@ router.post('/category/:category', async (req, res) => {
 });
 
 router.put('/category/:category/:id', async (req, res) => {
-  if (!canManageMasters(req)) return res.status(403).json({ error: 'Access denied' });
+  if (!canManageCategory(req, req.params.category, 'timesheets.masters.edit')) return res.status(403).json({ error: 'Access denied' });
   const { category, id } = req.params;
   if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
-  const { key, label, short_label, sort_order, active } = req.body;
+  const { key, label, short_label, sort_order, active } = normalizeMasterDataPayload(req.body);
   if (!key || !label) return res.status(400).json({ error: 'Key and label are required' });
 
   try {
     const existing = await getMasterDataItems();
-    const exists = existing.some(item => item.id !== id && item.category === category && item.key === key);
+    const exists = existing.some(item => item.id !== id && item.category === category && String(item.key || '').trim().toLowerCase() === key.toLowerCase());
     if (exists) return res.status(400).json({ error: 'Key already exists for this category' });
 
     await db.collection('master_data').doc(id).update({
@@ -204,6 +225,25 @@ router.put('/category/:category/:id', async (req, res) => {
       sort_order: sort_order || 0,
       active: !!active
     });
+    invalidateCache('master-data:all');
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/category/:category/:id', async (req, res) => {
+  if (!canManageCategory(req, req.params.category, 'timesheets.masters.delete')) return res.status(403).json({ error: 'Access denied' });
+  const { category, id } = req.params;
+  if (!ALLOWED_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
+
+  try {
+    const docRef = db.collection('master_data').doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Master data item not found' });
+    if (doc.data()?.category !== category) return res.status(400).json({ error: 'Category mismatch' });
+
+    await docRef.delete();
     invalidateCache('master-data:all');
     res.json({ success: true });
   } catch (e) {
