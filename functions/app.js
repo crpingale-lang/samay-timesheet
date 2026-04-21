@@ -22,6 +22,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'clients.view','clients.create','clients.edit','clients.delete','clients.import',
     'staff.view','staff.create','staff.edit','staff.delete','access.manage',
     'modules.view','firm.dashboard.view',
+    'timesheets.masters.view','timesheets.masters.create','timesheets.masters.edit','timesheets.masters.delete','timesheets.masters.import',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
     'reports.view','reports.export',
@@ -31,6 +32,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
   manager: [
     'clients.view','staff.view',
     'modules.view','firm.dashboard.view',
+    'timesheets.masters.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager',
     'reports.view','reports.export',
