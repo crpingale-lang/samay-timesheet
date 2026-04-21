@@ -37,6 +37,17 @@ function roleSortOrder(role) {
   }
 }
 
+function formatRoleLabel(role) {
+  switch (normalizeRole(role)) {
+    case 'partner':
+      return 'Partner';
+    case 'manager':
+      return 'Manager';
+    default:
+      return 'Article';
+  }
+}
+
 function formatIsoDate(date) {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -84,14 +95,14 @@ function currentIndiaDate() {
 
 async function getHolidayDateSet(from, to) {
   const snap = await db.collection('timesheet_holidays')
-    .where('active', '==', true)
     .where('holiday_date', '>=', from)
     .where('holiday_date', '<=', to)
     .get();
   const dates = new Set();
   snap.forEach(doc => {
     const data = doc.data();
-    if (data?.holiday_date) dates.add(data.holiday_date);
+    const active = data?.active !== false && data?.active !== 0 && data?.active !== '0';
+    if (active && data?.holiday_date) dates.add(data.holiday_date);
   });
   return dates;
 }
@@ -107,6 +118,151 @@ function formatWatchLabel(isoDate) {
 
 function csvEscape(value) {
   return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function buildDayKeys(from, to) {
+  const dayKeys = [];
+  for (let cursor = from; cursor <= to; cursor = shiftIsoDate(cursor, 1)) {
+    dayKeys.push(cursor);
+    if (cursor === to) break;
+  }
+  return dayKeys;
+}
+
+function formatWatchExportCell(day) {
+  if (day.status === 'holiday') return 'Holiday';
+  if (day.status === 'missing') return 'No Update';
+  if (day.status === 'short') return `${day.hours.toFixed(2)} hrs (Short)`;
+  return `${day.hours.toFixed(2)} hrs`;
+}
+
+async function buildTeamUpdateWatchReport({ userId, from, to }) {
+  const dayKeys = buildDayKeys(from, to);
+  const dayKeySet = new Set(dayKeys);
+  const holidayDates = await getHolidayDateSet(from, to);
+
+  const usersMap = await getUsersMap();
+  const users = [];
+  usersMap.forEach((user, id) => {
+    const active = user.active !== false && user.active !== 0 && user.active !== '0';
+    if (!userId && !active) return;
+    if (userId && String(id) !== userId) return;
+
+    users.push({
+      id,
+      name: user.name || 'Unknown',
+      role: normalizeRole(user.role) || 'article',
+      designation: user.designation || '',
+      active
+    });
+  });
+  const usersById = new Map(users.map(user => [String(user.id), user]));
+
+  const timesheetSnap = await db.collection('timesheets')
+    .where('entry_date', '>=', from)
+    .where('entry_date', '<=', to)
+    .get();
+
+  const entries = timesheetSnap.docs.map(doc => doc.data());
+  const dailyTotals = new Map();
+
+  for (const row of entries) {
+    if (!row || row.status === 'rejected') continue;
+    if (userId && String(row.user_id || '') !== userId) continue;
+    if (!row.user_id || !row.entry_date || !dayKeySet.has(row.entry_date)) continue;
+    const hours = parseFloat(row.hours) || 0;
+    if (hours <= 0) continue;
+    const key = `${row.user_id}:${row.entry_date}`;
+    dailyTotals.set(key, (dailyTotals.get(key) || 0) + hours);
+  }
+
+  for (const row of entries) {
+    if (!row || row.status === 'rejected') continue;
+    const id = String(row.user_id || '');
+    if (!id || usersById.has(id)) continue;
+    if (userId && id !== userId) continue;
+    usersById.set(id, {
+      id: row.user_id,
+      name: row.staff_name || 'Unknown',
+      role: normalizeRole(row.staff_role) || 'article',
+      designation: '',
+      active: true
+    });
+  }
+
+  const rows = [...usersById.values()].map(user => {
+    const days = dayKeys.map(date => {
+      if (holidayDates.has(date)) {
+        return { date, hours: 0, status: 'holiday' };
+      }
+      const hours = dailyTotals.get(`${user.id}:${date}`) || 0;
+      const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
+      return { date, hours, status };
+    });
+
+    const totalHours = days.reduce((sum, day) => sum + day.hours, 0);
+    const updatedDays = days.filter(day => day.hours > 0).length;
+    const shortDays = days.filter(day => day.status === 'short').length;
+    const missingDays = days.filter(day => day.status === 'missing').length;
+    const holidayDays = days.filter(day => day.status === 'holiday').length;
+
+    return {
+      ...user,
+      total_hours: Number(totalHours.toFixed(2)),
+      updated_days: updatedDays,
+      short_days: shortDays,
+      missing_days: missingDays,
+      holiday_days: holidayDays,
+      days
+    };
+  });
+
+  rows.sort((a, b) => {
+    const missingDiff = b.missing_days - a.missing_days;
+    if (missingDiff !== 0) return missingDiff;
+    const shortDiff = b.short_days - a.short_days;
+    if (shortDiff !== 0) return shortDiff;
+    const totalDiff = a.total_hours - b.total_hours;
+    if (totalDiff !== 0) return totalDiff;
+    const roleDiff = roleSortOrder(a.role) - roleSortOrder(b.role);
+    if (roleDiff !== 0) return roleDiff;
+    return a.name.localeCompare(b.name);
+  });
+
+  const summary = rows.reduce((acc, row) => {
+    acc.team_members += 1;
+    acc.updated_members += row.updated_days > 0 ? 1 : 0;
+    acc.on_track_members += row.short_days === 0 && row.missing_days === 0 ? 1 : 0;
+    acc.short_day_count += row.short_days;
+    acc.missing_day_count += row.missing_days;
+    acc.holiday_day_count += row.holiday_days;
+    acc.total_hours += row.total_hours;
+    return acc;
+  }, {
+    team_members: 0,
+    updated_members: 0,
+    on_track_members: 0,
+    short_day_count: 0,
+    missing_day_count: 0,
+    holiday_day_count: 0,
+    total_hours: 0
+  });
+
+  return {
+    range: {
+      from,
+      to
+    },
+    days: dayKeys.map(date => ({
+      date,
+      label: formatWatchLabel(date)
+    })),
+    rows,
+    summary: {
+      ...summary,
+      total_hours: Number(summary.total_hours.toFixed(2))
+    }
+  };
 }
 
 // In Firestore, we must fetch documents and map/reduce them in-memory since complex GROUP BY SUM aggregations are not natively supported easily.
@@ -206,133 +362,8 @@ router.get('/team-update-watch', async (req, res) => {
       return res.status(400).json({ error: 'Team watch can cover at most 31 days' });
     }
 
-    const dayKeys = [];
-    for (let cursor = from; cursor <= to; cursor = shiftIsoDate(cursor, 1)) {
-      dayKeys.push(cursor);
-      if (cursor === to) break;
-    }
-    const holidayDates = await getHolidayDateSet(from, to);
-
-    const usersMap = await getUsersMap();
-    const users = [];
-    usersMap.forEach((user, id) => {
-      const active = user.active !== false && user.active !== 0 && user.active !== '0';
-      if (!userId && !active) return;
-      if (userId && String(id) !== userId) return;
-
-      users.push({
-        id,
-        name: user.name || 'Unknown',
-        role: normalizeRole(user.role) || 'article',
-        designation: user.designation || '',
-        active
-      });
-    });
-    const usersById = new Map(users.map(user => [String(user.id), user]));
-
-    const timesheetSnap = await db.collection('timesheets')
-      .where('entry_date', '>=', from)
-      .where('entry_date', '<=', to)
-      .get();
-
-    const dailyTotals = new Map();
-    timesheetSnap.forEach(doc => {
-      const row = doc.data();
-      if (!row || row.status === 'rejected') return;
-      if (userId && String(row.user_id || '') !== userId) return;
-      if (!row.user_id || !row.entry_date) return;
-      if (!dayKeys.includes(row.entry_date)) return;
-      const hours = parseFloat(row.hours) || 0;
-      if (hours <= 0) return;
-      const key = `${row.user_id}:${row.entry_date}`;
-      dailyTotals.set(key, (dailyTotals.get(key) || 0) + hours);
-    });
-
-    timesheetSnap.forEach(doc => {
-      const row = doc.data();
-      if (!row || row.status === 'rejected') return;
-      const id = String(row.user_id || '');
-      if (!id || usersById.has(id)) return;
-      usersById.set(id, {
-        id: row.user_id,
-        name: row.staff_name || 'Unknown',
-        role: normalizeRole(row.staff_role) || 'article',
-        designation: '',
-        active: true
-      });
-    });
-
-    const rows = [...usersById.values()].map(user => {
-      const days = dayKeys.map(date => {
-        if (holidayDates.has(date)) {
-          return { date, hours: 0, status: 'holiday' };
-        }
-        const hours = dailyTotals.get(`${user.id}:${date}`) || 0;
-        const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
-        return { date, hours, status };
-      });
-
-      const totalHours = days.reduce((sum, day) => sum + day.hours, 0);
-      const updatedDays = days.filter(day => day.hours > 0).length;
-      const shortDays = days.filter(day => day.status === 'short').length;
-      const missingDays = days.filter(day => day.status === 'missing').length;
-      const holidayDays = days.filter(day => day.status === 'holiday').length;
-
-      return {
-        ...user,
-        total_hours: Number(totalHours.toFixed(2)),
-        updated_days: updatedDays,
-        short_days: shortDays,
-        missing_days: missingDays,
-        holiday_days: holidayDays,
-        days
-      };
-    });
-
-    rows.sort((a, b) => {
-      const missingDiff = b.missing_days - a.missing_days;
-      if (missingDiff !== 0) return missingDiff;
-      const shortDiff = b.short_days - a.short_days;
-      if (shortDiff !== 0) return shortDiff;
-      const totalDiff = a.total_hours - b.total_hours;
-      if (totalDiff !== 0) return totalDiff;
-      const roleDiff = roleSortOrder(a.role) - roleSortOrder(b.role);
-      if (roleDiff !== 0) return roleDiff;
-      return a.name.localeCompare(b.name);
-    });
-
-    const summary = rows.reduce((acc, row) => {
-      acc.team_members += 1;
-      acc.updated_members += row.updated_days > 0 ? 1 : 0;
-      acc.on_track_members += row.short_days === 0 && row.missing_days === 0 ? 1 : 0;
-      acc.short_day_count += row.short_days;
-      acc.missing_day_count += row.missing_days;
-      acc.total_hours += row.total_hours;
-      return acc;
-    }, {
-      team_members: 0,
-      updated_members: 0,
-      on_track_members: 0,
-      short_day_count: 0,
-      missing_day_count: 0,
-      total_hours: 0
-    });
-
-    res.json({
-      range: {
-        from,
-        to
-      },
-      days: dayKeys.map(date => ({
-        date,
-        label: formatWatchLabel(date)
-      })),
-      rows,
-      summary: {
-        ...summary,
-        total_hours: Number(summary.total_hours.toFixed(2))
-      }
-    });
+    const report = await buildTeamUpdateWatchReport({ userId, from, to });
+    res.json(report);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -368,77 +399,7 @@ router.get('/team-update-watch/export', async (req, res) => {
       return res.status(400).send('Team watch can cover at most 31 days');
     }
 
-    const dayKeys = [];
-    for (let cursor = from; cursor <= to; cursor = shiftIsoDate(cursor, 1)) {
-      dayKeys.push(cursor);
-      if (cursor === to) break;
-    }
-    const holidayDates = await getHolidayDateSet(from, to);
-
-    const usersMap = await getUsersMap();
-    const users = [];
-    usersMap.forEach((user, id) => {
-      const active = user.active !== false && user.active !== 0 && user.active !== '0';
-      if (!userId && !active) return;
-      if (userId && String(id) !== userId) return;
-      users.push({
-        id,
-        name: user.name || 'Unknown',
-        role: normalizeRole(user.role) || 'article',
-        designation: user.designation || '',
-        active
-      });
-    });
-
-    const timesheetSnap = await db.collection('timesheets')
-      .where('entry_date', '>=', from)
-      .where('entry_date', '<=', to)
-      .get();
-
-    const dailyTotals = new Map();
-    timesheetSnap.forEach(doc => {
-      const row = doc.data();
-      if (!row || row.status === 'rejected') return;
-      if (userId && String(row.user_id || '') !== userId) return;
-      if (!row.user_id || !row.entry_date) return;
-      if (!dayKeys.includes(row.entry_date)) return;
-      const hours = parseFloat(row.hours) || 0;
-      if (hours <= 0) return;
-      const key = `${row.user_id}:${row.entry_date}`;
-      dailyTotals.set(key, (dailyTotals.get(key) || 0) + hours);
-    });
-
-    const rows = users.map(user => {
-      const days = dayKeys.map(date => {
-        if (holidayDates.has(date)) {
-          return { date, hours: 0, status: 'holiday' };
-        }
-        const hours = dailyTotals.get(`${user.id}:${date}`) || 0;
-        const status = hours === 0 ? 'missing' : hours < 6 ? 'short' : 'good';
-        return { date, hours, status };
-      });
-
-      return {
-        ...user,
-        total_hours: Number(days.reduce((sum, day) => sum + day.hours, 0).toFixed(2)),
-        updated_days: days.filter(day => day.hours > 0).length,
-        short_days: days.filter(day => day.status === 'short').length,
-        missing_days: days.filter(day => day.status === 'missing').length,
-        holiday_days: days.filter(day => day.status === 'holiday').length,
-        days
-      };
-    }).sort((a, b) => {
-      const missingDiff = b.missing_days - a.missing_days;
-      if (missingDiff !== 0) return missingDiff;
-      const shortDiff = b.short_days - a.short_days;
-      if (shortDiff !== 0) return shortDiff;
-      const totalDiff = a.total_hours - b.total_hours;
-      if (totalDiff !== 0) return totalDiff;
-      const roleDiff = roleSortOrder(a.role) - roleSortOrder(b.role);
-      if (roleDiff !== 0) return roleDiff;
-      return a.name.localeCompare(b.name);
-    });
-
+    const report = await buildTeamUpdateWatchReport({ userId, from, to });
     const headers = [
       'Staff',
       'Role',
@@ -447,29 +408,41 @@ router.get('/team-update-watch/export', async (req, res) => {
       'Updated Days',
       'Short Days',
       'Missing Days',
-      ...dayKeys.map(date => formatWatchLabel(date))
+      'Holiday Days',
+      ...report.days.map(day => day.label)
     ];
 
-    const csv = [
-      headers.join(','),
-      ...rows.map(row => [
-        csvEscape(row.name),
-        csvEscape(row.role),
-        csvEscape(row.designation || ''),
+    const csvRows = [
+      ['Report', 'Team Update Watch'],
+      ['Period From', report.range.from],
+      ['Period To', report.range.to],
+      ['Team Members', report.summary.team_members],
+      ['Fully Updated', report.summary.on_track_members],
+      ['Short Days', report.summary.short_day_count],
+      ['Missing Days', report.summary.missing_day_count],
+      ['Holiday Days', report.summary.holiday_day_count],
+      ['Total Hours', report.summary.total_hours.toFixed(2)],
+      [],
+      headers,
+      ...report.rows.map(row => [
+        row.name,
+        formatRoleLabel(row.role),
+        row.designation || '',
         row.total_hours.toFixed(2),
         row.updated_days,
         row.short_days,
         row.missing_days,
-        ...row.days.map(day => {
-          if (day.status === 'missing') return csvEscape('No update');
-          if (day.status === 'short') return csvEscape(`${day.hours.toFixed(2)} short`);
-          return csvEscape(day.hours.toFixed(2));
-        })
-      ].join(','))
-    ].join('\n');
+        row.holiday_days,
+        ...row.days.map(formatWatchExportCell)
+      ])
+    ];
+
+    const csv = csvRows
+      .map(row => row.map(csvEscape).join(','))
+      .join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="team-update-watch.csv"');
+    res.setHeader('Content-Disposition', `attachment; filename="team-update-watch-${report.range.from}-to-${report.range.to}.csv"`);
     res.send(csv);
   } catch (error) {
     res.status(500).send(error.message);
