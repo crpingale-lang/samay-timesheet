@@ -232,9 +232,8 @@
         </div>
         <div class="form-group">
           <label class="form-label">Client / Matter</label>
-          <select class="form-control" id="modal-client-search">
-            <option value="">Select client</option>
-          </select>
+          <input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client">
+          <datalist id="client-list"></datalist>
         </div>
         <div class="form-group">
           <label class="form-label">Work Category</label>
@@ -372,8 +371,19 @@ function populateMasterDataSelects() {
   bootMobileListPickers(document.getElementById('entry-modal'));
 }
 
-document.getElementById('modal-client-search').addEventListener('change', e => {
-  const match = allClientsStore.find(c => String(c.id) === String(e.target.value));
+function clientOptionLabel(client) {
+  if (!client) return '';
+  return `${client.name} [${client.code}]`;
+}
+
+function findClientByPickerValue(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  return allClientsStore.find(client => clientOptionLabel(client) === normalized) || null;
+}
+
+document.getElementById('modal-client-search').addEventListener('input', e => {
+  const match = findClientByPickerValue(e.target.value);
   document.getElementById('modal-client-search').dataset.clientId = match ? match.id : '';
   if (match) applyClientShiftDefaults(match.id, { force: !document.getElementById('modal-start-time').value || !document.getElementById('modal-end-time').value });
   renderModalTimeline();
@@ -1041,8 +1051,7 @@ function renderSelectedDayTimeline() {
 function renderModalTimeline() {
   const entryId = document.getElementById('modal-entry-id').value;
   const dateStr = document.getElementById('modal-date').value || selectedDate;
-  const clientId = document.getElementById('modal-client-search').value;
-  const matchedClient = allClientsStore.find(c => String(c.id) === String(clientId));
+  const matchedClient = findClientByPickerValue(document.getElementById('modal-client-search').value);
   const entry = {
     task_type: document.getElementById('modal-task-type').value,
     description: document.getElementById('modal-description').value,
@@ -1102,7 +1111,12 @@ function renderAll() {
 }
 
 function clientDisplay(entry) {
-  return entry?.client_id ? String(entry.client_id) : '';
+  if (!entry?.client_id) return '';
+  const client = allClientsStore.find(c => String(c.id) === String(entry.client_id));
+  if (client) return clientOptionLabel(client);
+  if (entry?.client_label) return entry.client_label;
+  if (entry?.client_name) return entry.client_name;
+  return '';
 }
 
 function getConfiguredClientSite(clientId) {
@@ -1357,8 +1371,7 @@ function validateModalTimeline(payload, currentId = '') {
 function modalPayload() {
   finalizeModalTimeField('modal-start-time');
   finalizeModalTimeField('modal-end-time');
-  const clientId = document.getElementById('modal-client-search').value;
-  const matchedClient = allClientsStore.find(c => String(c.id) === String(clientId));
+  const matchedClient = findClientByPickerValue(document.getElementById('modal-client-search').value);
   return {
     entry_date: document.getElementById('modal-date').value,
     client_id: matchedClient ? matchedClient.id : null,
@@ -1461,20 +1474,29 @@ function saveDayState() {
 }
 
 async function loadClients() {
+  if (hasPermission('timesheets.masters.view')) {
+    try {
+      await ensureTimesheetMastersLoaded();
+    } catch (e) {
+      console.warn('Timesheet master data unavailable on Log Time', e);
+    }
+  }
   try {
-    await ensureTimesheetMastersLoaded();
     const clients = await apiFetch('/clients');
     const configuredClientIds = new Set(getConfiguredTimesheetClients().map(client => String(client.id)));
     const activeClients = clients.filter(c => c.active);
     allClientsStore = configuredClientIds.size
       ? activeClients.filter(c => configuredClientIds.has(String(c.id)))
       : activeClients;
-    document.getElementById('modal-client-search').innerHTML = '<option value="">Select client</option>' +
-      allClientsStore.map(c => `<option value="${c.id}">${c.name} [${c.code}]</option>`).join('');
+    document.getElementById('client-list').innerHTML = allClientsStore
+      .map(c => `<option value="${clientOptionLabel(c)}"></option>`)
+      .join('');
+    document.getElementById('modal-client-search').dataset.clientId = '';
     bootMobileListPickers(document.getElementById('entry-modal'));
   } catch (e) {
     allClientsStore = [];
-    document.getElementById('modal-client-search').innerHTML = '<option value="">Select client</option>';
+    document.getElementById('client-list').innerHTML = '';
+    document.getElementById('modal-client-search').dataset.clientId = '';
     bootMobileListPickers(document.getElementById('entry-modal'));
     console.warn('Client list unavailable on Log Time', e);
   }
@@ -1558,10 +1580,16 @@ function closeSidebar() {
 async function initPage() {
   try {
     await ensureMasterDataLoaded();
-    await ensureTimesheetMastersLoaded();
   } catch (e) {
     console.warn('Master data unavailable, using cached labels if present', e);
     toast('Master data could not be refreshed', 'info');
+  }
+  if (hasPermission('timesheets.masters.view')) {
+    try {
+      await ensureTimesheetMastersLoaded();
+    } catch (e) {
+      console.warn('Timesheet master data unavailable, using cached values if present', e);
+    }
   }
   populateMasterDataSelects();
   renderAll();
