@@ -82,6 +82,16 @@ const APP_PERMISSION_GROUPS = [
     ]
   },
   {
+    key: 'attendance',
+    label: 'Attendance',
+    permissions: [
+      { key: 'attendance.view_own', label: 'View Own' },
+      { key: 'attendance.create_own', label: 'Check In/Out' },
+      { key: 'attendance.view_reports', label: 'View Reports' },
+      { key: 'attendance.approve_corrections', label: 'Approve Corrections' }
+    ]
+  },
+  {
     key: 'dashboard',
     label: 'Dashboard',
     permissions: [
@@ -144,6 +154,10 @@ function getDefaultPermissions(role) {
       'approvals.approve_manager',
       'reports.view',
       'reports.export',
+      'attendance.view_own',
+      'attendance.create_own',
+      'attendance.view_reports',
+      'attendance.approve_corrections',
       'dashboard.view_self',
       'dashboard.view_team'
     ];
@@ -156,6 +170,8 @@ function getDefaultPermissions(role) {
     'timesheets.edit_own',
     'timesheets.delete_own',
     'timesheets.submit_own',
+    'attendance.view_own',
+    'attendance.create_own',
     'dashboard.view_self'
   ];
 }

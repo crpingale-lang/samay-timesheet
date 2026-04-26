@@ -2,10 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Attendance Check In - Samay</title>
+  <title>Attendance - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
+  <style>
+    .attendance-layout { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .attendance-status-line { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .attendance-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .attendance-live-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .attendance-location-meta { min-height: 40px; display: flex; align-items: center; color: var(--text-muted); font-size: 12px; }
+    .attendance-correction-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .attendance-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; padding: 16px 22px 22px; border-top: 1px solid var(--border); }
+    @media (max-width: 980px) {
+      .attendance-layout { grid-template-columns: 1fr; }
+      .attendance-actions, .attendance-correction-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
 <div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
@@ -17,110 +30,103 @@
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div>
           <div class="topbar-title">Attendance</div>
-          <div class="report-topbar-subtitle">Imported check-in records and user sync status.</div>
+          <div class="report-topbar-subtitle">Geofenced check-in, checkout, corrections, and monthly reports.</div>
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-ghost btn-sm" onclick="resetFilters()">Reset</button>
-        <button class="btn btn-primary btn-sm" onclick="loadAttendance()">Refresh</button>
+        <button class="btn btn-ghost btn-sm" onclick="openCorrectionModal()">Correction</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAttendance('csv')">CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAttendance('xlsx')">XLSX</button>
+        <button class="btn btn-primary btn-sm" onclick="refreshAll()">Refresh</button>
       </div>
     </header>
 
     <div class="page-content report-page">
-      <div class="card" id="attendance-checkin-card" style="margin-bottom:16px;">
-        <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
-          <div>
-            <div class="card-title">Check In</div>
-            <div class="card-subtitle">Tap Check In to open the form, choose a location, then capture your current location to verify you are within the allowed radius.</div>
+      <div class="attendance-layout">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Today</div>
+              <div class="card-subtitle">Capture your current GPS position before punching.</div>
+            </div>
+            <div class="report-sync" id="today-sync">Loading</div>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-            <div class="report-sync" id="attendance-checkin-sync">Tap Check In</div>
-            <button class="btn btn-primary btn-sm" type="button" id="toggle-checkin-btn" aria-expanded="false" onclick="toggleCheckInPanel()">Check In</button>
-          </div>
-        </div>
-        <div id="checkin-panel" hidden>
-          <div class="report-sidebar-fields attendance-filters" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px;">
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Name</label>
-              <input class="form-control" type="text" id="attendance-name" readonly>
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Time</label>
-              <input class="form-control" type="text" id="attendance-time" readonly>
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Location</label>
-              <select class="form-control" id="attendance-location">
-                <option value="">Loading locations...</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label class="form-label">Action</label>
-              <button class="btn btn-ghost btn-sm" type="button" id="detect-location-btn" onclick="detectCurrentLocation()">Use Current Location</button>
-            </div>
-          </div>
-          <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px;">
-            <div class="stat-card blue">
-              <div class="stat-label">Current Location</div>
-              <div class="stat-value" id="geo-distance">-</div>
-              <div class="stat-sub" id="geo-status">Waiting for geolocation permission.</div>
+
+          <div class="stats-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0;">
+            <div class="stat-card indigo">
+              <div class="stat-label">Status</div>
+              <div class="stat-value" id="today-status">-</div>
+              <div class="stat-sub" id="today-date">-</div>
             </div>
             <div class="stat-card green">
-              <div class="stat-label">Selected Office</div>
-              <div class="stat-value" id="selected-location-label">-</div>
-              <div class="stat-sub" id="selected-location-meta">Choose a location from the dropdown.</div>
-            </div>
-            <div class="stat-card amber">
-              <div class="stat-label">Save Status</div>
-              <div class="stat-value" id="geo-save-status">Disabled</div>
-              <div class="stat-sub">You must be inside the allowed radius to save.</div>
+              <div class="stat-label">Hours</div>
+              <div class="stat-value" id="today-hours">0.00</div>
+              <div class="stat-sub" id="today-shift">Shift -</div>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom:12px;">
+
+          <div class="form-group">
+            <label class="form-label">Attendance Location</label>
+            <select class="form-control" id="attendance-location" onchange="updateSelectedLocation()">
+              <option value="">Loading locations...</option>
+            </select>
+            <div class="attendance-location-meta" id="location-meta">Choose an office or client site.</div>
+          </div>
+
+          <div class="form-group">
             <label class="form-label">Current Coordinates</label>
-            <div class="form-control" id="current-coords" style="display:flex;align-items:center;min-height:42px;background:var(--surface-muted);">Not detected yet</div>
+            <div class="form-control" id="geo-coords" style="display:flex;align-items:center;min-height:42px;background:var(--surface-muted);">Not captured yet</div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
-            <button class="btn btn-primary" type="button" id="save-attendance-btn" onclick="saveAttendance()">Check In</button>
+
+          <div class="attendance-status-line">
+            <span class="badge badge-draft" id="geo-badge">GPS pending</span>
+            <span class="badge badge-draft" id="distance-badge">Distance -</span>
           </div>
-        </div>
+
+          <div class="attendance-actions">
+            <button class="btn btn-ghost" type="button" onclick="detectCurrentLocation()">Use GPS</button>
+            <button class="btn btn-primary" type="button" id="checkin-btn" onclick="punch('check-in')">Check In</button>
+            <button class="btn btn-primary" type="button" id="checkout-btn" onclick="punch('check-out')">Check Out</button>
+            <button class="btn btn-ghost" type="button" onclick="openCorrectionModal()">Request Correction</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <div class="card-title">Live Board</div>
+              <div class="card-subtitle">Today’s staff attendance snapshot.</div>
+            </div>
+            <div class="report-sync" id="live-sync">Ready</div>
+          </div>
+          <div class="attendance-live-grid">
+            <div class="stat-card indigo"><div class="stat-label">Staff</div><div class="stat-value" id="live-total">0</div><div class="stat-sub">Active users</div></div>
+            <div class="stat-card green"><div class="stat-label">Checked In</div><div class="stat-value" id="live-in">0</div><div class="stat-sub">Currently in office/site</div></div>
+            <div class="stat-card blue"><div class="stat-label">Checked Out</div><div class="stat-value" id="live-out">0</div><div class="stat-sub">Completed today</div></div>
+            <div class="stat-card amber"><div class="stat-label">Late</div><div class="stat-value" id="live-late">0</div><div class="stat-sub">After shift start</div></div>
+          </div>
+          <div class="table-wrapper" style="margin-top:14px;">
+            <table class="mobile-stack-table">
+              <thead><tr><th>Name</th><th>Status</th><th>In</th><th>Out</th><th class="hide-mobile">Location</th></tr></thead>
+              <tbody id="live-tbody"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
-      <div class="stats-grid">
-        <div class="stat-card indigo">
-          <div class="stat-label">Attendance Records</div>
-          <div class="stat-value" id="stat-records">0</div>
-          <div class="stat-sub">Rows returned by the current filter</div>
-        </div>
-        <div class="stat-card green">
-          <div class="stat-label">Unique People</div>
-          <div class="stat-value" id="stat-people">0</div>
-          <div class="stat-sub">Distinct names in the workbook</div>
-        </div>
-        <div class="stat-card amber">
-          <div class="stat-label">Active Users</div>
-          <div class="stat-value" id="stat-active">0</div>
-          <div class="stat-sub">Matched to active Firebase users</div>
-        </div>
-        <div class="stat-card blue">
-          <div class="stat-label">Inactive Users</div>
-          <div class="stat-value" id="stat-inactive">0</div>
-          <div class="stat-sub">Imported people held inactive</div>
-        </div>
-      </div>
-
-      <div class="card">
+      <section class="card" style="margin-top:16px;">
         <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
           <div>
-            <div class="card-title">Imported Attendance Log</div>
-            <div class="card-subtitle">Search by person, location, approver, or date range.</div>
+            <div class="card-title">Monthly Attendance</div>
+            <div class="card-subtitle">Daily rows, shift flags, total hours, and export.</div>
           </div>
-          <div class="report-sync" id="attendance-sync">Ready</div>
+          <div class="report-sync" id="report-sync">Ready</div>
         </div>
-        <div class="report-sidebar-fields attendance-filters" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px;">
+
+        <div class="report-sidebar-fields attendance-filters" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px;">
           <div class="form-group" style="margin:0;">
             <label class="form-label">Search</label>
-            <input class="form-control" type="text" id="search" placeholder="Name, location, approver">
+            <input class="form-control" type="text" id="search" placeholder="Name, location, status">
           </div>
           <div class="form-group" style="margin:0;">
             <label class="form-label">From</label>
@@ -129,6 +135,16 @@
           <div class="form-group" style="margin:0;">
             <label class="form-label">To</label>
             <input class="form-control" type="date" id="to">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Status</label>
+            <select class="form-control" id="status-filter">
+              <option value="">All</option>
+              <option value="checked_in">Checked in</option>
+              <option value="checked_out">Checked out</option>
+              <option value="missed_checkout">Missed checkout</option>
+              <option value="Yes">Late / Early</option>
+            </select>
           </div>
           <div class="form-group" style="margin:0;">
             <label class="form-label">Page Size</label>
@@ -140,17 +156,18 @@
           </div>
         </div>
 
+        <div class="stats-grid">
+          <div class="stat-card indigo"><div class="stat-label">Records</div><div class="stat-value" id="sum-records">0</div><div class="stat-sub">Rows in filter</div></div>
+          <div class="stat-card green"><div class="stat-label">Hours</div><div class="stat-value" id="sum-hours">0</div><div class="stat-sub">Completed work hours</div></div>
+          <div class="stat-card amber"><div class="stat-label">Late</div><div class="stat-value" id="sum-late">0</div><div class="stat-sub">Late check-ins</div></div>
+          <div class="stat-card blue"><div class="stat-label">Early Exit</div><div class="stat-value" id="sum-early">0</div><div class="stat-sub">Before shift end</div></div>
+        </div>
+
         <div class="table-wrapper">
           <table class="mobile-stack-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Date</th>
-                <th>Entry</th>
-                <th>Exit</th>
-                <th>Hours</th>
-                <th class="hide-mobile">Location</th>
-                <th>Status</th>
+                <th>Name</th><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th class="hide-mobile">Location</th><th>Status</th><th>Late</th><th></th>
               </tr>
             </thead>
             <tbody id="attendance-tbody"></tbody>
@@ -164,7 +181,64 @@
             <button class="btn btn-ghost btn-sm" id="attendance-next-btn" onclick="changePage(1)">Next</button>
           </div>
         </div>
+      </section>
+
+      <section class="card" style="margin-top:16px;">
+        <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
+          <div>
+            <div class="card-title">Correction Requests</div>
+            <div class="card-subtitle">Missed checkout and punch correction approvals.</div>
+          </div>
+          <div class="report-sync" id="correction-sync">Ready</div>
+        </div>
+        <div class="table-wrapper">
+          <table class="mobile-stack-table">
+            <thead><tr><th>Staff</th><th>Reason</th><th>Requested Time</th><th>Status</th><th></th></tr></thead>
+            <tbody id="corrections-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="correction-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-copy">
+        <div class="modal-kicker">Attendance</div>
+        <div class="modal-title">Request Correction</div>
+        <div class="modal-subtitle">Use this for missed checkout, wrong punch time, or location exceptions.</div>
       </div>
+      <button class="modal-close" onclick="closeCorrectionModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Record</label>
+        <select class="form-control" id="correction-record"></select>
+      </div>
+      <div class="attendance-correction-grid">
+        <div class="form-group">
+          <label class="form-label">Requested Check In</label>
+          <input class="form-control" id="correction-entry" type="time">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Requested Check Out</label>
+          <input class="form-control" id="correction-exit" type="time">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location Note</label>
+        <input class="form-control" id="correction-location-note" placeholder="Optional location explanation">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reason *</label>
+        <textarea class="form-control" id="correction-reason" rows="4" placeholder="Explain what should be corrected"></textarea>
+      </div>
+    </div>
+    <div class="attendance-modal-actions">
+      <button class="btn btn-ghost" onclick="closeCorrectionModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCorrection()">Submit Request</button>
     </div>
   </div>
 </div>
@@ -177,119 +251,82 @@ document.getElementById('sidebar-el').innerHTML = SIDEBAR_HTML();
 buildSidebar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-const ATTENDANCE_PAGE_STATE_KEY = 'attendance';
-const state = readViewState(ATTENDANCE_PAGE_STATE_KEY) || {};
-const todayStr = today();
-document.getElementById('search').value = state.q || '';
-document.getElementById('from').value = state.from || '';
-document.getElementById('to').value = state.to || '';
-document.getElementById('page-size').value = String(state.page_size || 50);
-
+const PAGE_STATE_KEY = 'attendance-v2';
+const state = readViewState(PAGE_STATE_KEY) || {};
+const canViewReports = hasPermission('attendance.view_reports') || hasPermission('staff.view');
+const canApproveCorrections = canViewReports || hasPermission('attendance.approve_corrections');
+let attendanceLocations = [];
+let currentGeo = null;
+let todayState = null;
 let currentPage = state.page || 1;
 let hasMore = false;
 let totalRecords = 0;
-let summary = null;
-let currentGeo = null;
-let attendanceLocations = [];
-let checkInPanelOpen = false;
-const currentUser = getUser() || {};
-const canViewAttendanceAll = hasPermission('attendance.view_reports') || hasPermission('staff.view');
-const canCreateAttendance = hasPermission('attendance.create_own') || canViewAttendanceAll;
-const canViewOwnAttendance = hasPermission('attendance.view_own') || canCreateAttendance || canViewAttendanceAll;
+let latestRows = [];
 
-document.getElementById('attendance-name').value = currentUser.name || currentUser.username || 'User';
-document.getElementById('attendance-time').value = '';
-if (!canCreateAttendance) {
-  document.getElementById('attendance-checkin-card').style.display = 'none';
-}
-if (!canViewOwnAttendance) {
-  window.location.href = '/dashboard.html';
+document.getElementById('search').value = state.q || '';
+document.getElementById('from').value = state.from || monthStart();
+document.getElementById('to').value = state.to || today();
+document.getElementById('status-filter').value = state.status || '';
+document.getElementById('page-size').value = String(state.page_size || 50);
+
+function monthStart() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-function persistState(page = currentPage) {
-  writeViewState(ATTENDANCE_PAGE_STATE_KEY, {
-    q: document.getElementById('search').value.trim(),
-    from: document.getElementById('from').value,
-    to: document.getElementById('to').value,
-    page_size: parseInt(document.getElementById('page-size').value, 10) || 50,
-    page
-  });
-}
-
-function setSyncState(text, mode = 'idle') {
-  const el = document.getElementById('attendance-sync');
+function setSync(id, text, mode = 'idle') {
+  const el = document.getElementById(id);
+  if (!el) return;
   el.textContent = text;
   el.className = `report-sync ${mode}`;
 }
 
-function setCheckinState(text, mode = 'idle') {
-  const el = document.getElementById('attendance-checkin-sync');
-  el.textContent = text;
-  el.className = `report-sync ${mode}`;
+function statusText(value) {
+  return ({
+    checked_in: 'Checked In',
+    checked_out: 'Checked Out',
+    not_checked_in: 'Not In',
+    missed_checkout: 'Missed Checkout'
+  })[value] || value || '-';
 }
 
-function statusBadge(userActive, approved) {
-  if (userActive === 0) return '<span class="badge badge-draft">Inactive User</span>';
-  if (String(approved || '').toLowerCase() === 'auto') return '<span class="badge badge-approved">Auto</span>';
-  if (String(approved || '').toLowerCase() === 'manual') return '<span class="badge badge-approved">Check-in</span>';
-  return '<span class="badge badge-pending_manager">Imported</span>';
-}
-
-function formatCurrentTime(date = new Date()) {
-  return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-function updateCurrentTime() {
-  document.getElementById('attendance-time').value = formatCurrentTime();
-}
-
-function setCheckInPanel(open) {
-  checkInPanelOpen = !!open;
-  const panel = document.getElementById('checkin-panel');
-  const button = document.getElementById('toggle-checkin-btn');
-  if (panel) panel.hidden = !checkInPanelOpen;
-  if (button) {
-    button.textContent = checkInPanelOpen ? 'Close' : 'Check In';
-    button.setAttribute('aria-expanded', String(checkInPanelOpen));
-  }
-  if (checkInPanelOpen) {
-    if (canCreateAttendance && attendanceLocations.length && !currentGeo) {
-      detectCurrentLocation();
-    } else {
-      updateGeofenceUi();
-    }
-    window.setTimeout(() => {
-      document.getElementById('checkin-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  }
-}
-
-function toggleCheckInPanel() {
-  setCheckInPanel(!checkInPanelOpen);
-}
-
-function toFiniteNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function normalizeAttendanceLocation(location) {
-  if (!location) return null;
-  const latitude = toFiniteNumber(location.latitude);
-  const longitude = toFiniteNumber(location.longitude);
-  const radiusMeters = toFiniteNumber(location.radius_meters);
-  return {
-    ...location,
-    latitude,
-    longitude,
-    radius_meters: radiusMeters != null && radiusMeters > 0 ? radiusMeters : 50
+function statusBadge(value) {
+  const map = {
+    checked_in: 'badge-pending_partner',
+    checked_out: 'badge-approved',
+    not_checked_in: 'badge-draft',
+    missed_checkout: 'badge-rejected'
   };
+  return `<span class="badge ${map[value] || 'badge-draft'}">${statusText(value)}</span>`;
 }
 
-function getLocationDistanceMeters(lat1, lon1, lat2, lon2) {
-  const coords = [lat1, lon1, lat2, lon2].map(toFiniteNumber);
-  if (coords.some(value => value == null)) return null;
-  [lat1, lon1, lat2, lon2] = coords;
+function lateBadge(row) {
+  const late = row.late_mark_entry === 'Yes';
+  const early = row.late_mark_exit === 'Yes';
+  if (late && early) return '<span class="badge badge-rejected">Late + Early</span>';
+  if (late) return '<span class="badge badge-pending_manager">Late</span>';
+  if (early) return '<span class="badge badge-pending_manager">Early Exit</span>';
+  return '<span class="badge badge-approved">On Time</span>';
+}
+
+function selectedLocation() {
+  const id = document.getElementById('attendance-location').value;
+  return attendanceLocations.find(location => String(location.id) === String(id)) || null;
+}
+
+function updateSelectedLocation() {
+  const location = selectedLocation();
+  const meta = document.getElementById('location-meta');
+  if (!location) {
+    meta.textContent = 'Choose an office or client site.';
+    updateGeoUi();
+    return;
+  }
+  meta.textContent = `${location.type === 'office' ? 'Office' : 'Client site'} · ${location.shift_start}-${location.shift_end} · radius ${location.radius_meters}m`;
+  updateGeoUi();
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2) {
   const toRad = deg => (deg * Math.PI) / 180;
   const earthRadius = 6371000;
   const dLat = toRad(lat2 - lat1);
@@ -300,188 +337,205 @@ function getLocationDistanceMeters(lat1, lon1, lat2, lon2) {
   return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function getSelectedLocation() {
-  const id = document.getElementById('attendance-location').value;
-  return attendanceLocations.find(location => String(location.id) === String(id)) || null;
-}
-
-function updateGeofenceUi() {
-  const distanceEl = document.getElementById('geo-distance');
-  const statusEl = document.getElementById('geo-status');
-  const saveEl = document.getElementById('geo-save-status');
-  const coordsEl = document.getElementById('current-coords');
-  const selected = getSelectedLocation();
-
-  if (selected) {
-    document.getElementById('selected-location-label').textContent = selected.label;
-    document.getElementById('selected-location-meta').textContent = `Allowed radius ${selected.radius_meters || 50}m`;
-  } else {
-    document.getElementById('selected-location-label').textContent = '-';
-    document.getElementById('selected-location-meta').textContent = 'Choose a location from the dropdown.';
-  }
-
-  if (!selected) {
-    distanceEl.textContent = '-';
-    statusEl.textContent = 'Choose a location to continue.';
-    saveEl.textContent = 'Disabled';
-    document.getElementById('save-attendance-btn').disabled = true;
-    return;
-  }
-
+function updateGeoUi() {
+  const location = selectedLocation();
+  const geoBadge = document.getElementById('geo-badge');
+  const distanceBadge = document.getElementById('distance-badge');
   if (!currentGeo) {
-    distanceEl.textContent = '-';
-    statusEl.textContent = 'Waiting for geolocation permission.';
-    saveEl.textContent = 'Disabled';
-    document.getElementById('save-attendance-btn').disabled = true;
-    coordsEl.textContent = 'Not detected yet';
+    document.getElementById('geo-coords').textContent = 'Not captured yet';
+    geoBadge.className = 'badge badge-draft';
+    geoBadge.textContent = 'GPS pending';
+    distanceBadge.className = 'badge badge-draft';
+    distanceBadge.textContent = 'Distance -';
+    updatePunchButtons();
     return;
   }
-
-  const distance = getLocationDistanceMeters(currentGeo.latitude, currentGeo.longitude, selected.latitude, selected.longitude);
-  if (distance == null) {
-    distanceEl.textContent = '-';
-    statusEl.textContent = 'Selected location is missing valid coordinates.';
-    saveEl.textContent = 'Disabled';
-    document.getElementById('save-attendance-btn').disabled = true;
-    coordsEl.textContent = `${currentGeo.latitude.toFixed(6)}, ${currentGeo.longitude.toFixed(6)} (accuracy ±${Math.round(currentGeo.accuracy || 0)}m)`;
+  document.getElementById('geo-coords').textContent = `${currentGeo.latitude.toFixed(6)}, ${currentGeo.longitude.toFixed(6)} (accuracy ${Math.round(currentGeo.accuracy || 0)}m)`;
+  if (!location) {
+    geoBadge.className = 'badge badge-pending_manager';
+    geoBadge.textContent = 'Choose location';
+    distanceBadge.textContent = 'Distance -';
+    updatePunchButtons();
     return;
   }
-  const withinRadius = distance <= (selected.radius_meters || 50);
-  distanceEl.textContent = `${Math.round(distance)}m`;
-  coordsEl.textContent = `${currentGeo.latitude.toFixed(6)}, ${currentGeo.longitude.toFixed(6)} (accuracy ±${Math.round(currentGeo.accuracy || 0)}m)`;
-  if (withinRadius) {
-    statusEl.textContent = 'Within allowed radius. You can check in now.';
-    saveEl.textContent = 'Enabled';
-    saveEl.className = 'stat-value';
-    distanceEl.style.color = 'var(--success)';
-    document.getElementById('save-attendance-btn').disabled = false;
-  } else {
-    statusEl.textContent = `Outside the allowed radius of ${selected.radius_meters || 50}m.`;
-    saveEl.textContent = 'Blocked';
-    distanceEl.style.color = 'var(--danger)';
-    document.getElementById('save-attendance-btn').disabled = true;
-  }
+  const distance = distanceMeters(currentGeo.latitude, currentGeo.longitude, location.latitude, location.longitude);
+  const inside = distance <= location.radius_meters;
+  geoBadge.className = inside ? 'badge badge-approved' : 'badge badge-rejected';
+  geoBadge.textContent = inside ? 'Inside geofence' : 'Outside geofence';
+  distanceBadge.className = inside ? 'badge badge-approved' : 'badge badge-rejected';
+  distanceBadge.textContent = `${Math.round(distance)}m / ${location.radius_meters}m`;
+  updatePunchButtons();
 }
 
-async function loadAttendanceLocations() {
-  try {
-    const result = await apiFetch('/master-data');
-    attendanceLocations = (Array.isArray(result.locations) ? result.locations : [])
-      .map(normalizeAttendanceLocation)
-      .filter(location => location && location.latitude != null && location.longitude != null);
-    const select = document.getElementById('attendance-location');
-    if (!attendanceLocations.length) {
-      select.innerHTML = '<option value="">No locations configured</option>';
-      setCheckinState('No locations', 'error');
-      updateGeofenceUi();
-      return;
-    }
+function canPunchNow() {
+  const location = selectedLocation();
+  if (!location || !currentGeo) return false;
+  return distanceMeters(currentGeo.latitude, currentGeo.longitude, location.latitude, location.longitude) <= location.radius_meters;
+}
 
-    select.innerHTML = '<option value="">Select location</option>' + attendanceLocations.map(location =>
-      `<option value="${location.id}">${location.label} (${Math.round(location.radius_meters || 50)}m)</option>`
-    ).join('');
-    setCheckinState('Ready', 'success');
-    updateGeofenceUi();
-  } catch (error) {
-    document.getElementById('attendance-location').innerHTML = '<option value="">Unable to load locations</option>';
-    setCheckinState('Load failed', 'error');
-    toast(error.message || 'Unable to load locations', 'error');
-  }
+function updatePunchButtons() {
+  document.getElementById('checkin-btn').disabled = !(todayState?.can_check_in && canPunchNow());
+  document.getElementById('checkout-btn').disabled = !(todayState?.can_check_out && canPunchNow());
 }
 
 function detectCurrentLocation() {
   if (!navigator.geolocation) {
-    setCheckinState('Geolocation unavailable', 'error');
     toast('This browser does not support geolocation.', 'error');
     return;
   }
-
-  setCheckinState('Detecting...', 'loading');
+  setSync('today-sync', 'Detecting...', 'loading');
   navigator.geolocation.getCurrentPosition(position => {
     currentGeo = {
       latitude: Number(position.coords.latitude),
       longitude: Number(position.coords.longitude),
       accuracy: Number(position.coords.accuracy)
     };
-    setCheckinState('Location captured', 'success');
-    updateGeofenceUi();
+    setSync('today-sync', 'GPS captured', 'success');
+    updateGeoUi();
   }, error => {
     currentGeo = null;
-    updateGeofenceUi();
-    setCheckinState('Location denied', 'error');
+    setSync('today-sync', 'GPS denied', 'error');
+    updateGeoUi();
     toast(error.message || 'Unable to detect your location', 'error');
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
 }
 
-async function saveAttendance() {
-  const selected = getSelectedLocation();
-  if (!selected) {
-    toast('Choose a location first', 'error');
-    return;
-  }
-  if (!currentGeo) {
-    toast('Detect your current location first', 'error');
-    return;
-  }
-  const distance = getLocationDistanceMeters(currentGeo.latitude, currentGeo.longitude, selected.latitude, selected.longitude);
-  if (distance == null) {
-    toast('Unable to calculate the distance for the selected location', 'error');
-    return;
-  }
-  if (distance > (selected.radius_meters || 50)) {
-    toast(`You are outside the allowed radius for ${selected.label}`, 'error');
-    return;
-  }
-
-  const btn = document.getElementById('save-attendance-btn');
-  btn.disabled = true;
-  setCheckinState('Saving...', 'loading');
+async function loadToday() {
+  setSync('today-sync', 'Loading...', 'loading');
   try {
-    const result = await apiFetch('/attendance', {
-      method: 'POST',
-      body: {
-        location_id: selected.id,
-        user_latitude: currentGeo.latitude,
-        user_longitude: currentGeo.longitude,
-        time: document.getElementById('attendance-time').value || formatCurrentTime()
-      }
-    });
-    setCheckinState('Saved', 'success');
-    toast('Check-in recorded successfully', 'success');
-    await loadAttendance(1);
-    updateGeofenceUi();
+    todayState = await apiFetch('/attendance/today');
+    attendanceLocations = todayState.locations || [];
+    const select = document.getElementById('attendance-location');
+    select.innerHTML = attendanceLocations.length
+      ? attendanceLocations.map(location => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.label)}</option>`).join('')
+      : '<option value="">No locations configured</option>';
+    if (state.location_id && attendanceLocations.some(location => location.id === state.location_id)) select.value = state.location_id;
+    const record = todayState.record || {};
+    document.getElementById('today-status').textContent = statusText(record.attendance_status || 'not_checked_in');
+    document.getElementById('today-date').textContent = todayState.date || today();
+    document.getElementById('today-hours').textContent = String(record.hours_worked || '0.00');
+    document.getElementById('today-shift').textContent = record.shift_start ? `Shift ${record.shift_start}-${record.shift_end}` : 'Shift -';
+    setSync('today-sync', `Updated ${todayState.time || ''}`, 'success');
+    updateSelectedLocation();
   } catch (error) {
-    setCheckinState('Save failed', 'error');
-    toast(error.message || 'Unable to complete check in', 'error');
-  } finally {
-    updateGeofenceUi();
+    setSync('today-sync', 'Load failed', 'error');
+    toast(error.message || 'Unable to load today attendance', 'error');
   }
 }
 
-function renderRows(items) {
-  const tbody = document.getElementById('attendance-tbody');
-  if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="7">${renderEmptyState({ icon: '⌛', title: 'No attendance rows found', subtitle: 'Try a wider date range or clear the search filter.' })}</td></tr>`;
+async function punch(action) {
+  const location = selectedLocation();
+  if (!location) return toast('Choose an attendance location', 'error');
+  if (!currentGeo) return toast('Capture your GPS position first', 'error');
+  setSync('today-sync', action === 'check-in' ? 'Checking in...' : 'Checking out...', 'loading');
+  try {
+    await apiFetch(`/attendance/${action}`, {
+      method: 'POST',
+      body: {
+        location_id: location.id,
+        user_latitude: currentGeo.latitude,
+        user_longitude: currentGeo.longitude
+      }
+    });
+    toast(action === 'check-in' ? 'Checked in successfully' : 'Checked out successfully', 'success');
+    await refreshAll();
+  } catch (error) {
+    setSync('today-sync', 'Punch failed', 'error');
+    toast(error.message || 'Unable to save attendance', 'error');
+  }
+}
+
+async function loadLive() {
+  if (!canViewReports) {
+    document.getElementById('live-sync').textContent = 'Own access';
+    document.getElementById('live-tbody').innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⧗', title: 'Live board is for managers', subtitle: 'Your own records remain available below.' })}</td></tr>`;
     return;
   }
+  setSync('live-sync', 'Loading...', 'loading');
+  try {
+    const data = await apiFetch('/attendance/live');
+    const summary = data.summary || {};
+    document.getElementById('live-total').textContent = String(summary.total_staff || 0);
+    document.getElementById('live-in').textContent = String(summary.checked_in || 0);
+    document.getElementById('live-out').textContent = String(summary.checked_out || 0);
+    document.getElementById('live-late').textContent = String(summary.late || 0);
+    document.getElementById('live-tbody').innerHTML = (data.items || []).map(item => `
+      <tr>
+        <td data-label="Name"><strong>${escapeHtml(item.display_name || '-')}</strong><div style="font-size:11px;color:var(--text-muted);">${escapeHtml(item.username || '')}</div></td>
+        <td data-label="Status">${statusBadge(item.attendance_status)}</td>
+        <td data-label="In">${escapeHtml(item.entry_time || '-')}</td>
+        <td data-label="Out">${escapeHtml(item.exit_time || '-')}</td>
+        <td data-label="Location" class="hide-mobile">${escapeHtml(item.location || '-')}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="5">${renderEmptyState({ icon: '⧗', title: 'No staff found', subtitle: 'Active staff will appear here.' })}</td></tr>`;
+    setSync('live-sync', 'Updated', 'success');
+  } catch (error) {
+    setSync('live-sync', 'Load failed', 'error');
+  }
+}
 
+function persistState(page = currentPage) {
+  writeViewState(PAGE_STATE_KEY, {
+    q: document.getElementById('search').value.trim(),
+    from: document.getElementById('from').value,
+    to: document.getElementById('to').value,
+    status: document.getElementById('status-filter').value,
+    page_size: parseInt(document.getElementById('page-size').value, 10) || 50,
+    location_id: document.getElementById('attendance-location').value,
+    page
+  });
+}
+
+async function loadAttendance(page = currentPage) {
+  persistState(page);
+  setSync('report-sync', 'Loading...', 'loading');
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: document.getElementById('page-size').value,
+    from: document.getElementById('from').value,
+    to: document.getElementById('to').value
+  });
+  const q = document.getElementById('search').value.trim();
+  const status = document.getElementById('status-filter').value;
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  try {
+    const data = await apiFetch(`/attendance?${params.toString()}`);
+    latestRows = data.items || [];
+    currentPage = data.page || page;
+    hasMore = !!data.has_more;
+    totalRecords = data.total || 0;
+    const summary = data.summary || {};
+    document.getElementById('sum-records').textContent = String(summary.total_records || 0);
+    document.getElementById('sum-hours').textContent = String(summary.total_hours || 0);
+    document.getElementById('sum-late').textContent = String(summary.late_entries || 0);
+    document.getElementById('sum-early').textContent = String(summary.early_exits || 0);
+    renderAttendanceRows(latestRows);
+    updatePager();
+    setSync('report-sync', 'Updated', 'success');
+  } catch (error) {
+    setSync('report-sync', 'Load failed', 'error');
+    toast(error.message || 'Unable to load attendance report', 'error');
+  }
+}
+
+function renderAttendanceRows(items) {
+  const tbody = document.getElementById('attendance-tbody');
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="9">${renderEmptyState({ icon: '⧗', title: 'No attendance rows found', subtitle: 'Try a wider date range or clear filters.' })}</td></tr>`;
+    return;
+  }
   tbody.innerHTML = items.map(item => `
     <tr>
-      <td data-label="Name">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;">${(item.display_name || item.person_name || '?').charAt(0).toUpperCase()}</div>
-          <div>
-            <div style="font-weight:700;">${item.display_name || item.person_name}</div>
-            <div style="font-size:11px;color:var(--text-muted);">${item.username || 'Imported user'}</div>
-          </div>
-        </div>
-      </td>
+      <td data-label="Name"><strong>${escapeHtml(item.display_name || '-')}</strong><div style="font-size:11px;color:var(--text-muted);">${escapeHtml(item.username || '')}</div></td>
       <td data-label="Date">${fmtDate(item.attendance_date)}</td>
-      <td data-label="Entry">${item.entry_time || '-'}</td>
-      <td data-label="Exit">${item.exit_time || '-'}</td>
-      <td data-label="Hours"><strong>${fmtHours(item.hours_worked)}</strong></td>
-      <td data-label="Location" class="hide-mobile" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.location || '-'}</td>
-      <td data-label="Status">${statusBadge(item.user_active, item.approved)}</td>
+      <td data-label="In">${escapeHtml(item.entry_time || '-')}</td>
+      <td data-label="Out">${escapeHtml(item.exit_time || '-')}</td>
+      <td data-label="Hours"><strong>${escapeHtml(String(item.hours_worked || 0))}</strong></td>
+      <td data-label="Location" class="hide-mobile">${escapeHtml(item.location || '-')}</td>
+      <td data-label="Status">${statusBadge(item.attendance_status)}</td>
+      <td data-label="Late">${lateBadge(item)}</td>
+      <td data-label="Action"><button class="btn btn-ghost btn-sm" onclick="openCorrectionModal('${escapeHtml(item.id)}')">Correct</button></td>
     </tr>
   `).join('');
 }
@@ -495,68 +549,124 @@ function updatePager() {
   document.getElementById('attendance-next-btn').disabled = !hasMore;
 }
 
-async function loadAttendance(page = currentPage) {
-  const q = document.getElementById('search').value.trim();
-  const from = document.getElementById('from').value;
-  const to = document.getElementById('to').value;
-  const pageSize = parseInt(document.getElementById('page-size').value, 10) || 50;
-  persistState(page);
-  setSyncState('Refreshing...', 'loading');
-  const tbody = document.getElementById('attendance-tbody');
-  tbody.innerHTML = `<tr><td colspan="7">${renderEmptyState({ icon: '⌛', title: 'Loading attendance', subtitle: 'Pulling imported records now.' })}</td></tr>`;
-
-  try {
-    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-    if (q) params.set('q', q);
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    const result = await apiFetch(`/attendance?${params.toString()}`);
-    currentPage = result.page || page;
-    hasMore = !!result.has_more;
-    totalRecords = result.total || 0;
-    summary = result.summary || null;
-    document.getElementById('stat-records').textContent = String(result.summary?.total_records ?? totalRecords);
-    document.getElementById('stat-people').textContent = String(result.summary?.unique_people ?? 0);
-    document.getElementById('stat-active').textContent = String(result.summary?.active_users ?? 0);
-    document.getElementById('stat-inactive').textContent = String(result.summary?.inactive_users ?? 0);
-    renderRows(result.items || []);
-    updatePager();
-    setSyncState(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
-  } catch (error) {
-    setSyncState('Load failed', 'error');
-    tbody.innerHTML = `<tr><td colspan="7">${renderEmptyState({ icon: '⚠', title: 'Attendance could not load', subtitle: error.message || 'Please try again in a moment.', actionLabel: 'Retry', action: 'loadAttendance()' })}</td></tr>`;
-    toast(error.message || 'Unable to load attendance', 'error');
-  }
-}
-
 function changePage(delta) {
   const nextPage = currentPage + delta;
-  if (nextPage < 1) return;
-  if (delta > 0 && !hasMore) return;
+  if (nextPage < 1 || (delta > 0 && !hasMore)) return;
   loadAttendance(nextPage);
 }
 
-function resetFilters() {
-  document.getElementById('search').value = '';
-  document.getElementById('from').value = '';
-  document.getElementById('to').value = '';
-  document.getElementById('page-size').value = '50';
-  currentPage = 1;
-  loadAttendance(1);
+async function loadCorrections() {
+  setSync('correction-sync', 'Loading...', 'loading');
+  try {
+    const data = await apiFetch('/attendance/corrections');
+    const items = data.items || [];
+    document.getElementById('corrections-tbody').innerHTML = items.map(item => `
+      <tr>
+        <td data-label="Staff"><strong>${escapeHtml(item.user_name || item.requested_by_name || '-')}</strong><div style="font-size:11px;color:var(--text-muted);">${escapeHtml(item.created_at || '')}</div></td>
+        <td data-label="Reason">${escapeHtml(item.reason || '-')}</td>
+        <td data-label="Requested">${escapeHtml([item.requested_entry_time, item.requested_exit_time].filter(Boolean).join(' - ') || '-')}</td>
+        <td data-label="Status">${statusCorrectionBadge(item.status)}</td>
+        <td data-label="Action">${renderCorrectionActions(item)}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="5">${renderEmptyState({ icon: '✓', title: 'No correction requests', subtitle: 'Requests will appear here after staff submit them.' })}</td></tr>`;
+    setSync('correction-sync', 'Updated', 'success');
+  } catch (error) {
+    setSync('correction-sync', 'Load failed', 'error');
+  }
+}
+
+function statusCorrectionBadge(status) {
+  const cls = status === 'approved' ? 'badge-approved' : status === 'rejected' ? 'badge-rejected' : 'badge-pending_manager';
+  return `<span class="badge ${cls}">${escapeHtml(status || 'pending')}</span>`;
+}
+
+function renderCorrectionActions(item) {
+  if (!canApproveCorrections || item.status !== 'pending') return '';
+  return `<button class="btn btn-ghost btn-sm" onclick="resolveCorrection('${item.id}','approve')">Approve</button>
+    <button class="btn btn-ghost btn-sm" onclick="resolveCorrection('${item.id}','reject')">Reject</button>`;
+}
+
+async function resolveCorrection(id, action) {
+  try {
+    await apiFetch(`/attendance/corrections/${id}/${action}`, { method: 'POST', body: { note: '' } });
+    toast(`Correction ${action}d`, 'success');
+    await refreshAll();
+  } catch (error) {
+    toast(error.message || 'Unable to resolve correction', 'error');
+  }
+}
+
+function openCorrectionModal(recordId = '') {
+  const select = document.getElementById('correction-record');
+  const rows = latestRows.length ? latestRows : (todayState?.record ? [todayState.record] : []);
+  select.innerHTML = rows.map(row => `<option value="${escapeHtml(row.id)}">${fmtDate(row.attendance_date)} · ${escapeHtml(row.display_name || '')} · ${escapeHtml(row.entry_time || '-')} / ${escapeHtml(row.exit_time || '-')}</option>`).join('');
+  if (recordId) select.value = recordId;
+  document.getElementById('correction-entry').value = '';
+  document.getElementById('correction-exit').value = '';
+  document.getElementById('correction-location-note').value = '';
+  document.getElementById('correction-reason').value = '';
+  document.getElementById('correction-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function closeCorrectionModal() {
+  document.getElementById('correction-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+async function submitCorrection() {
+  const body = {
+    record_id: document.getElementById('correction-record').value,
+    requested_entry_time: document.getElementById('correction-entry').value,
+    requested_exit_time: document.getElementById('correction-exit').value,
+    requested_location_note: document.getElementById('correction-location-note').value.trim(),
+    reason: document.getElementById('correction-reason').value.trim()
+  };
+  if (!body.record_id) return toast('Choose an attendance record', 'error');
+  if (!body.reason) return toast('Enter a correction reason', 'error');
+  try {
+    await apiFetch('/attendance/corrections', { method: 'POST', body });
+    closeCorrectionModal();
+    toast('Correction request submitted', 'success');
+    await loadCorrections();
+  } catch (error) {
+    toast(error.message || 'Unable to submit correction', 'error');
+  }
+}
+
+async function exportAttendance(format) {
+  if (!canViewReports) return toast('Attendance export is available to managers and partners.', 'error');
+  const params = new URLSearchParams({
+    from: document.getElementById('from').value,
+    to: document.getElementById('to').value,
+    format
+  });
+  const token = getToken();
+  const response = await fetch(`/api/attendance/export?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    return toast(error.error || 'Unable to export attendance', 'error');
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = format === 'xlsx' ? 'attendance-report.xlsx' : 'attendance-report.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function refreshAll() {
+  await loadToday();
+  await Promise.all([loadLive(), loadAttendance(currentPage), loadCorrections()]);
 }
 
 document.getElementById('search').addEventListener('input', () => loadAttendance(1));
-['from', 'to', 'page-size'].forEach(id => {
+['from', 'to', 'status-filter', 'page-size'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => loadAttendance(1));
 });
-document.getElementById('attendance-location').addEventListener('change', updateGeofenceUi);
-
-loadAttendanceLocations().then(() => {
-  updateCurrentTime();
-  updateGeofenceUi();
-  setCheckInPanel(false);
-});
-window.setInterval(updateCurrentTime, 60000);
 
 function openSidebar() {
   document.getElementById('sidebar-el').classList.add('open');
@@ -568,7 +678,7 @@ function closeSidebar() {
   document.getElementById('sb-overlay').classList.remove('open');
 }
 
-loadAttendance(currentPage);
+refreshAll();
 </script>
 </body>
 </html>

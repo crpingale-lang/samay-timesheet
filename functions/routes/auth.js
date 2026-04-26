@@ -14,7 +14,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'timesheets.masters.view','timesheets.masters.create','timesheets.masters.edit','timesheets.masters.delete','timesheets.masters.import',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
-    'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports',
+    'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','attendance.approve_corrections',
     'dashboard.view_self','dashboard.view_team','dashboard.view_firm',
     'udin.view_own','udin.create','udin.update','udin.review','udin.revoke','udin.dashboard.view'
   ],
@@ -23,7 +23,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'timesheets.masters.view',
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager',
-    'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports',
+    'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','attendance.approve_corrections',
     'dashboard.view_self','dashboard.view_team',
     'udin.view_own','udin.create','udin.update','udin.review','udin.revoke','udin.dashboard.view'
   ],

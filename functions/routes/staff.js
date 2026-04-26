@@ -82,8 +82,9 @@ const APP_PERMISSION_GROUPS = [
     label: 'Attendance',
     permissions: [
       { key: 'attendance.view_own', label: 'View Own' },
-      { key: 'attendance.create_own', label: 'Add Own' },
-      { key: 'attendance.view_reports', label: 'View Report' }
+      { key: 'attendance.create_own', label: 'Check In/Out' },
+      { key: 'attendance.view_reports', label: 'View Reports' },
+      { key: 'attendance.approve_corrections', label: 'Approve Corrections' }
     ]
   },
   {
@@ -166,7 +167,7 @@ function ensurePermissions(role, permissions) {
       'modules.view','firm.dashboard.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
       'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
-      'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','dashboard.view_self','dashboard.view_team','dashboard.view_firm',
+      'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','attendance.approve_corrections','dashboard.view_self','dashboard.view_team','dashboard.view_firm',
       'udin.view_own','udin.create','udin.update','udin.review','udin.revoke','udin.dashboard.view'
     ],
     manager: [
@@ -174,7 +175,7 @@ function ensurePermissions(role, permissions) {
       'modules.view','firm.dashboard.view',
       'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
       'approvals.view_manager_queue','approvals.approve_manager',
-      'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','dashboard.view_self','dashboard.view_team',
+      'reports.view','reports.export','attendance.view_own','attendance.create_own','attendance.view_reports','attendance.approve_corrections','dashboard.view_self','dashboard.view_team',
       'udin.view_own','udin.create','udin.update','udin.review','udin.revoke','udin.dashboard.view'
     ],
     article: [

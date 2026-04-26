@@ -26,7 +26,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager','approvals.view_partner_queue','approvals.approve_partner',
     'reports.view','reports.export',
-    'attendance.view_own','attendance.create_own','attendance.view_reports',
+    'attendance.view_own','attendance.create_own','attendance.view_reports','attendance.approve_corrections',
     'dashboard.view_self','dashboard.view_team','dashboard.view_firm'
   ],
   manager: [
@@ -35,7 +35,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'timesheets.view_own','timesheets.create_own','timesheets.edit_own','timesheets.delete_own','timesheets.submit_own','timesheets.view_all',
     'approvals.view_manager_queue','approvals.approve_manager',
     'reports.view','reports.export',
-    'attendance.view_own','attendance.create_own','attendance.view_reports',
+    'attendance.view_own','attendance.create_own','attendance.view_reports','attendance.approve_corrections',
     'dashboard.view_self','dashboard.view_team'
   ],
   article: [
