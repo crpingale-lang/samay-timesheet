@@ -556,6 +556,7 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
 }
 .entry-advanced {
   margin-top: 12px;
+  margin-bottom: 16px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: #fff;
