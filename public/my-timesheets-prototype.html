@@ -649,7 +649,7 @@ function saveDayState() {
 
 async function loadClients() {
   const clients = await apiFetch('/clients');
-  allClientsStore = clients.filter(c => c.active);
+  allClientsStore = clients.filter(c => c.active !== false && c.active !== 0 && c.active !== '0');
   document.getElementById('client-list').innerHTML = allClientsStore.map(c => `<option value="${c.name} [${c.code}]">`).join('');
 }
 

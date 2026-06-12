@@ -1483,11 +1483,7 @@ async function loadClients() {
   }
   try {
     const clients = await apiFetch('/clients');
-    const configuredClientIds = new Set(getConfiguredTimesheetClients().map(client => String(client.id)));
-    const activeClients = clients.filter(c => c.active);
-    allClientsStore = configuredClientIds.size
-      ? activeClients.filter(c => configuredClientIds.has(String(c.id)))
-      : activeClients;
+    allClientsStore = clients.filter(c => c.active !== false && c.active !== 0 && c.active !== '0');
     document.getElementById('client-list').innerHTML = allClientsStore
       .map(c => `<option value="${clientOptionLabel(c)}"></option>`)
       .join('');

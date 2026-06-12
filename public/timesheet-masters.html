@@ -411,7 +411,7 @@ function renderSiteRows() {
 function populateClientSelects() {
   const siteSelect = document.getElementById('client-site-client');
   siteSelect.innerHTML = '<option value="">Select client</option>' + clientsStore
-    .filter(client => client.active)
+    .filter(client => client.active !== false && client.active !== 0 && client.active !== '0')
     .map(client => `<option value="${client.id}">${client.name} [${client.code}]</option>`)
     .join('');
 

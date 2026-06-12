@@ -32,7 +32,11 @@ router.get('/', async (req, res) => {
     const wantsPagedResponse = !!(req.query.page || req.query.page_size || req.query.q);
     const snapshot = await getClientsMap();
     const clients = [];
-    snapshot.forEach((data, id) => clients.push({ id, ...data }));
+    snapshot.forEach((data, id) => clients.push({
+      id,
+      ...data,
+      active: data.active === false || data.active === 0 || data.active === '0' ? 0 : 1
+    }));
     clients.sort((a,b) => a.name.localeCompare(b.name));
     const filtered = query
       ? clients.filter(client => [client.name, client.code, client.contact_person, client.email, client.phone].join(' ').toLowerCase().includes(query))
