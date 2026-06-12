@@ -166,7 +166,7 @@
             <div class="access-section-kicker">Access Management</div>
             <h2 class="access-section-title">Trusted Devices</h2>
             <p class="access-section-copy">
-              Browsers that have already completed SMS verification appear here. Admins can review the device trail and revoke trust if a device should stop skipping SMS.
+              Browsers that have already completed authenticator verification appear here. Admins can review the device trail and revoke trust when needed.
             </p>
           </div>
           <div class="device-filter-row">
@@ -189,7 +189,7 @@
               <div class="device-summary-card">
                 <div class="k">Active</div>
                 <div class="v" id="device-summary-active">0</div>
-                <div class="s">Devices that can skip SMS while their trust token is valid.</div>
+                <div class="s">Devices that can skip authenticator verification while their trust token is valid.</div>
               </div>
               <div class="device-summary-card">
                 <div class="k">Revoked</div>
@@ -204,7 +204,7 @@
               Trusted devices are a security exception, not a permanent exemption. Review them when a user changes browser, workstation, or reporting responsibility.
             </p>
             <ul class="device-policy-list">
-              <li><span class="device-policy-bullet">1</span><span>Revoke trust to force the next sign-in back through SMS verification.</span></li>
+              <li><span class="device-policy-bullet">1</span><span>Revoke trust to require an authenticator code on the next sign-in.</span></li>
               <li><span class="device-policy-bullet">2</span><span>Use the status filter to isolate active, revoked, or all records.</span></li>
               <li><span class="device-policy-bullet">3</span><span>The user table above still handles role and permission assignment.</span></li>
             </ul>
@@ -281,8 +281,8 @@
       <div class="form-group" id="mfa-group" style="display:none;">
         <label class="form-label">Authenticator App</label>
         <div style="border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg);">
-          <div id="mfa-status" style="font-weight:700;margin-bottom:4px;">SMS only</div>
-          <div id="mfa-detail" style="font-size:12.5px;color:var(--text-muted);line-height:1.5;">This account uses SMS verification.</div>
+          <div id="mfa-status" style="font-weight:700;margin-bottom:4px;">Enrollment required</div>
+          <div id="mfa-detail" style="font-size:12.5px;color:var(--text-muted);line-height:1.5;">This account must enroll an authenticator app at the next sign-in.</div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <button type="button" class="btn btn-ghost btn-sm" id="reset-authenticator-btn" onclick="resetAuthenticatorForUser()" style="display:none;">Reset authenticator</button>
           </div>
@@ -442,7 +442,7 @@ function changeDevicePage(delta) {
 
 async function revokeTrustedDevice(id) {
   if (!canManageAccess) return;
-  if (!confirm('Revoke trust for this device? The user will need SMS again on the next login.')) return;
+  if (!confirm('Revoke trust for this device? The user will need an authenticator code on the next login.')) return;
   try {
     await apiFetch(`/users/trusted-devices/${id}/revoke`, { method: 'POST' });
     toast('Device revoked', 'success');
@@ -471,7 +471,7 @@ async function loadTrustedDevices(page = 1) {
     deviceSummary = result.summary || deviceSummary;
     updateDevicePager();
     if (!devices.length) {
-      tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '🔒', title: 'No trusted devices found', subtitle: 'Devices that complete SMS login will show up here.', actionLabel: '', action: '' })}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '🔒', title: 'No trusted devices found', subtitle: 'Devices that complete authenticator login will show up here.', actionLabel: '', action: '' })}</td></tr>`;
       document.getElementById('trusted-devices-section').style.display = '';
       return;
     }
@@ -516,12 +516,12 @@ async function resetAuthenticatorForUser() {
   if (!canManageAccess) return;
   const id = document.getElementById('edit-id').value;
   if (!id) return;
-  if (!confirm('Reset this user\'s authenticator app? They will go back to SMS login until they enroll again.')) return;
+  if (!confirm('Reset this user\'s authenticator app? They must enroll a new authenticator at the next login.')) return;
   try {
     await apiFetch(`/users/${id}/reset-authenticator`, { method: 'POST' });
     toast('Authenticator reset', 'success');
-    document.getElementById('mfa-status').textContent = 'SMS only';
-    document.getElementById('mfa-detail').textContent = 'This account uses SMS verification.';
+    document.getElementById('mfa-status').textContent = 'Enrollment required';
+    document.getElementById('mfa-detail').textContent = 'This account must enroll an authenticator app at the next sign-in.';
     document.getElementById('reset-authenticator-btn').style.display = 'none';
     loadUsers(userPage);
   } catch (err) {
@@ -596,7 +596,7 @@ async function loadUsers(page = 1) {
       </td>
       <td data-label="Username"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${u.username}</code></td>
       <td data-label="Designation" class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${u.designation || '-'}</td>
-      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(u.permissions || []).length} accesses</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px;">MFA: ${u.mfa_method === 'totp' ? 'Authenticator app' : 'SMS'}</div></td>
+      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(u.permissions || []).length} accesses</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px;">MFA: ${u.mfa_method === 'totp' ? 'Authenticator app' : 'Enrollment required'}</div></td>
       <td data-label="Status"><span class="badge ${u.active ? 'badge-approved' : 'badge-draft'}">${u.active ? 'Active' : 'Inactive'}</span></td>
       <td data-label="Action">${canEditUser ? `<button class="btn btn-ghost btn-sm" onclick='editUser(${JSON.stringify(u)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
     </tr>`).join('');
@@ -643,10 +643,10 @@ function editUser(u) {
   const mfaGroup = document.getElementById('mfa-group');
   if (mfaGroup) {
     mfaGroup.style.display = '';
-    document.getElementById('mfa-status').textContent = isAuthenticatorEnabled ? 'Authenticator app enabled' : 'SMS only';
+    document.getElementById('mfa-status').textContent = isAuthenticatorEnabled ? 'Authenticator app enabled' : 'Enrollment required';
     document.getElementById('mfa-detail').textContent = isAuthenticatorEnabled
       ? 'This account signs in with a TOTP code from an authenticator app.'
-      : 'This account still uses SMS verification. You can reset it here if a user needs to re-enroll.';
+      : 'This account must enroll an authenticator app at the next sign-in.';
     document.getElementById('reset-authenticator-btn').style.display = canManageAccess && isAuthenticatorEnabled ? '' : 'none';
   }
   openModal('user-modal');

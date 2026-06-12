@@ -1708,10 +1708,10 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
   color: var(--primary);
   margin-bottom: 6px;
 }
-.login-mfa-title#sms-title {
+.login-mfa-title#mfa-title {
   line-height: 1.35;
 }
-.login-mfa-copy#sms-copy {
+.login-mfa-copy#mfa-copy {
   display: none;
 }
 

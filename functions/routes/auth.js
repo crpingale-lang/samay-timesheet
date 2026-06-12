@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db, admin, seedDefaultAdmin } = require('../db');
+const { db, seedDefaultAdmin } = require('../db');
 const { getUsersMap, invalidateCache } = require('../data-cache');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -38,10 +38,8 @@ const ROLE_DEFAULT_PERMISSIONS = {
 
 const TOTP_STEP_SECONDS = 30;
 const TOTP_DIGITS = 6;
-const RECOVERY_CODE_COUNT = 8;
-const RECOVERY_CODE_BYTES = 5;
 const OTP_ISSUER = 'Samay';
-const SMS_CHALLENGE_TTL_SECONDS = 10 * 60;
+const MFA_CHALLENGE_TTL_SECONDS = 10 * 60;
 
 function base32Encode(buffer) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -99,12 +97,6 @@ function generateTotpSecret() {
   return base32Encode(crypto.randomBytes(20));
 }
 
-function generateRecoveryCodes() {
-  return Array.from({ length: RECOVERY_CODE_COUNT }, () =>
-    crypto.randomBytes(RECOVERY_CODE_BYTES).toString('hex').toUpperCase()
-  );
-}
-
 function getHotpToken(secret, counter) {
   const key = base32Decode(secret);
   const buffer = Buffer.alloc(8);
@@ -153,25 +145,23 @@ function buildOtpAuthUrl({ username, secret }) {
   return `otpauth://totp/${encodeURIComponent(label)}?${params.toString()}`;
 }
 
-function createSmsChallenge({ userId, phoneNumber, verificationCode }) {
+function createTotpChallenge({ userId, secret, purpose }) {
   return jwt.sign(
     {
-      purpose: 'sms-login',
+      purpose,
       userId,
-      phoneNumber: toE164PhoneNumber(phoneNumber),
-      verificationCode: String(verificationCode || '').trim()
+      secret: String(secret || '').trim()
     },
     JWT_SECRET,
-    { expiresIn: `${SMS_CHALLENGE_TTL_SECONDS}s` }
+    { expiresIn: `${MFA_CHALLENGE_TTL_SECONDS}s` }
   );
 }
 
-function verifySmsChallenge(token) {
+function verifyTotpChallenge(token) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded?.purpose !== 'sms-login' || !decoded?.userId || !decoded?.phoneNumber) {
-      return null;
-    }
+    if (!decoded?.userId || !['totp-login', 'totp-setup'].includes(decoded?.purpose)) return null;
+    if (decoded.purpose === 'totp-setup' && !decoded.secret) return null;
     return decoded;
   } catch {
     return null;
@@ -243,27 +233,6 @@ async function isTrustedDeviceActive(userId, deviceId) {
   if (!normalizedDeviceId) return false;
   const snap = await db.collection('trusted_devices').doc(trustedDeviceDocId(userId, normalizedDeviceId)).get();
   return !!(snap.exists && !snap.data()?.revoked_at);
-}
-
-function hashRecoveryCodes(codes) {
-  return codes.map(code => bcrypt.hashSync(code, 10));
-}
-
-function findRecoveryCodeIndex(hashList, code) {
-  const normalized = normalizeOtp(code);
-  if (!normalized) return -1;
-
-  for (let index = 0; index < hashList.length; index += 1) {
-    if (bcrypt.compareSync(normalized, hashList[index])) {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function removeRecoveryCode(hashList, index) {
-  return hashList.filter((_, currentIndex) => currentIndex !== index);
 }
 
 async function findUserByIdentifierInsensitive(identifier) {
@@ -384,7 +353,8 @@ function authUserPayload(id, user) {
     email: normalizeEmail(user.email),
     mobile_number: normalizeMobileNumber(user.mobile_number),
     permissions: ensurePermissions(user.role, user.permissions),
-    contact_info_required: isContactInfoRequired(user)
+    contact_info_required: isContactInfoRequired(user),
+    mfa_method: user.mfa_enabled && user.mfa_secret ? 'totp' : 'totp-setup'
   };
 }
 
@@ -478,30 +448,32 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const phoneNumber = toE164PhoneNumber(user.mobile_number);
-    if (!phoneNumber) {
-      console.warn(`[auth/login] missing phone number identifier=${identifier} userId=${foundUser.id}`);
-      return res.status(400).json({ error: 'User mobile number is required for SMS login' });
+    if (user.mfa_enabled && user.mfa_secret) {
+      return res.json({
+        mfa_required: true,
+        mfa_method: 'totp',
+        mfa_token: createTotpChallenge({
+          userId: foundUser.id,
+          purpose: 'totp-login'
+        }),
+        user: authUserPayload(foundUser.id, user)
+      });
     }
 
-    const isLocalSmsMode = !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
-    const smsVerificationCode = isLocalSmsMode
-      ? String(Math.floor(100000 + Math.random() * 900000))
-      : '';
-    const smsChallengeToken = createSmsChallenge({
-      userId: foundUser.id,
-      phoneNumber,
-      verificationCode: smsVerificationCode
-    });
-    console.log(`[auth/login] sms challenge issued identifier=${identifier} userId=${foundUser.id} phone=${maskPhoneNumber(phoneNumber)}`);
-
+    const secret = generateTotpSecret();
     res.json({
-      sms_required: true,
-      sms_mode: isLocalSmsMode ? 'local' : 'firebase',
-      sms_challenge_token: smsChallengeToken,
-      phone_number: phoneNumber,
-      masked_phone_number: maskPhoneNumber(phoneNumber),
-      sms_test_code: isLocalSmsMode ? smsVerificationCode : undefined,
+      mfa_required: true,
+      mfa_method: 'totp-setup',
+      mfa_token: createTotpChallenge({
+        userId: foundUser.id,
+        secret,
+        purpose: 'totp-setup'
+      }),
+      totp_secret: secret,
+      otpauth_uri: buildOtpAuthUrl({
+        username: user.email || user.username,
+        secret
+      }),
       user: authUserPayload(foundUser.id, user)
     });
   } catch (err) {
@@ -510,43 +482,22 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/complete-sms-login', async (req, res) => {
-  const smsChallengeToken = String(req.body?.sms_challenge_token || '');
-  const firebaseIdToken = String(req.body?.firebase_id_token || '');
-  const smsVerificationCode = String(req.body?.sms_verification_code || '').trim();
+router.post('/complete-totp-login', async (req, res) => {
+  const mfaToken = String(req.body?.mfa_token || '').trim();
+  const totpCode = String(req.body?.totp_code || req.body?.otp || req.body?.code || '').trim();
   const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
   const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
 
-  if (!smsChallengeToken) {
-    return res.status(400).json({ error: 'Missing SMS login details' });
+  if (!mfaToken || !totpCode) {
+    return res.status(400).json({ error: 'Missing authenticator code details' });
   }
 
-  const challenge = verifySmsChallenge(smsChallengeToken);
+  const challenge = verifyTotpChallenge(mfaToken);
   if (!challenge) {
-    return res.status(401).json({ error: 'SMS challenge expired or invalid' });
+    return res.status(401).json({ error: 'Authenticator challenge expired or invalid' });
   }
 
   try {
-    console.log(`[auth/complete-sms-login] start userId=${challenge.userId} phone=${maskPhoneNumber(challenge.phoneNumber)}`);
-    const isLocalSmsMode = !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
-    let verifiedPhone = challenge.phoneNumber;
-
-    if (isLocalSmsMode) {
-      if (!smsVerificationCode || smsVerificationCode !== challenge.verificationCode) {
-        return res.status(401).json({ error: 'SMS code is invalid' });
-      }
-    } else {
-      if (!firebaseIdToken) {
-        return res.status(400).json({ error: 'Missing SMS login details' });
-      }
-      const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
-      verifiedPhone = toE164PhoneNumber(decodedToken.phone_number || '');
-      if (!verifiedPhone || verifiedPhone !== challenge.phoneNumber) {
-        console.warn(`[auth/complete-sms-login] phone mismatch challenge=${maskPhoneNumber(challenge.phoneNumber)} token=${maskPhoneNumber(verifiedPhone)}`);
-        return res.status(401).json({ error: 'Phone verification did not match the requested account' });
-      }
-    }
-
     const userDoc = await db.collection('users').doc(challenge.userId).get();
     if (!userDoc.exists) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -557,14 +508,25 @@ router.post('/complete-sms-login', async (req, res) => {
       return res.status(403).json({ error: 'Account disabled' });
     }
 
-    const userPhone = toE164PhoneNumber(user.mobile_number);
-    if (!userPhone || userPhone !== verifiedPhone) {
-      return res.status(401).json({ error: 'Phone verification did not match the account record' });
+    const secret = challenge.purpose === 'totp-setup' ? challenge.secret : user.mfa_secret;
+    if (!secret || !verifyTotp(secret, totpCode)) {
+      return res.status(401).json({ error: 'Authenticator code is invalid' });
+    }
+
+    if (challenge.purpose === 'totp-setup') {
+      await userDoc.ref.set({
+        mfa_secret: secret,
+        mfa_enabled: true,
+        mfa_confirmed_at: new Date().toISOString(),
+        mfa_recovery_code_hashes: []
+      }, { merge: true });
+      user.mfa_secret = secret;
+      user.mfa_enabled = true;
     }
 
     const userPayload = authUserPayload(userDoc.id, user);
     const token = issueSessionToken(userDoc.id, user, userPayload.permissions);
-    console.log(`[auth/complete-sms-login] success userId=${userDoc.id} username=${user.username}`);
+    console.log(`[auth/complete-totp-login] success userId=${userDoc.id} username=${user.username}`);
     await upsertTrustedDevice({
       userId: userDoc.id,
       deviceId: trustedDeviceId,
@@ -581,8 +543,8 @@ router.post('/complete-sms-login', async (req, res) => {
       })
     });
   } catch (err) {
-    console.error('[auth/complete-sms-login] failed', err);
-    res.status(401).json({ error: err.message || 'Unable to verify SMS login' });
+    console.error('[auth/complete-totp-login] failed', err);
+    res.status(401).json({ error: err.message || 'Unable to verify authenticator code' });
   }
 });
 

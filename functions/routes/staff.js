@@ -366,7 +366,8 @@ router.get('/', async (req, res) => {
         role: normalizeRole(u.role),
         permissions: ensurePermissions(u.role, u.permissions),
         email: normalizeEmail(u.email),
-        mobile_number: normalizeMobileNumber(u.mobile_number)
+        mobile_number: normalizeMobileNumber(u.mobile_number),
+        mfa_method: u.mfa_enabled && u.mfa_secret ? 'totp' : 'totp-setup'
       });
     });
     users.sort((a,b) => a.name.localeCompare(b.name));
@@ -393,6 +394,27 @@ router.get('/', async (req, res) => {
       has_more: start + items.length < statusFiltered.length
     });
   } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+router.post('/:id/reset-authenticator', async (req, res) => {
+  if (!hasPermission(req, 'access.manage')) {
+    return res.status(403).json({ error: 'Permission required: access.manage' });
+  }
+  try {
+    const userRef = db.collection('users').doc(String(req.params.id || '').trim());
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) return res.status(404).json({ error: 'User not found' });
+    await userRef.set({
+      mfa_secret: '',
+      mfa_enabled: false,
+      mfa_confirmed_at: null,
+      mfa_recovery_code_hashes: []
+    }, { merge: true });
+    invalidateCache('users:all');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/', async (req, res) => {

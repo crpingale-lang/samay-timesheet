@@ -62,7 +62,7 @@ db.exec(`
     password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'article',
     permissions TEXT NOT NULL DEFAULT '[]',
-    mfa_method TEXT NOT NULL DEFAULT 'sms',
+    mfa_method TEXT NOT NULL DEFAULT 'totp',
     mfa_secret TEXT,
     mfa_confirmed_at TEXT,
     email TEXT,
@@ -446,7 +446,7 @@ if (!userCols.includes('permissions')) {
   db.exec("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '[]'");
 }
 if (!userCols.includes('mfa_method')) {
-  db.exec("ALTER TABLE users ADD COLUMN mfa_method TEXT NOT NULL DEFAULT 'sms'");
+  db.exec("ALTER TABLE users ADD COLUMN mfa_method TEXT NOT NULL DEFAULT 'totp'");
 }
 if (!userCols.includes('mfa_secret')) {
   db.exec("ALTER TABLE users ADD COLUMN mfa_secret TEXT");
@@ -466,7 +466,7 @@ if (!userCols.includes('last_login_at')) {
 if (!userCols.includes('last_activity_at')) {
   db.exec("ALTER TABLE users ADD COLUMN last_activity_at TEXT");
 }
-db.exec("UPDATE users SET mfa_method='sms' WHERE mfa_method IS NULL OR mfa_method = ''");
+db.exec("UPDATE users SET mfa_method='totp' WHERE mfa_method IS NULL OR mfa_method != 'totp'");
 
 const trustedDeviceCols = db.prepare("PRAGMA table_info(trusted_devices)").all().map(c => c.name);
 if (!trustedDeviceCols.length) {

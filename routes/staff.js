@@ -177,7 +177,7 @@ router.post('/:id/reset-authenticator', (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   db.prepare(`
     UPDATE users
-    SET mfa_method = 'sms',
+    SET mfa_method = 'totp',
         mfa_secret = NULL,
         mfa_confirmed_at = NULL
     WHERE id = ?

@@ -6,7 +6,6 @@ const db = require('../js/database');
 const { ensurePermissions } = require('../js/permissions');
 const { generateSecret, generateOtpAuthUri, normalizeSecret, verifyTotp } = require('../js/totp');
 const { JWT_SECRET, SESSION_TTL } = require('../config');
-const SMS_CHALLENGE_TTL_SECONDS = 10 * 60;
 const TRUSTED_DEVICE_TTL_SECONDS = 24 * 60 * 60;
 const MFA_CHALLENGE_TTL_SECONDS = 10 * 60;
 const ONLINE_WINDOW_MS = 15 * 60 * 1000;
@@ -34,7 +33,7 @@ function isContactInfoRequired(user) {
 }
 
 function normalizeMfaMethod(user) {
-  return String(user?.mfa_method || 'sms').trim().toLowerCase();
+  return user?.mfa_secret ? 'totp' : 'totp-setup';
 }
 
 function nowIso() {
@@ -75,31 +74,6 @@ function authUserPayload(user) {
     last_activity_at: user.last_activity_at || null,
     is_online: !!(user.last_activity_at && (Date.now() - new Date(user.last_activity_at).getTime()) <= ONLINE_WINDOW_MS)
   };
-}
-
-function createSmsChallenge({ userId, phoneNumber, verificationCode }) {
-  return jwt.sign(
-    {
-      purpose: 'sms-login',
-      userId,
-      phoneNumber: String(phoneNumber || ''),
-      verificationCode: String(verificationCode || '').trim()
-    },
-    JWT_SECRET,
-    { expiresIn: `${SMS_CHALLENGE_TTL_SECONDS}s` }
-  );
-}
-
-function verifySmsChallenge(token) {
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded?.purpose !== 'sms-login' || !decoded?.userId || !decoded?.phoneNumber) {
-      return null;
-    }
-    return decoded;
-  } catch {
-    return null;
-  }
 }
 
 function createTrustedDeviceToken({ userId, deviceId }) {
@@ -233,7 +207,6 @@ router.post('/login', (req, res) => {
   const trustedDeviceToken = String(req.body?.trusted_device_token || '').trim();
   const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
   const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
-  const authenticatorSetupRequested = req.body?.authenticator_setup === true || req.body?.authenticator_setup === 'true';
   if (!identifier || !password) return res.status(400).json({ error: 'Username or email and password required' });
 
   const user = db.prepare(`
@@ -254,7 +227,6 @@ router.post('/login', (req, res) => {
     trustedDevice.deviceId === trustedDeviceId &&
     isTrustedDeviceActive(user.id, trustedDeviceId);
 
-  const isLocalSmsMode = process.env.NODE_ENV !== 'production';
   const userPayload = authUserPayload(user);
   if (trustedDeviceMatches) {
     const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
@@ -271,7 +243,7 @@ router.post('/login', (req, res) => {
       trusted_device_token: createTrustedDeviceToken({ userId: user.id, deviceId: trustedDeviceId })
     });
   }
-  if (normalizeMfaMethod(user) === 'totp' && user.mfa_secret) {
+  if (user.mfa_secret) {
     return res.json({
       mfa_required: true,
       mfa_method: 'totp',
@@ -282,56 +254,22 @@ router.post('/login', (req, res) => {
       user: userPayload
     });
   }
-  if (authenticatorSetupRequested) {
-    const secret = generateSecret();
-    return res.json({
-      mfa_required: true,
-      mfa_method: 'totp-setup',
-      mfa_token: createTotpChallenge({
-        userId: user.id,
-        secret,
-        purpose: 'totp-setup'
-      }),
-      totp_secret: secret,
-      otpauth_uri: generateOtpAuthUri({
-        issuer: MFA_ISSUER,
-        accountName: user.email || user.username,
-        secret
-      }),
-      user: userPayload
-    });
-  }
-  if (isLocalSmsMode) {
-    const smsVerificationCode = String(Math.floor(100000 + Math.random() * 900000));
-    const smsChallengeToken = createSmsChallenge({
+  const secret = generateSecret();
+  return res.json({
+    mfa_required: true,
+    mfa_method: 'totp-setup',
+    mfa_token: createTotpChallenge({
       userId: user.id,
-      phoneNumber: user.mobile_number,
-      verificationCode: smsVerificationCode
-    });
-
-    return res.json({
-      sms_required: true,
-      sms_mode: 'local',
-      sms_challenge_token: smsChallengeToken,
-      phone_number: user.mobile_number,
-      masked_phone_number: user.mobile_number,
-      sms_test_code: smsVerificationCode,
-      user: userPayload
-    });
-  }
-
-  const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
-  const token = issueSessionToken(user, userPayload.permissions);
-  upsertTrustedDevice({
-    userId: user.id,
-    deviceId: trustedDeviceId,
-    deviceLabel: trustedDeviceLabel,
-    userAgent: req.headers['user-agent']
-  });
-
-  res.json({
-    token,
-    user: authUserPayload(updatedUser)
+      secret,
+      purpose: 'totp-setup'
+    }),
+    totp_secret: secret,
+    otpauth_uri: generateOtpAuthUri({
+      issuer: MFA_ISSUER,
+      accountName: user.email || user.username,
+      secret
+    }),
+    user: userPayload
   });
 });
 
@@ -396,50 +334,6 @@ router.post('/complete-totp-login', (req, res) => {
   });
 });
 
-// POST /api/auth/complete-sms-login
-router.post('/complete-sms-login', (req, res) => {
-  const smsChallengeToken = String(req.body?.sms_challenge_token || '');
-  const smsVerificationCode = String(req.body?.sms_verification_code || '').trim();
-  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
-  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
-
-  if (!smsChallengeToken || !smsVerificationCode) {
-    return res.status(400).json({ error: 'Missing SMS login details' });
-  }
-
-  const challenge = verifySmsChallenge(smsChallengeToken);
-  if (!challenge) {
-    return res.status(401).json({ error: 'SMS challenge expired or invalid' });
-  }
-
-  if (smsVerificationCode !== challenge.verificationCode) {
-    return res.status(401).json({ error: 'SMS code is invalid' });
-  }
-
-  const user = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(challenge.userId);
-  if (!user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
-  const userPayload = authUserPayload(updatedUser);
-  const token = issueSessionToken(user, userPayload.permissions);
-  upsertTrustedDevice({
-    userId: user.id,
-    deviceId: trustedDeviceId,
-    deviceLabel: trustedDeviceLabel,
-    userAgent: req.headers['user-agent']
-  });
-  return res.json({
-    token,
-    user: userPayload,
-    trusted_device_token: createTrustedDeviceToken({
-      userId: user.id,
-      deviceId: trustedDeviceId
-    })
-  });
-});
-
 // POST /api/auth/reset-authenticator
 router.post('/reset-authenticator', (req, res) => {
   const authUser = getAuthorizedUser(req, res);
@@ -447,7 +341,7 @@ router.post('/reset-authenticator', (req, res) => {
 
   db.prepare(`
     UPDATE users
-    SET mfa_method = 'sms',
+    SET mfa_method = 'totp',
         mfa_secret = NULL,
         mfa_confirmed_at = NULL
     WHERE id = ?
