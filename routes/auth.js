@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../js/database');
 const { ensurePermissions } = require('../js/permissions');
-const { generateSecret, generateOtpAuthUri, normalizeSecret, verifyTotp } = require('../js/totp');
 const { JWT_SECRET, SESSION_TTL } = require('../config');
 const TRUSTED_DEVICE_TTL_SECONDS = 24 * 60 * 60;
 const MFA_CHALLENGE_TTL_SECONDS = 10 * 60;
@@ -204,9 +203,6 @@ function getAuthorizedUser(req, res) {
 router.post('/login', (req, res) => {
   const identifier = String(req.body?.username || req.body?.identifier || '').trim();
   const password = String(req.body?.password || '');
-  const trustedDeviceToken = String(req.body?.trusted_device_token || '').trim();
-  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
-  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
   if (!identifier || !password) return res.status(400).json({ error: 'Username or email and password required' });
 
   const user = db.prepare(`
@@ -220,117 +216,12 @@ router.post('/login', (req, res) => {
   const valid = bcrypt.compareSync(password, user.password);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-  const trustedDevice = verifyTrustedDeviceToken(trustedDeviceToken);
-  const trustedDeviceMatches =
-    trustedDevice &&
-    trustedDevice.userId === user.id &&
-    trustedDevice.deviceId === trustedDeviceId &&
-    isTrustedDeviceActive(user.id, trustedDeviceId);
-
-  const userPayload = authUserPayload(user);
-  if (trustedDeviceMatches) {
-    const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
-    const token = issueSessionToken(user, userPayload.permissions);
-    upsertTrustedDevice({
-      userId: user.id,
-      deviceId: trustedDeviceId,
-      deviceLabel: trustedDeviceLabel,
-      userAgent: req.headers['user-agent']
-    });
-    return res.json({
-      token,
-      user: authUserPayload(updatedUser),
-      trusted_device_token: createTrustedDeviceToken({ userId: user.id, deviceId: trustedDeviceId })
-    });
-  }
-  if (user.mfa_secret) {
-    return res.json({
-      mfa_required: true,
-      mfa_method: 'totp',
-      mfa_token: createTotpChallenge({
-        userId: user.id,
-        purpose: 'totp-login'
-      }),
-      user: userPayload
-    });
-  }
-  const secret = generateSecret();
-  return res.json({
-    mfa_required: true,
-    mfa_method: 'totp-setup',
-    mfa_token: createTotpChallenge({
-      userId: user.id,
-      secret,
-      purpose: 'totp-setup'
-    }),
-    totp_secret: secret,
-    otpauth_uri: generateOtpAuthUri({
-      issuer: MFA_ISSUER,
-      accountName: user.email || user.username,
-      secret
-    }),
-    user: userPayload
-  });
-});
-
-// POST /api/auth/complete-totp-login
-router.post('/complete-totp-login', (req, res) => {
-  const mfaToken = String(req.body?.mfa_token || '').trim();
-  const totpCode = String(req.body?.totp_code || req.body?.otp || req.body?.code || '').trim();
-  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
-  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
-
-  if (!mfaToken || !totpCode) {
-    return res.status(400).json({ error: 'Missing authenticator code details' });
-  }
-
-  const challenge = verifyTotpChallenge(mfaToken);
-  if (!challenge) {
-    return res.status(401).json({ error: 'Authenticator challenge expired or invalid' });
-  }
-
-  const user = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(challenge.userId);
-  if (!user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const secret = challenge.purpose === 'totp-setup' ? challenge.secret : user.mfa_secret;
-  if (!secret) {
-    return res.status(401).json({ error: 'Authenticator is not configured for this account' });
-  }
-
-  const verification = verifyTotp(secret, totpCode);
-  if (!verification.matched) {
-    return res.status(401).json({ error: 'Authenticator code is invalid' });
-  }
-
-  if (challenge.purpose === 'totp-setup') {
-    db.prepare(`
-      UPDATE users
-      SET mfa_method = 'totp',
-          mfa_secret = ?,
-          mfa_confirmed_at = ?
-      WHERE id = ?
-    `).run(normalizeSecret(secret), nowIso(), user.id);
-  }
-
   const updatedUser = updateUserSessionTimestamps(user.id, { login: true, activity: true }) || user;
   const userPayload = authUserPayload(updatedUser);
-  const token = issueSessionToken(user, userPayload.permissions);
-  upsertTrustedDevice({
-    userId: user.id,
-    deviceId: trustedDeviceId,
-    deviceLabel: trustedDeviceLabel,
-    userAgent: req.headers['user-agent']
-  });
-
+  const token = issueSessionToken(updatedUser, userPayload.permissions);
   return res.json({
     token,
-    user: userPayload,
-    trusted_device_token: createTrustedDeviceToken({
-      userId: user.id,
-      deviceId: trustedDeviceId
-    })
+    user: userPayload
   });
 });
 

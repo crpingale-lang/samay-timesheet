@@ -398,10 +398,6 @@ async function getAuthorizedUser(req, res) {
 router.post('/login', async (req, res) => {
   const identifier = String(req.body?.username || req.body?.identifier || '').trim();
   const password = String(req.body?.password || '');
-  const trustedDeviceToken = String(req.body?.trusted_device_token || '').trim();
-  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
-  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
-
   if (!identifier || !password) {
     return res.status(400).json({ error: 'Username or email and password required' });
   }
@@ -424,127 +420,16 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const trustedDevice = verifyTrustedDeviceToken(trustedDeviceToken);
-    const trustedDeviceMatches =
-      trustedDevice &&
-      trustedDevice.userId === foundUser.id &&
-      trustedDevice.deviceId === trustedDeviceId &&
-      await isTrustedDeviceActive(foundUser.id, trustedDeviceId);
-
-    if (trustedDeviceMatches) {
-      const userPayload = authUserPayload(foundUser.id, user);
-      const token = issueSessionToken(foundUser.id, user, userPayload.permissions);
-      console.log(`[auth/login] trusted device bypass identifier=${identifier} userId=${foundUser.id}`);
-      await upsertTrustedDevice({
-        userId: foundUser.id,
-        deviceId: trustedDeviceId,
-        deviceLabel: trustedDeviceLabel,
-        userAgent: req.headers['user-agent']
-      });
-      return res.json({
-        token,
-        user: userPayload,
-        trusted_device_token: createTrustedDeviceToken({ userId: foundUser.id, deviceId: trustedDeviceId })
-      });
-    }
-
-    if (user.mfa_enabled && user.mfa_secret) {
-      return res.json({
-        mfa_required: true,
-        mfa_method: 'totp',
-        mfa_token: createTotpChallenge({
-          userId: foundUser.id,
-          purpose: 'totp-login'
-        }),
-        user: authUserPayload(foundUser.id, user)
-      });
-    }
-
-    const secret = generateTotpSecret();
+    const userPayload = authUserPayload(foundUser.id, user);
+    const token = issueSessionToken(foundUser.id, user, userPayload.permissions);
+    console.log(`[auth/login] success identifier=${identifier} userId=${foundUser.id}`);
     res.json({
-      mfa_required: true,
-      mfa_method: 'totp-setup',
-      mfa_token: createTotpChallenge({
-        userId: foundUser.id,
-        secret,
-        purpose: 'totp-setup'
-      }),
-      totp_secret: secret,
-      otpauth_uri: buildOtpAuthUrl({
-        username: user.email || user.username,
-        secret
-      }),
-      user: authUserPayload(foundUser.id, user)
+      token,
+      user: userPayload
     });
   } catch (err) {
     console.error(`[auth/login] failed identifier=${identifier}`, err);
     res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/complete-totp-login', async (req, res) => {
-  const mfaToken = String(req.body?.mfa_token || '').trim();
-  const totpCode = String(req.body?.totp_code || req.body?.otp || req.body?.code || '').trim();
-  const trustedDeviceId = String(req.body?.trusted_device_id || '').trim();
-  const trustedDeviceLabel = String(req.body?.trusted_device_label || '').trim();
-
-  if (!mfaToken || !totpCode) {
-    return res.status(400).json({ error: 'Missing authenticator code details' });
-  }
-
-  const challenge = verifyTotpChallenge(mfaToken);
-  if (!challenge) {
-    return res.status(401).json({ error: 'Authenticator challenge expired or invalid' });
-  }
-
-  try {
-    const userDoc = await db.collection('users').doc(challenge.userId).get();
-    if (!userDoc.exists) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const user = userDoc.data();
-    if (user.active === false || user.active === 0 || user.active === '0') {
-      return res.status(403).json({ error: 'Account disabled' });
-    }
-
-    const secret = challenge.purpose === 'totp-setup' ? challenge.secret : user.mfa_secret;
-    if (!secret || !verifyTotp(secret, totpCode)) {
-      return res.status(401).json({ error: 'Authenticator code is invalid' });
-    }
-
-    if (challenge.purpose === 'totp-setup') {
-      await userDoc.ref.set({
-        mfa_secret: secret,
-        mfa_enabled: true,
-        mfa_confirmed_at: new Date().toISOString(),
-        mfa_recovery_code_hashes: []
-      }, { merge: true });
-      user.mfa_secret = secret;
-      user.mfa_enabled = true;
-    }
-
-    const userPayload = authUserPayload(userDoc.id, user);
-    const token = issueSessionToken(userDoc.id, user, userPayload.permissions);
-    console.log(`[auth/complete-totp-login] success userId=${userDoc.id} username=${user.username}`);
-    await upsertTrustedDevice({
-      userId: userDoc.id,
-      deviceId: trustedDeviceId,
-      deviceLabel: trustedDeviceLabel,
-      userAgent: req.headers['user-agent']
-    });
-
-    res.json({
-      token,
-      user: userPayload,
-      trusted_device_token: createTrustedDeviceToken({
-        userId: userDoc.id,
-        deviceId: trustedDeviceId
-      })
-    });
-  } catch (err) {
-    console.error('[auth/complete-totp-login] failed', err);
-    res.status(401).json({ error: err.message || 'Unable to verify authenticator code' });
   }
 });
 

@@ -24,10 +24,10 @@
         <input class="form-control" type="password" id="password" placeholder="Enter your password" autocomplete="current-password" required>
       </div>
       <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none;background:var(--danger-bg);padding:8px 12px;border-radius:6px;border:1px solid #fecaca;"></div>
-      <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">Continue</button>
+      <button class="btn btn-primary" type="submit" id="login-btn" style="width:100%;justify-content:center;padding:11px;">Sign In</button>
     </form>
-    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;" id="login-footer">
-      <strong>Security:</strong> Sign in with username or email, password, and your authenticator app.
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);text-align:center;">
+      Sign in with your username or email and password.
     </div>
   </div>
 </div>
@@ -39,242 +39,43 @@
   if (hasUsableSession() && existingTarget !== '/') window.location.replace(existingTarget);
 
   const loginForm = document.getElementById('login-form');
-  const loginCard = document.querySelector('.login-card');
-  const loginFooter = document.getElementById('login-footer');
-  const passwordGroup = document.getElementById('password').closest('.form-group');
-  let loginStep = 'request';
-  let authFlow = 'totp';
-  let mfaToken = '';
-
-  const authNotice = consumeAuthNotice();
-  if (authNotice) {
-    setLoginError(authNotice);
-  }
-
-  passwordGroup.insertAdjacentHTML('afterend', `
-      <div class="form-group" id="otp-group" style="display:none;">
-      <label class="form-label" for="otp" id="otp-label">Authenticator Code</label>
-      <input class="form-control" type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code">
-      <div class="login-field-note" id="otp-note">Enter the 6-digit code from your authenticator app.</div>
-    </div>
-  `);
-
-  const mfaInfo = document.createElement('div');
-  mfaInfo.className = 'login-mfa-panel';
-  mfaInfo.id = 'mfa-info';
-  mfaInfo.setAttribute('aria-live', 'polite');
-  mfaInfo.innerHTML = `
-    <div class="login-step-label" id="mfa-step-label">Authenticator App</div>
-    <div class="login-mfa-title" id="mfa-title"></div>
-    <div class="login-mfa-copy" id="mfa-copy"></div>
-    <div class="login-secret-box" id="totp-secret-box" style="display:none;">
-      <div class="login-field-note" style="margin-bottom:8px;">Authenticator setup secret</div>
-      <div class="login-secret-code" id="totp-secret" style="word-break:break-all;"></div>
-      <button class="btn btn-ghost btn-sm" type="button" id="copy-totp-secret-btn" style="margin-top:10px;">Copy secret</button>
-      <div class="login-field-note" id="totp-uri" style="margin-top:10px;word-break:break-all;"></div>
-    </div>
-  `;
-  loginCard.insertBefore(mfaInfo, loginFooter);
-
-  const mfaCopy = document.getElementById('mfa-copy');
-  const mfaTitle = document.getElementById('mfa-title');
-  const mfaStepLabel = document.getElementById('mfa-step-label');
-  const otpGroup = document.getElementById('otp-group');
-  const otpInput = document.getElementById('otp');
-  const otpNote = document.getElementById('otp-note');
-  const otpLabel = document.getElementById('otp-label');
-  const totpSecretBox = document.getElementById('totp-secret-box');
-  const totpSecretEl = document.getElementById('totp-secret');
-  const totpUriEl = document.getElementById('totp-uri');
-  const copyTotpSecretBtn = document.getElementById('copy-totp-secret-btn');
+  const loginButton = document.getElementById('login-btn');
+  const loginError = document.getElementById('login-error');
 
   function setLoginError(message) {
-    const errEl = document.getElementById('login-error');
-    if (!message) {
-      errEl.style.display = 'none';
-      errEl.textContent = '';
-      return;
-    }
-    errEl.textContent = message;
-    errEl.style.display = 'block';
+    loginError.textContent = message || '';
+    loginError.style.display = message ? 'block' : 'none';
   }
 
-  function setButtonLabel() {
-    const btn = document.getElementById('login-btn');
-    if (loginStep === 'verify') {
-      btn.textContent = authFlow === 'totp-setup' ? 'Confirm Setup' : 'Verify Code';
-      return;
-    }
-    btn.textContent = 'Continue';
-  }
+  const authNotice = consumeAuthNotice();
+  if (authNotice) setLoginError(authNotice);
 
-  function showOtpStep({ flow = 'totp', secret = '', uri = '' } = {}) {
-    loginStep = 'verify';
-    authFlow = flow;
-    otpGroup.style.display = '';
-    mfaInfo.classList.add('open');
-    otpLabel.textContent = flow === 'totp-setup' ? 'Authenticator Code' : 'Verification Code';
-    mfaTitle.textContent = flow === 'totp-setup'
-      ? 'Set up an authenticator app'
-      : 'Authenticator code required';
-    mfaCopy.textContent = flow === 'totp-setup'
-      ? 'Scan the secret below in your authenticator app, then enter the 6-digit code to confirm.'
-      : 'Open your authenticator app and enter the 6-digit code.';
-    otpNote.textContent = flow === 'totp-setup'
-      ? 'Enter the 6-digit code from your authenticator app to finish setup.'
-      : 'Enter the 6-digit code.';
-    totpSecretBox.style.display = flow === 'totp-setup' ? '' : 'none';
-    if (flow === 'totp-setup') {
-      totpSecretEl.textContent = secret;
-      totpUriEl.textContent = uri;
-      mfaStepLabel.textContent = 'Authenticator App';
-    } else {
-      totpSecretEl.textContent = '';
-      totpUriEl.textContent = '';
-      mfaStepLabel.textContent = 'Authenticator App';
-    }
-    setButtonLabel();
-    otpInput.focus();
-  }
-
-  function resetLoginStep() {
-    loginStep = 'request';
-    authFlow = 'totp';
-    mfaToken = '';
-    otpGroup.style.display = 'none';
-    mfaInfo.classList.remove('open');
-    mfaTitle.textContent = '';
-    mfaCopy.textContent = '';
-    totpSecretBox.style.display = 'none';
-    totpSecretEl.textContent = '';
-    totpUriEl.textContent = '';
-    otpInput.value = '';
-    otpLabel.textContent = 'Authenticator Code';
-    mfaStepLabel.textContent = 'Authenticator App';
-    setButtonLabel();
-  }
-
-  async function copyText(value, label) {
-    if (!value) return;
-    if (!navigator.clipboard?.writeText) return;
-    await navigator.clipboard.writeText(value);
-    toast(`${label} copied to clipboard`, 'success');
-  }
-
-  async function requestMfaStart() {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: document.getElementById('username').value.trim(),
-        password: document.getElementById('password').value,
-        trusted_device_id: getTrustedDeviceId(),
-        trusted_device_token: getTrustedDeviceToken(),
-        trusted_device_label: getTrustedDeviceLabel()
-      })
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'Unable to start login');
-    }
-    if (data.token && data.user) {
-      if (data.trusted_device_token) {
-        setTrustedDeviceToken(data.trusted_device_token);
-      }
-      setSession(data.token, data.user);
-      resetLoginStep();
-      window.location.replace(getDefaultLandingPage());
-      return;
-    }
-    if (data.mfa_method === 'totp-setup') {
-      if (!data.mfa_token || !data.totp_secret || !data.otpauth_uri) {
-        throw new Error('Authenticator setup was not initialized correctly');
-      }
-      mfaToken = data.mfa_token;
-      showOtpStep({
-        flow: 'totp-setup',
-        secret: data.totp_secret,
-        uri: data.otpauth_uri
-      });
-      return;
-    }
-    if (data.mfa_method === 'totp') {
-      if (!data.mfa_token) {
-        throw new Error('Authenticator login was not initialized correctly');
-      }
-      mfaToken = data.mfa_token;
-      showOtpStep({ flow: 'totp' });
-      return;
-    }
-    throw new Error('Authenticator login was not initialized correctly');
-  }
-
-  setButtonLabel();
-
-  copyTotpSecretBtn.addEventListener('click', async () => {
-    const secret = totpSecretEl.textContent.trim();
-    if (!secret) return;
-    await copyText(secret, 'Authenticator secret');
-  });
-
-  loginForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    const btn = document.getElementById('login-btn');
+  loginForm.addEventListener('submit', async event => {
+    event.preventDefault();
     setLoginError('');
-    btn.disabled = true;
+    loginButton.disabled = true;
+    loginButton.textContent = 'Signing in...';
 
     try {
-      if (loginStep === 'request') {
-        btn.textContent = 'Checking access...';
-        await requestMfaStart();
-        return;
-      }
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to sign in');
+      if (!data.token || !data.user) throw new Error('Login response was incomplete');
 
-      if (loginStep === 'verify') {
-        btn.textContent = authFlow === 'totp-setup' ? 'Confirming...' : 'Verifying...';
-        const otp = otpInput.value.trim();
-        if (!otp) {
-          throw new Error('Enter the verification code');
-        }
-
-        const completeUrl = '/api/auth/complete-totp-login';
-        const payload = {
-          mfa_token: mfaToken,
-          totp_code: otp,
-          trusted_device_id: getTrustedDeviceId(),
-          trusted_device_label: getTrustedDeviceLabel()
-        };
-
-        const completeResponse = await fetch(completeUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const completeData = await completeResponse.json().catch(() => ({}));
-        if (!completeResponse.ok) {
-          throw new Error(completeData.error || 'Unable to complete login');
-        }
-
-        if (completeData.trusted_device_token) {
-          setTrustedDeviceToken(completeData.trusted_device_token);
-        }
-        setSession(completeData.token, completeData.user);
-        resetLoginStep();
-        window.location.replace(getDefaultLandingPage());
-        return;
-      }
-    } catch (err) {
-      setLoginError(err.message);
-      if (loginStep === 'request') {
-        resetLoginStep();
-      }
-      if (loginStep === 'verify' && /code/i.test(err.message)) {
-        otpInput.focus();
-      }
+      setSession(data.token, data.user);
+      window.location.replace(getDefaultLandingPage());
+    } catch (error) {
+      setLoginError(error.message);
     } finally {
-      btn.disabled = false;
-      setButtonLabel();
+      loginButton.disabled = false;
+      loginButton.textContent = 'Sign In';
     }
   });
 </script>
