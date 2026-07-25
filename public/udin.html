@@ -4,6 +4,7 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UDIN Tracker - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/revamp.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
   <style>
@@ -573,56 +574,6 @@ function udinNavIcon(name) {
 
 function UDIN_SIDEBAR_HTML() {
   return `
-    <div class="sidebar-logo">
-      <div class="logo-mark">
-        <div class="logo-icon">CA</div>
-        <div><div class="logo-text">Samay</div><div class="logo-sub">UDIN Workspace</div></div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">UDIN Workspace</span>
-      <a class="nav-item nav-item-udin-overview" href="#overview-section"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Overview</span></a>
-      <a class="nav-item nav-item-udin-requests" href="#requests-section"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Request Queue</span></a>
-      <a class="nav-item nav-item-udin-create" href="#create-section"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Create / Update</span></a>
-      <span class="nav-section-label" data-permissions="modules.view,firm.dashboard.view">Navigation</span>
-      <a class="nav-item nav-item-modules" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">All Modules</span></a>
-      <a class="nav-item nav-item-firm-dashboard" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
-    </nav>
-    <div class="udin-sidebar-note">
-      <strong>Dedicated Module</strong>
-      This page is the landing workspace for the full UDIN workflow.
-    </div>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">User</div>
-          <div class="user-role" id="sidebar-user-role">Role</div>
-        </div>
-        <button class="user-menu-btn" onclick="logout()" title="Logout">↪</button>
-      </div>
-    </div>
-  `;
-}
-
-function syncUdinSidebarActive() {
-  const hash = window.location.hash || '#overview-section';
-  const map = {
-    '#overview-section': 'nav-item-udin-overview',
-    '#requests-section': 'nav-item-udin-requests',
-    '#create-section': 'nav-item-udin-create'
-  };
-  document.querySelectorAll('.sidebar .nav-item').forEach(el => {
-    if (!el.classList.contains('nav-item-modules') && !el.classList.contains('nav-item-firm-dashboard')) {
-      el.classList.remove('active');
-    }
-  });
-  const activeClass = map[hash] || 'nav-item-udin-overview';
-  document.querySelector(`.sidebar .${activeClass}`)?.classList.add('active');
-}
-
-UDIN_SIDEBAR_HTML = function () {
-  return `
     <nav class="sidebar-nav">
       <a class="nav-item" href="#overview-section" data-nav-key="dashboard" data-hash="#overview-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('home')}</span><span class="nav-label">Dashboard</span></a>
       <a class="nav-item" href="#requests-section" data-nav-key="udin-not-updated" data-hash="#requests-section" data-scope="updates"><span class="nav-icon" aria-hidden="true">${udinNavIcon('list')}</span><span class="nav-label">UDIN not updated</span></a>
@@ -645,7 +596,7 @@ UDIN_SIDEBAR_HTML = function () {
       </div>
     </div>
   `;
-};
+}
 
 function initUdinSidebarActions() {
   document.querySelectorAll('.sidebar [data-nav-key]').forEach(link => {
@@ -673,7 +624,7 @@ function initUdinSidebarActions() {
   });
 }
 
-syncUdinSidebarActive = function () {
+function syncUdinSidebarActive() {
   const hash = window.location.hash || '#overview-section';
   const map = {
     '#overview-section': 'dashboard',
@@ -686,7 +637,7 @@ syncUdinSidebarActive = function () {
   const activeKey = hash === '#requests-section' || hash === '#create-section' ? storedKey : (map[hash] || storedKey);
   document.querySelectorAll('.sidebar [data-nav-key]').forEach(el => el.classList.remove('active'));
   document.querySelector(`.sidebar [data-nav-key="${activeKey}"]`)?.classList.add('active');
-};
+}
 
 document.getElementById('sidebar-el').innerHTML = UDIN_SIDEBAR_HTML();
 buildSidebar();
@@ -1066,3 +1017,4 @@ loadLocations().then(async () => {
 </script>
 </body>
 </html>
+

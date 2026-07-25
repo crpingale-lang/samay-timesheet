@@ -203,7 +203,7 @@ async function ensureUsers(db, admin, uniqueNames) {
       department: 'Attendance',
       active: false,
       source: 'attendance-import',
-      created_at: admin.firestore.FieldValue.serverTimestamp()
+        created_at: new Date()
     };
     await db.collection('users').doc(docId).set(payload, { merge: true });
     createdUsers.push({ id: docId, name, username });
@@ -244,7 +244,7 @@ async function commitSheetRows(db, admin, sheet, userRefs, sourceFile) {
         source_file: sourceFile,
         source_sheet: sheet.sheetName,
         source_row: row.rowNumber || 0,
-        imported_at: admin.firestore.FieldValue.serverTimestamp(),
+          imported_at: new Date(),
         ...row
       };
 

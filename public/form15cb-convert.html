@@ -4,6 +4,7 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Convert 15CB — Samay</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/revamp.css">
   <meta name="theme-color" content="#059669">
   <style>
     .wizard-steps{display:flex;gap:0;margin-bottom:24px;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
@@ -89,7 +90,7 @@
           </div>
         </div>
         <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-          <button class="btn btn-primary" id="parse-btn" disabled onclick="parseXml()">Parse XML →</button>
+          <button class="btn btn-primary" type="button" id="parse-btn" disabled>Parse XML →</button>
         </div>
       </div>
 
@@ -183,6 +184,7 @@ const token = getToken();
 const authHeaders = { 'Authorization': `Bearer ${token}` };
 const fileInput = document.getElementById('xml-file');
 const uploadStatus = document.getElementById('upload-status');
+const parseBtn = document.getElementById('parse-btn');
 
 let state = {
   step: 1,
@@ -211,6 +213,10 @@ dropZone.addEventListener('drop', e => {
   if (f) handleFileSelect(f);
 });
 fileInput.addEventListener('change', e => handleFileSelect(e.target.files[0]));
+parseBtn.addEventListener('click', event => {
+  event.preventDefault();
+  void parseXml();
+});
 
 function handleFileSelect(file) {
   if (!file) return;
@@ -256,7 +262,14 @@ function goStep(n) {
 
 // ── Step 1 → 2: Parse XML ─────────────────────────────────────────────────
 async function parseXml() {
-  const btn = document.getElementById('parse-btn');
+  const btn = parseBtn;
+  if (!state.file) {
+    uploadStatus.style.color = '#b91c1c';
+    uploadStatus.textContent = 'Choose an XML file first.';
+    toast('Choose an XML file first', 'info');
+    return;
+  }
+
   btn.disabled = true; btn.textContent = 'Parsing…';
   uploadStatus.style.color = '#1d4ed8';
   uploadStatus.textContent = 'Uploading and parsing XML...';
@@ -696,9 +709,12 @@ function resetWizard() {
   document.getElementById('xml-file').value = '';
   uploadStatus.style.color = 'var(--text-muted)';
   uploadStatus.textContent = 'Select the old 15CB XML exported from the portal, then click parse.';
-  document.getElementById('parse-btn').disabled = true;
+  parseBtn.disabled = true;
   goStep(1);
 }
+
+window.handleFileSelect = handleFileSelect;
+window.parseXml = parseXml;
 
 function esc(str) {
   if (str===null||str===undefined) return '';
@@ -712,3 +728,4 @@ function esc(str) {
 </script>
 </body>
 </html>
+

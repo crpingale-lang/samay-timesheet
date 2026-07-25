@@ -1,4 +1,4 @@
-﻿// â”€â”€â”€ SHARED APP UTILITIES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SHARED APP UTILITIES ───────────────────────────────────────────────────
 
 const API = '/api';
 const LOCAL_CACHE_PREFIX = 'ts_cache:';
@@ -1079,7 +1079,7 @@ function workClassificationBadge(value, billable = null) {
   return `<span class="badge badge-work-${meta.value}">${meta.label}</span>`;
 }
 
-// Status badge â€” 5 statuses for 3-tier
+// Status badge — 5 statuses for 3-tier
 function statusBadge(status) {
   const map = {
     draft: ['badge-draft','Draft'],
@@ -1278,7 +1278,7 @@ function injectModuleSwitcher() {
   topbar.appendChild(wrapper);
 }
 
-// Canonical sidebar HTML â€” call this in each page's <aside>
+// Canonical sidebar HTML — call this in each page's <aside>
 function SIDEBAR_HTML() {
   return `
     <div class="sidebar-logo">

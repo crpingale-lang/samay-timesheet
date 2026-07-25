@@ -723,23 +723,22 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
   box-shadow: var(--shadow);
 }
 .proto-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
   margin-bottom: 12px;
 }
 .proto-date-group {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
   gap: 8px;
-  flex-wrap: wrap;
-  flex: 1 1 420px;
+  flex: none;
   min-width: 0;
 }
 .proto-date-field {
-  flex: 1 1 180px;
+  flex: none;
   min-width: 0;
 }
 .proto-date-nav-btn {
@@ -750,18 +749,18 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
   align-items: flex-end;
 }
 .proto-date-readable {
+  grid-column: 1 / -1;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
-  padding: 8px 4px;
-  flex: 1 0 100%;
+  padding: 2px 4px 0;
 }
 .proto-toolbar-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .proto-weekbar {
   display: flex;
@@ -1139,7 +1138,7 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
 .day-timeline-track.is-modal {
   cursor: default;
   touch-action: pan-y;
-  min-height: 56px;
+  min-height: var(--timeline-lane-height, 36px);
 }
 .day-timeline-shell,
 #modal-day-timeline,
@@ -1148,7 +1147,8 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
 }
 .timeline-entry-bar {
   position: absolute;
-  min-height: 36px;
+  height: var(--timeline-lane-height, 36px);
+  min-height: 0;
   border-radius: 12px;
   border: none;
   color: #fff;
@@ -2176,6 +2176,15 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
   justify-content: flex-end;
 }
 
+@media (max-width: 560px) {
+  .proto-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .proto-toolbar-actions {
+    width: 100%;
+  }
+}
+
 @media (max-width: 768px) {
   .toast-container {
     bottom: 82px;
@@ -2301,32 +2310,24 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
     gap: 6px;
   }
   .proto-toolbar {
-    align-items: stretch;
+    align-items: end;
   }
   .proto-date-group {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(88px, 0.82fr) minmax(88px, 0.82fr);
-    align-items: end;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
   .proto-date-field {
     min-width: 0;
   }
   .proto-date-nav-btn {
-    width: 100%;
     min-height: 40px;
-    padding-inline: 10px;
-    white-space: nowrap;
+    padding-inline: 12px;
     justify-content: center;
-    min-width: 0;
   }
   .proto-date-nav-slot {
-    min-height: 64px;
     align-items: flex-end;
   }
   .proto-date-readable {
-    grid-column: 1 / -1;
-    padding-top: 2px;
+    padding-top: 0;
   }
   .proto-toolbar-actions {
     display: grid;
@@ -2591,11 +2592,11 @@ tfoot td { background: #f8fafc; font-weight: 600; padding: 12px 14px; border-top
     max-width: none;
   }
   .day-timeline-track.is-modal {
-    min-height: 60px;
+    min-height: var(--timeline-lane-height, 34px);
     touch-action: pan-y;
   }
   .timeline-entry-bar {
-    min-height: 34px;
+    height: var(--timeline-lane-height, 34px);
   }
   .time-text-input {
     font-size: 16px;

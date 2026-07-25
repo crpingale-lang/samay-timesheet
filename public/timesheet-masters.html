@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Timesheet Masters - Samay</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/revamp.css">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#4338ca">
 </head>
@@ -574,7 +575,7 @@ function renderSiteRows() {
 function renderWorkCategoryRows() {
   const tbody = document.getElementById('work-categories-tbody');
   if (!workCategoryMasters.length) {
-    tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: 'â—¦', title: 'No work categories configured', subtitle: 'Add categories here to make them available in timesheet entry.' })}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '◦', title: 'No work categories configured', subtitle: 'Add categories here to make them available in timesheet entry.' })}</td></tr>`;
     return;
   }
   tbody.innerHTML = workCategoryMasters.map(row => `
@@ -591,7 +592,7 @@ function renderWorkCategoryRows() {
 function renderWorkClassificationRows() {
   const tbody = document.getElementById('work-classifications-tbody');
   if (!workClassificationMasters.length) {
-    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: 'â—¦', title: 'No work classifications configured', subtitle: 'Add classifications here to control labels and badge grouping in timesheets.' })}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${renderEmptyState({ icon: '◦', title: 'No work classifications configured', subtitle: 'Add classifications here to control labels and badge grouping in timesheets.' })}</td></tr>`;
     return;
   }
   tbody.innerHTML = workClassificationMasters.map(row => `
@@ -933,3 +934,4 @@ loadMasters().catch(error => toast(error.message || 'Unable to load masters', 'e
 </script>
 </body>
 </html>
+
