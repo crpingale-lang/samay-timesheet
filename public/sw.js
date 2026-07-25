@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-timesheet-v7';
+const CACHE_NAME = 'samay-v8';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -15,7 +15,8 @@ const STATIC_ASSETS = [
   '/reports.html',
   '/css/style.css',
   '/js/app.js',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/samay-icon.svg'
 ];
 
 // Install: cache static shell

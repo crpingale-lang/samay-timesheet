@@ -1283,7 +1283,7 @@ function SIDEBAR_HTML() {
   return `
     <div class="sidebar-logo">
       <div class="logo-mark">
-        <div class="logo-icon">CA</div>
+        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
         <div><div class="logo-text">Samay</div><div class="logo-sub">Practice Management</div></div>
       </div>
     </div>
@@ -1317,7 +1317,7 @@ function TIMESHEET_SIDEBAR_HTML() {
   return `
     <div class="sidebar-logo">
       <div class="logo-mark">
-        <div class="logo-icon">CA</div>
+        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
         <div><div class="logo-text">Samay</div><div class="logo-sub">Practice Management</div></div>
       </div>
     </div>
@@ -1353,7 +1353,7 @@ function FORM15CB_SIDEBAR_HTML() {
   return `
     <div class="sidebar-logo">
       <div class="logo-mark">
-        <div class="logo-icon">CA</div>
+        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
         <div><div class="logo-text">Samay</div><div class="logo-sub">Form 15CB</div></div>
       </div>
     </div>
@@ -1383,7 +1383,7 @@ function FIRM_SIDEBAR_HTML() {
   return `
     <div class="sidebar-logo">
       <div class="logo-mark">
-        <div class="logo-icon">CA</div>
+        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
         <div><div class="logo-text">Samay</div><div class="logo-sub">Firm Control</div></div>
       </div>
     </div>

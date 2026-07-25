@@ -5,9 +5,10 @@
   "start_url": "/dashboard.html",
   "display": "standalone",
   "background_color": "#f1f5f9",
-  "theme_color": "#4338ca",
+  "theme_color": "#0F766E",
   "orientation": "any",
   "icons": [
+    { "src": "/icons/samay-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
     { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png" },
     { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
     { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png" },

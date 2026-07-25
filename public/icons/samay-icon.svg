@@ -1,0 +1,31 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F766E"/>
+      <stop offset="100%" stop-color="#0891B2"/>
+    </linearGradient>
+    <linearGradient id="handGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+
+  <g transform="translate(256,256)">
+    <circle cx="0" cy="0" r="150" fill="none" stroke="#FFFFFF" stroke-width="16" opacity="0.9"/>
+
+    <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity="0.9">
+      <line x1="0" y1="-150" x2="0" y2="-130"/>
+      <line x1="0" y1="150" x2="0" y2="130"/>
+      <line x1="-150" y1="0" x2="-130" y2="0"/>
+      <line x1="150" y1="0" x2="130" y2="0"/>
+    </g>
+
+    <path d="M -62 6 L -18 52 L 78 -60"
+          fill="none" stroke="url(#handGrad2)" stroke-width="28"
+          stroke-linecap="round" stroke-linejoin="round"/>
+
+    <circle cx="0" cy="0" r="15" fill="#FFFFFF"/>
+  </g>
+</svg>

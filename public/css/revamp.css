@@ -61,3 +61,9 @@ button:active,.btn:active{transform:translateY(1px)}
   .topbar-actions.topbar-button-group{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media(max-width:360px){.proto-date-group{grid-template-columns:1fr minmax(70px,.7fr) minmax(70px,.7fr)}.proto-date-nav-btn{padding-inline:6px;font-size:12px}}
+
+/* Samay brand mark */
+.logo-icon,.login-logo-icon{padding:0;overflow:hidden;background:transparent;border:0}
+.logo-icon img,.login-logo-icon img{display:block;width:100%;height:100%;object-fit:contain}
+.logo-icon{box-shadow:0 10px 24px rgba(8,145,178,.22)}
+.login-logo-icon{box-shadow:0 14px 30px rgba(8,145,178,.24)}
