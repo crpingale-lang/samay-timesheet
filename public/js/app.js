@@ -100,9 +100,6 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'dashboard.view_self',
     'udin.view_own',
     'udin.create',
-    'udin.update',
-    'udin.review',
-    'udin.revoke',
     'udin.dashboard.view'
   ]
 };
@@ -1247,166 +1244,119 @@ function buildSidebar() {
   // Mark active
   const current = window.location.pathname.split('/').pop() || 'index.html';
   document.querySelectorAll('.nav-item[data-page]').forEach(el => {
-    el.classList.toggle('active', el.dataset.page === current);
+    const isActive = el.dataset.page === current;
+    el.classList.toggle('active', isActive);
+    if (isActive) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
   });
 
-  injectModuleSwitcher();
+  enhanceApplicationShell();
 }
 
-function injectModuleSwitcher() {
-  const current = window.location.pathname.split('/').pop() || 'index.html';
-  if (['module-select.html', 'firm-dashboard.html', 'index.html'].includes(current)) return;
-
-  const actions = document.querySelector('.topbar-actions');
-  const topbar = document.querySelector('.topbar');
-  const host = actions || topbar;
-  if (!host || host.querySelector('[data-module-switcher]')) return;
-
-  const link = document.createElement('a');
-  link.href = '/module-select.html';
-  link.className = 'btn btn-ghost btn-sm';
-  link.dataset.moduleSwitcher = 'true';
-  link.innerHTML = '<span class="btn-symbol" aria-hidden="true">⇆</span><span class="btn-label">Modules</span>';
-  if (actions) {
-    actions.prepend(link);
-    return;
+function enhanceApplicationShell() {
+  if (!document.querySelector('.skip-link')) {
+    const target = document.querySelector('main, .main-content');
+    if (target) {
+      if (!target.id) target.id = 'main-content';
+      const skipLink = document.createElement('a');
+      skipLink.className = 'skip-link';
+      skipLink.href = `#${target.id}`;
+      skipLink.textContent = 'Skip to main content';
+      document.body.prepend(skipLink);
+    }
   }
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'topbar-actions';
-  wrapper.appendChild(link);
-  topbar.appendChild(wrapper);
+  document.querySelectorAll('.hamburger, [aria-label="Open navigation"]').forEach(toggle => {
+    const sidebar = document.querySelector('.sidebar');
+    toggle.setAttribute('aria-label', 'Open navigation');
+    if (sidebar?.id) toggle.setAttribute('aria-controls', sidebar.id);
+    toggle.setAttribute('aria-expanded', String(!!sidebar?.classList.contains('open')));
+    if (!toggle.dataset.accessibleMenuBound) {
+      toggle.dataset.accessibleMenuBound = 'true';
+      toggle.addEventListener('click', () => {
+        window.setTimeout(() => toggle.setAttribute('aria-expanded', String(!!sidebar?.classList.contains('open'))), 0);
+      });
+    }
+  });
+  document.querySelectorAll('.topbar-actions').forEach(group => {
+    const visibleActions = [...group.children].filter(item => !item.hidden && item.style.display !== 'none');
+    group.classList.toggle('topbar-actions-many', visibleActions.length > 2);
+  });
+  document.documentElement.dataset.shellReady = 'true';
+}
+const NAV_ICONS = {
+  home: '<svg viewBox="0 0 24 24"><path d="M3.5 10.8 12 3.7l8.5 7.1v8.5a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7Z"/><path d="M9 21v-7h6v7"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.4 2"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/></svg>',
+  certificate: '<svg viewBox="0 0 24 24"><path d="M7 3.5h8l4 4v13H7Z"/><path d="M15 3.5v4h4M10 12h6M10 16h6"/></svg>',
+  review: '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/><path d="M19 12v7H5V5h9"/></svg>',
+  chart: '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>',
+  users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20c.4-4 2.5-6 6.2-6s5.8 2 6.2 6"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.6M17 14c2.4.5 3.8 2.5 4.2 6"/></svg>',
+  clients: '<svg viewBox="0 0 24 24"><path d="M4 21V6.5h10V21M14 10h6v11M7.5 10h3M7.5 14h3M7.5 18h3M17 14h1M17 18h1"/></svg>',
+  switch: '<svg viewBox="0 0 24 24"><path d="M4 7h15M16 4l3 3-3 3M20 17H5M8 14l-3 3 3 3"/></svg>',
+  convert: '<svg viewBox="0 0 24 24"><path d="M4 7h13M14 4l3 3-3 3M20 17H7M10 14l-3 3 3 3"/></svg>'
+};
+
+const NAVIGATION_CONTEXTS = {
+  workspace: [
+    { label: 'Daily work', items: [
+      ['Dashboard', 'dashboard.html', 'home'], ['Log time', 'timesheet.html', 'clock'], ['My work', 'my-timesheets.html', 'list'],
+      ['Attendance', 'attendance.html', 'calendar', 'attendance.view_reports,attendance.view_own,attendance.create_own,staff.view'],
+      ['UDIN tracker', 'udin.html', 'certificate', 'udin.dashboard.view,udin.view_own,udin.create,udin.review,udin.update,udin.revoke']
+    ]},
+    { label: 'Review', permissions: 'approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view', items: [
+      ['Approvals', 'approvals.html', 'review', 'approvals.view_manager_queue,approvals.view_partner_queue'], ['Reports', 'reports.html', 'chart', 'reports.view,feedback.view']
+    ]},
+    { label: 'Firm setup', permissions: 'firm.dashboard.view,modules.view', items: [
+      ['Firm dashboard', 'firm-dashboard.html', 'home', 'firm.dashboard.view'], ['Switch workspace', 'module-select.html', 'switch', 'modules.view']
+    ]}
+  ],
+  timesheet: [
+    { label: 'Daily work', items: [
+      ['Dashboard', 'dashboard.html', 'home'], ['Log time', 'timesheet.html', 'clock'], ['My work', 'my-timesheets.html', 'list'],
+      ['Attendance', 'attendance.html', 'calendar', 'attendance.view_reports,attendance.view_own,attendance.create_own,staff.view']
+    ]},
+    { label: 'Review', permissions: 'approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view', items: [
+      ['Approvals', 'approvals.html', 'review', 'approvals.view_manager_queue,approvals.view_partner_queue'], ['Reports', 'reports.html', 'chart', 'reports.view,feedback.view']
+    ]},
+    { label: 'Timesheet setup', items: [
+      ['Timesheet masters', 'timesheet-masters.html', 'settings', 'timesheets.masters.view'], ['Switch workspace', 'module-select.html', 'switch', 'modules.view']
+    ]}
+  ],
+  form15cb: [
+    { label: 'Form 15CB', items: [ ['Overview', 'form15cb.html', 'home'], ['Convert certificate', 'form15cb-convert.html', 'convert'], ['Transactions', 'form15cb-transactions.html', 'list'] ]},
+    { label: 'Setup', items: [ ['Masters', 'form15cb-masters.html', 'settings'], ['Switch workspace', 'module-select.html', 'switch'] ]}
+  ],
+  firm: [
+    { label: 'Firm control', items: [
+      ['Overview', 'firm-dashboard.html', 'home', 'firm.dashboard.view'], ['People & access', 'users.html', 'users', 'staff.view'],
+      ['Clients', 'clients.html', 'clients', 'clients.view'], ['Firm masters', 'firm-masters.html', 'settings', 'firm.dashboard.view']
+    ]},
+    { label: 'Workspaces', items: [ ['Switch workspace', 'module-select.html', 'switch', 'modules.view'] ]}
+  ]
+};
+
+function createSidebarHTML(context = 'workspace') {
+  const labels = { workspace: 'Practice management', timesheet: 'Timesheet', form15cb: 'Form 15CB', firm: 'Firm control' };
+  const sections = NAVIGATION_CONTEXTS[context] || NAVIGATION_CONTEXTS.workspace;
+  const navigation = sections.map(section => {
+    const sectionPermission = section.permissions ? ` data-permissions="${section.permissions}"` : '';
+    const items = section.items.map(([label, page, icon, permissions]) => {
+      const permissionAttr = permissions ? ` data-permissions="${permissions}"` : '';
+      return `<a class="nav-item" data-page="${page}" href="/${page}"${permissionAttr}><span class="nav-icon" aria-hidden="true">${NAV_ICONS[icon] || NAV_ICONS.list}</span><span class="nav-label">${label}</span></a>`;
+    }).join('');
+    return `<div class="nav-section"${sectionPermission}><span class="nav-section-label">${section.label}</span>${items}</div>`;
+  }).join('');
+
+  return `<div class="sidebar-logo"><a class="logo-mark" href="/module-select.html" aria-label="Samay workspace switcher"><div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div><div><div class="logo-text">Samay</div><div class="logo-sub">${labels[context]}</div></div></a></div><nav class="sidebar-nav" aria-label="Primary navigation">${navigation}</nav><div class="sidebar-footer"><div class="user-pill"><div class="user-avatar" id="sidebar-avatar" aria-hidden="true">A</div><div class="user-info"><div class="user-name" id="sidebar-user-name">-</div><div class="user-role" id="sidebar-user-role">-</div></div><button class="logout-btn" onclick="logout()" title="Sign out" aria-label="Sign out"><span aria-hidden="true">${NAV_ICONS.switch}</span></button></div></div>`;
 }
 
-// Canonical sidebar HTML — call this in each page's <aside>
-function SIDEBAR_HTML() {
-  return `
-    <div class="sidebar-logo">
-      <div class="logo-mark">
-        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
-        <div><div class="logo-text">Samay</div><div class="logo-sub">Practice Management</div></div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Workspace</span>
-      <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
-      <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
-      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
-      <a class="nav-item nav-item-udin" data-page="udin.html" href="/udin.html" data-permissions="udin.dashboard.view,udin.view_own,udin.create,udin.review,udin.update,udin.revoke"><span class="nav-icon" aria-hidden="true">#</span><span class="nav-label">UDIN Tracker</span></a>
-      <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
-      <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
-      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
-      <span class="nav-section-label" data-permissions="firm.dashboard.view,modules.view">Firm</span>
-      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
-      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">-</div>
-          <div class="user-role" id="sidebar-user-role">-</div>
-        </div>
-        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
-      </div>
-    </div>`;
-}
-
-function TIMESHEET_SIDEBAR_HTML() {
-  return `
-    <div class="sidebar-logo">
-      <div class="logo-mark">
-        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
-        <div><div class="logo-text">Samay</div><div class="logo-sub">Practice Management</div></div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Workspace</span>
-      <a class="nav-item nav-item-dashboard" data-page="dashboard.html" href="/dashboard.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item nav-item-timesheet" data-page="timesheet.html" href="/timesheet.html"><span class="nav-icon" aria-hidden="true">◔</span><span class="nav-label">Log Time</span></a>
-      <a class="nav-item nav-item-mine" data-page="my-timesheets.html" href="/my-timesheets.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">My Timesheets</span></a>
-      <a class="nav-item nav-item-timesheet-masters" data-page="timesheet-masters.html" href="/timesheet-masters.html" data-permissions="timesheets.masters.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Timesheet Masters</span></a>
-      <a class="nav-item nav-item-attendance" data-page="attendance.html" href="/attendance.html" data-permissions="attendance.view_reports,attendance.view_own,attendance.create_own,staff.view"><span class="nav-icon" aria-hidden="true">⧗</span><span class="nav-label">Attendance</span></a>
-      <a class="nav-item nav-item-udin" data-page="udin.html" href="/udin.html" data-permissions="udin.dashboard.view,udin.view_own,udin.create,udin.review,udin.update,udin.revoke"><span class="nav-icon" aria-hidden="true">#</span><span class="nav-label">UDIN Tracker</span></a>
-      <span class="nav-section-label" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue,reports.view,feedback.view">Management</span>
-      <a class="nav-item nav-item-approvals" data-page="approvals.html" href="/approvals.html" data-permissions="approvals.view_manager_queue,approvals.view_partner_queue"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
-      <a class="nav-item nav-item-reports" data-page="reports.html" href="/reports.html" data-permissions="reports.view,feedback.view"><span class="nav-icon" aria-hidden="true">◌</span><span class="nav-label">Reports</span></a>
-      <span class="nav-section-label" data-permissions="firm.dashboard.view,modules.view">Firm</span>
-      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
-      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">-</div>
-          <div class="user-role" id="sidebar-user-role">-</div>
-        </div>
-        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
-      </div>
-    </div>`;
-}
-
-// Sidebar HTML for Form 15CB module
-function FORM15CB_SIDEBAR_HTML() {
-  return `
-    <div class="sidebar-logo">
-      <div class="logo-mark">
-        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
-        <div><div class="logo-text">Samay</div><div class="logo-sub">Form 15CB</div></div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Form 15CB</span>
-      <a class="nav-item nav-item-form15cb-dashboard" data-page="form15cb.html" href="/form15cb.html"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item nav-item-form15cb-convert" data-page="form15cb-convert.html" href="/form15cb-convert.html"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Convert 15CB</span></a>
-      <a class="nav-item nav-item-form15cb-transactions" data-page="form15cb-transactions.html" href="/form15cb-transactions.html"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Transactions</span></a>
-      <span class="nav-section-label">Masters</span>
-      <a class="nav-item nav-item-form15cb-masters" data-page="form15cb-masters.html" href="/form15cb-masters.html"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Masters</span></a>
-      <span class="nav-section-label">Settings</span>
-      <a class="nav-item" href="/module-select.html"><span class="nav-icon" aria-hidden="true">⇦</span><span class="nav-label">Switch Module</span></a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">-</div>
-          <div class="user-role" id="sidebar-user-role">-</div>
-        </div>
-        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
-      </div>
-    </div>`;
-}
-
-function FIRM_SIDEBAR_HTML() {
-  return `
-    <div class="sidebar-logo">
-      <div class="logo-mark">
-        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
-        <div><div class="logo-text">Samay</div><div class="logo-sub">Firm Control</div></div>
-      </div>
-    </div>
-    <nav class="sidebar-nav">
-      <span class="nav-section-label">Firm</span>
-      <a class="nav-item nav-item-firm-dashboard" data-page="firm-dashboard.html" href="/firm-dashboard.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Firm Dashboard</span></a>
-      <a class="nav-item nav-item-firm-masters" data-page="firm-masters.html" href="/firm-masters.html" data-permissions="firm.dashboard.view"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Firm Masters</span></a>
-      <a class="nav-item nav-item-modules" data-page="module-select.html" href="/module-select.html" data-permissions="modules.view"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Go to Module</span></a>
-      <a class="nav-item nav-item-users" data-page="users.html" href="/users.html" data-permissions="staff.view"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label">Users</span></a>
-      <a class="nav-item nav-item-clients" data-page="clients.html" href="/clients.html" data-permissions="clients.view"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-label">Clients</span></a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">-</div>
-          <div class="user-role" id="sidebar-user-role">-</div>
-        </div>
-        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
-      </div>
-    </div>`;
-}
-
+function SIDEBAR_HTML() { return createSidebarHTML('workspace'); }
+function TIMESHEET_SIDEBAR_HTML() { return createSidebarHTML('timesheet'); }
+function FORM15CB_SIDEBAR_HTML() { return createSidebarHTML('form15cb'); }
+function FIRM_SIDEBAR_HTML() { return createSidebarHTML('firm'); }
 function getTaskTypes(includeInactive = false) {
   return getWorkCategories(includeInactive).map(item => item.label);
 }

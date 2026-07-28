@@ -165,12 +165,12 @@
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
         <div>
           <div class="topbar-title">UDIN Tracker</div>
-          <div class="report-topbar-subtitle">AppSheet-style request register and right-side data entry panel.</div>
+          <div class="report-topbar-subtitle">Requests, review, issue, and signed-copy tracking in one controlled workflow.</div>
         </div>
       </div>
       <div class="topbar-actions">
-        <a href="/module-select.html" class="btn btn-ghost btn-sm" data-module-switcher="true"><span class="btn-symbol" aria-hidden="true">&#8646;</span><span class="btn-label">Modules</span></a>
-        <button class="btn btn-ghost btn-sm" onclick="loadUdins()">Refresh</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="loadUdins()">Refresh</button>
+        <button class="btn btn-primary btn-sm" type="button" onclick="startNewUdinRequest()">+ New request</button>
       </div>
     </header>
 
@@ -179,9 +179,9 @@
         <div class="udin-hero-top">
           <div>
             <div class="udin-kicker">UDIN Module</div>
-            <h1 class="udin-title">Add UDIN request for Approval</h1>
+            <h1 class="udin-title">UDIN operations</h1>
             <p class="udin-copy">
-              Keep the list and entry form on one screen, closer to the AppSheet workflow you shared.
+              Move each request from creation to review, issue, and signed copy without losing context.
             </p>
             <div class="udin-badges">
               <div class="udin-badge"><strong>Create</strong> request and calculated IDs</div>
@@ -202,12 +202,12 @@
         <div class="stat-card blue"><div class="stat-label">Revocable</div><div class="stat-value" id="stat-revocable">0</div><div class="stat-sub">Within 3 days of generation</div></div>
       </div>
 
-      <section class="udin-section udin-grid">
+      <section class="udin-section udin-grid" id="udin-workspace-grid">
         <div class="card udin-list" id="requests-section">
           <div class="card-header" style="align-items:flex-end;flex-wrap:wrap;">
             <div>
               <div class="card-title">UDIN Requests</div>
-              <div class="card-subtitle">AppSheet-style request list with the key workflow fields visible in one grid.</div>
+              <div class="card-subtitle">Search and filter the request register, then open a record only when you need to act.</div>
             </div>
           </div>
           <div class="udin-toolbar">
@@ -265,11 +265,11 @@
           </div>
         </div>
 
-        <div class="card" id="create-section">
+        <div class="card" id="create-section" hidden>
           <div class="card-header appsheet-panel-title" style="align-items:flex-end;flex-wrap:wrap;">
             <div>
-              <div class="card-title" id="detail-title">Data Entry Form</div>
-              <div class="card-subtitle" id="detail-subtitle">New items start in the reviewer queue.</div>
+              <div class="card-title" id="detail-title">New UDIN request</div>
+              <div class="card-subtitle" id="detail-subtitle">Complete the required details, then send the request for review.</div>
             </div>
             <div class="appsheet-drawer-actions">
               <button class="btn btn-ghost btn-sm" type="button" onclick="cancelDetailPanel()">Cancel</button>
@@ -370,11 +370,7 @@ if (!hasPermission('udin.dashboard.view') && !hasPermission('udin.view_own') && 
   window.location.replace(getDefaultLandingPage());
 }
 
-document.getElementById('sidebar-el').innerHTML = UDIN_SIDEBAR_HTML();
-document.getElementById('sidebar-el').classList.add('udin-appsheet-sidebar');
-buildSidebar();
-initUdinSidebarActions();
-syncUdinSidebarActive();
+
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 window.addEventListener('hashchange', syncUdinSidebarActive);
 
@@ -575,28 +571,32 @@ function udinNavIcon(name) {
 
 function UDIN_SIDEBAR_HTML() {
   return `
-    <nav class="sidebar-nav">
-      <a class="nav-item" href="#overview-section" data-nav-key="dashboard" data-hash="#overview-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('home')}</span><span class="nav-label">Dashboard</span></a>
-      <a class="nav-item" href="#requests-section" data-nav-key="udin-not-updated" data-hash="#requests-section" data-scope="updates"><span class="nav-icon" aria-hidden="true">${udinNavIcon('list')}</span><span class="nav-label">UDIN not updated</span></a>
-      <a class="nav-item" href="#requests-section" data-nav-key="udin-data" data-hash="#requests-section" data-scope="all"><span class="nav-icon" aria-hidden="true">${udinNavIcon('laptop')}</span><span class="nav-label">UDIN Data</span></a>
-      <a class="nav-item" href="#expiry-section" data-nav-key="udin-expiry" data-hash="#expiry-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('flag')}</span><span class="nav-label">UDIN Expiry Tracker</span></a>
-      <a class="nav-item" href="#create-section" data-nav-key="add-request" data-hash="#create-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('hand')}</span><span class="nav-label">Add UDIN request for Approval</span></a>
-      <a class="nav-item" href="#audit-section" data-nav-key="audit-tracker" data-hash="#audit-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('calc')}</span><span class="nav-label">Audit Tracker</span></a>
-      <a class="nav-item" href="#requests-section" data-nav-key="approve-assignment" data-hash="#requests-section" data-scope="review"><span class="nav-icon" aria-hidden="true">${udinNavIcon('check')}</span><span class="nav-label">Approve assignment</span></a>
-      <a class="nav-item" href="#update-udin-section" data-nav-key="update-udin" data-hash="#update-udin-section" data-focus="udin-value"><span class="nav-icon" aria-hidden="true">${udinNavIcon('bolt')}</span><span class="nav-label">Update UDIN Data</span></a>
-      <a class="nav-item" href="#upload-signed-section" data-nav-key="upload-signed" data-hash="#upload-signed-section" data-focus="copy-of-certificate"><span class="nav-icon" aria-hidden="true">${udinNavIcon('upload')}</span><span class="nav-label">Upload Signed Copy</span></a>
+    <div class="sidebar-logo">
+      <a class="logo-mark" href="/module-select.html" aria-label="Samay workspace switcher">
+        <div class="logo-icon"><img src="/icons/samay-icon.svg" alt="" width="42" height="42"></div>
+        <div><div class="logo-text">Samay</div><div class="logo-sub">UDIN tracker</div></div>
+      </a>
+    </div>
+    <nav class="sidebar-nav" aria-label="UDIN workflow">
+      <div class="nav-section">
+        <span class="nav-section-label">Overview</span>
+        <a class="nav-item" href="#overview-section" data-nav-key="dashboard" data-hash="#overview-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('home')}</span><span class="nav-label">Dashboard</span></a>
+        <a class="nav-item" href="#requests-section" data-nav-key="udin-data" data-hash="#requests-section" data-scope="all"><span class="nav-icon" aria-hidden="true">${udinNavIcon('list')}</span><span class="nav-label">Request register</span></a>
+        <a class="nav-item" href="#create-section" data-nav-key="add-request" data-hash="#create-section"><span class="nav-icon" aria-hidden="true">${udinNavIcon('hand')}</span><span class="nav-label">Create request</span></a>
+      </div>
+      <div class="nav-section">
+        <span class="nav-section-label">Review & complete</span>
+        <a class="nav-item" href="#requests-section" data-nav-key="approve-assignment" data-hash="#requests-section" data-scope="review"><span class="nav-icon" aria-hidden="true">${udinNavIcon('check')}</span><span class="nav-label">Review queue</span></a>
+        <a class="nav-item" href="#requests-section" data-nav-key="update-udin" data-hash="#requests-section" data-scope="updates"><span class="nav-icon" aria-hidden="true">${udinNavIcon('bolt')}</span><span class="nav-label">Completion queue</span></a>
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div class="user-pill">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">User</div>
-          <div class="user-role" id="sidebar-user-role">Role</div>
-        </div>
-        <button class="logout-btn" onclick="logout()" title="Logout">&#x21AA;</button>
+        <div class="user-avatar" id="sidebar-avatar" aria-hidden="true">A</div>
+        <div class="user-info"><div class="user-name" id="sidebar-user-name">User</div><div class="user-role" id="sidebar-user-role">Role</div></div>
+        <button class="logout-btn" onclick="logout()" title="Sign out" aria-label="Sign out"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10"/></svg></span></button>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 function initUdinSidebarActions() {
@@ -607,6 +607,12 @@ function initUdinSidebarActions() {
       const hash = link.dataset.hash || '#overview-section';
       const scope = link.dataset.scope;
       sessionStorage.setItem('ts_udin_nav_key', key);
+
+      if (key === 'add-request') {
+        startNewUdinRequest();
+        syncUdinSidebarActive();
+        return;
+      }
 
       if (scope && document.getElementById('scope-filter')) {
         document.getElementById('scope-filter').value = scope;
@@ -636,8 +642,13 @@ function syncUdinSidebarActive() {
   };
   const storedKey = sessionStorage.getItem('ts_udin_nav_key') || 'dashboard';
   const activeKey = hash === '#requests-section' || hash === '#create-section' ? storedKey : (map[hash] || storedKey);
-  document.querySelectorAll('.sidebar [data-nav-key]').forEach(el => el.classList.remove('active'));
-  document.querySelector(`.sidebar [data-nav-key="${activeKey}"]`)?.classList.add('active');
+  document.querySelectorAll('.sidebar [data-nav-key]').forEach(el => {
+    el.classList.remove('active');
+    el.removeAttribute('aria-current');
+  });
+  const activeNavItem = document.querySelector(`.sidebar [data-nav-key="${activeKey}"]`);
+  activeNavItem?.classList.add('active');
+  activeNavItem?.setAttribute('aria-current', 'page');
 }
 
 document.getElementById('sidebar-el').innerHTML = UDIN_SIDEBAR_HTML();
@@ -694,8 +705,8 @@ function clearForm() {
   document.getElementById('detail-status').textContent = '-';
   document.getElementById('detail-internal-ref').textContent = '-';
   document.getElementById('detail-revocable').textContent = '-';
-  document.getElementById('detail-title').textContent = 'Data Entry Form';
-  document.getElementById('detail-subtitle').textContent = 'New items start in the reviewer queue.';
+  document.getElementById('detail-title').textContent = 'New UDIN request';
+  document.getElementById('detail-subtitle').textContent = 'Complete the required details, then send the request for review.';
   document.getElementById('save-request-btn').textContent = 'Confirm';
   document.getElementById('drawer-confirm-btn').textContent = 'Confirm';
   document.getElementById('file-list').innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Select a request to see attachments.</div>';
@@ -706,18 +717,35 @@ function clearForm() {
   selectedItem = null;
 }
 
+function setDetailPanelOpen(isOpen) {
+  const panel = document.getElementById('create-section');
+  const grid = document.getElementById('udin-workspace-grid');
+  panel.hidden = !isOpen;
+  grid.classList.toggle('detail-panel-open', isOpen);
+}
+
+function startNewUdinRequest() {
+  clearForm();
+  setDetailPanelOpen(true);
+  document.getElementById('detail-title').textContent = 'New UDIN request';
+  document.getElementById('detail-subtitle').textContent = 'Complete the required details, then send the request for review.';
+  document.getElementById('original-revised').focus();
+  document.getElementById('create-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function cancelDetailPanel() {
   clearForm();
+  setDetailPanelOpen(false);
 }
 
 function fillForm(item) {
+  setDetailPanelOpen(true);
   document.getElementById('selected-id').value = item.id || '';
   document.getElementById('sr-no').value = item.id || 'Auto';
   document.getElementById('detail-id').textContent = item.id || '-';
   document.getElementById('detail-status').textContent = item.approval_status || item.workflow_status || '-';
   document.getElementById('detail-internal-ref').textContent = item.internal_reference_for_udin || '-';
   document.getElementById('detail-revocable').textContent = item.revocable ? 'Yes' : 'No';
-  document.getElementById('detail-title').textContent = 'Data Entry Form';
+  document.getElementById('detail-title').textContent = 'Request details';
   document.getElementById('detail-subtitle').textContent = item.unique_id || item.entity_name || 'Selected request';
   document.getElementById('save-request-btn').textContent = 'Update Request';
   document.getElementById('drawer-confirm-btn').textContent = 'Update';
@@ -863,9 +891,7 @@ async function loadUdins() {
     renderRows(currentItems);
     setSync(`Updated ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, 'success');
     await loadSummary();
-    if (!selectedItem && currentItems.length) {
-      selectRequest(currentItems[0].id);
-    } else if (selectedItem) {
+    if (selectedItem) {
       const refreshed = currentItems.find(item => item.id === selectedItem.id);
       if (refreshed) fillForm(refreshed);
     }

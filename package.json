@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "test": "node scripts/validate-revamp.js",
     "start": "node server.js",
     "dev": "node server.js"
   },

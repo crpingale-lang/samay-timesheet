@@ -30,7 +30,6 @@
         <div class="topbar-title">Masters</div>
       </div>
       <div class="topbar-actions">
-        <a href="/form15cb.html" class="btn btn-ghost btn-sm">← Dashboard</a>
       </div>
     </header>
 
@@ -164,7 +163,7 @@ requireAuth();
 document.getElementById('sidebar-el').innerHTML = FORM15CB_SIDEBAR_HTML();
 buildSidebar();
 
-const API = '/api/form15cb';
+const FORM15CB_API = '/api/form15cb';
 const token = getToken();
 const H = { 'Authorization': `Bearer ${token}` };
 const HJ = { ...H, 'Content-Type':'application/json' };
@@ -191,19 +190,19 @@ async function loadTab(tab) { window['load' + cap(tab)](); }
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 async function apiGet(path) {
-  const res = await fetch(`${API}/${path}`, { headers: H });
+  const res = await fetch(`${FORM15CB_API}/${path}`, { headers: H });
   return res.json();
 }
 async function apiPost(path, data) {
-  const res = await fetch(`${API}/${path}`, { method:'POST', headers:HJ, body:JSON.stringify(data) });
+  const res = await fetch(`${FORM15CB_API}/${path}`, { method:'POST', headers:HJ, body:JSON.stringify(data) });
   return res.json();
 }
 async function apiPut(path, data) {
-  const res = await fetch(`${API}/${path}`, { method:'PUT', headers:HJ, body:JSON.stringify(data) });
+  const res = await fetch(`${FORM15CB_API}/${path}`, { method:'PUT', headers:HJ, body:JSON.stringify(data) });
   return res.json();
 }
 async function apiDel(path) {
-  const res = await fetch(`${API}/${path}`, { method:'DELETE', headers:H });
+  const res = await fetch(`${FORM15CB_API}/${path}`, { method:'DELETE', headers:H });
   return res.json();
 }
 

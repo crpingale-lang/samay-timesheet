@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Access Management - Samay</title>
+  <title>People & Access - Samay</title>
   <link rel="icon" href="/icons/samay-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/revamp.css">
@@ -88,7 +88,7 @@
     <header class="topbar">
       <div style="display:flex;align-items:center;gap:10px;">
         <button class="hamburger" onclick="openSidebar()" aria-label="Open navigation">&#9776;</button>
-        <div class="topbar-title">Access Management</div>
+        <div class="topbar-title">People & Access</div>
       </div>
       <button class="btn btn-primary btn-sm" id="add-user-btn" onclick="openAddModal()">+ Add User</button>
     </header>
@@ -134,7 +134,7 @@
         <div class="card-header">
           <div class="search-bar list-search">
             <input class="form-control" type="text" id="user-search" placeholder="Search users..." oninput="queueUserSearch()" style="padding-left:34px;">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;">Search</span>
+            <span class="search-leading-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></span>
           </div>
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end;">
             <div class="user-status-filter" id="user-status-filter">

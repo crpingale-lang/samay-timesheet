@@ -35,7 +35,6 @@
       </div>
       <div class="topbar-actions">
         <a href="/form15cb-convert.html" class="btn btn-primary btn-sm">+ New</a>
-        <a href="/form15cb.html" class="btn btn-ghost btn-sm">← Dashboard</a>
       </div>
     </header>
 
@@ -100,7 +99,7 @@ requireAuth();
 document.getElementById('sidebar-el').innerHTML = FORM15CB_SIDEBAR_HTML();
 buildSidebar();
 
-const API   = '/api/form15cb';
+const FORM15CB_API = '/api/form15cb';
 const token = getToken();
 const H     = { 'Authorization': `Bearer ${token}` };
 
@@ -110,7 +109,7 @@ let filtered = [];
 // ── Load transactions ────────────────────────────────────────────────────
 async function loadTransactions() {
   try {
-    const res  = await fetch(`${API}/transactions?limit=200`, { headers: H });
+    const res  = await fetch(`${FORM15CB_API}/transactions?limit=200`, { headers: H });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     allTx = data;
@@ -181,7 +180,7 @@ async function viewTx(id) {
   document.getElementById('drawer-content').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Loading…</div>';
   openDrawer();
   try {
-    const res  = await fetch(`${API}/transactions/${id}`, { headers: H });
+    const res  = await fetch(`${FORM15CB_API}/transactions/${id}`, { headers: H });
     const tx   = await res.json();
     if (tx.error) throw new Error(tx.error);
 
@@ -251,7 +250,7 @@ async function downloadTx(id) {
   try {
     let tx = window._currentTx && window._currentTx.id === id ? window._currentTx : null;
     if (!tx) {
-      const res = await fetch(`${API}/transactions/${id}`, { headers: H });
+      const res = await fetch(`${FORM15CB_API}/transactions/${id}`, { headers: H });
       tx = await res.json();
     }
     const blob = new Blob([JSON.stringify(tx.form146, null, 2)], { type:'application/json' });
@@ -279,7 +278,7 @@ async function downloadReport(id) {
 async function deleteTx(id) {
   if (!confirm('Delete this transaction? This cannot be undone.')) return;
   try {
-    const res = await fetch(`${API}/transactions/${id}`, { method:'DELETE', headers: H });
+    const res = await fetch(`${FORM15CB_API}/transactions/${id}`, { method:'DELETE', headers: H });
     const d = await res.json();
     if (d.error) throw new Error(d.error);
     toast('Transaction deleted','success');

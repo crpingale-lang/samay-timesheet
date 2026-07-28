@@ -99,6 +99,18 @@ const APP_PERMISSION_GROUPS = [
       { key: 'dashboard.view_team', label: 'Team View' },
       { key: 'dashboard.view_firm', label: 'Firm View' }
     ]
+  },
+  {
+    key: 'udin',
+    label: 'UDIN Tracker',
+    permissions: [
+      { key: 'udin.view_own', label: 'View Own' },
+      { key: 'udin.create', label: 'Create' },
+      { key: 'udin.update', label: 'Update' },
+      { key: 'udin.review', label: 'Review' },
+      { key: 'udin.revoke', label: 'Revoke' },
+      { key: 'udin.dashboard.view', label: 'Dashboard' }
+    ]
   }
 ];
 
@@ -159,7 +171,13 @@ function getDefaultPermissions(role) {
       'attendance.view_reports',
       'attendance.approve_corrections',
       'dashboard.view_self',
-      'dashboard.view_team'
+      'dashboard.view_team',
+      'udin.view_own',
+      'udin.create',
+      'udin.update',
+      'udin.review',
+      'udin.revoke',
+      'udin.dashboard.view'
     ];
   }
   return [
@@ -172,7 +190,10 @@ function getDefaultPermissions(role) {
     'timesheets.submit_own',
     'attendance.view_own',
     'attendance.create_own',
-    'dashboard.view_self'
+    'dashboard.view_self',
+    'udin.view_own',
+    'udin.create',
+    'udin.dashboard.view'
   ];
 }
 

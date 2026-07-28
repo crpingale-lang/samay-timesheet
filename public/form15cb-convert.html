@@ -59,7 +59,6 @@
         <div class="topbar-title">Convert Form 15CB</div>
       </div>
       <div class="topbar-actions">
-        <a href="/form15cb.html" class="btn btn-ghost btn-sm">← Dashboard</a>
       </div>
     </header>
 
@@ -180,7 +179,7 @@ document.getElementById('ws4').textContent = '4 Mapping';
 document.querySelector('#step4 .card-title').textContent = 'Mapping Comparison';
 document.querySelector('#step4 .card-subtitle').textContent = 'Review XML values, mapped JSON values, and company-template fallbacks before generating';
 
-const API = '/api/form15cb';
+const FORM15CB_API = '/api/form15cb';
 const token = getToken();
 const authHeaders = { 'Authorization': `Bearer ${token}` };
 const fileInput = document.getElementById('xml-file');
@@ -277,7 +276,7 @@ async function parseXml() {
   try {
     const fd = new FormData();
     fd.append('xml', state.file);
-    const res  = await fetch(`${API}/parse`, { method:'POST', headers: authHeaders, body: fd });
+    const res  = await fetch(`${FORM15CB_API}/parse`, { method:'POST', headers: authHeaders, body: fd });
     const data = await readJsonResponse(res);
     if (data.error) throw new Error(data.error);
 
@@ -421,7 +420,7 @@ function renderRemitteeHistory() {
 // ── Load partners for dropdown ────────────────────────────────────────────
 async function loadPartners(preferredId = '') {
   try {
-    const res  = await fetch(`${API}/partners`, { headers: authHeaders });
+    const res  = await fetch(`${FORM15CB_API}/partners`, { headers: authHeaders });
     const data = await res.json();
     const sel  = document.getElementById('partner-select');
     if (Array.isArray(data) && data.length) {
@@ -489,7 +488,7 @@ async function doConvert() {
       firmId,
       xmlFilename:   state.filename,
     };
-    const res  = await fetch(`${API}/convert`, {
+    const res  = await fetch(`${FORM15CB_API}/convert`, {
       method: 'POST',
       headers: { ...authHeaders, 'Content-Type':'application/json' },
       body: JSON.stringify(body),
@@ -595,7 +594,7 @@ async function loadPreview() {
 
   try {
     const firmId = document.getElementById('partner-select')?.value || '';
-    const res = await fetch(`${API}/preview`, {
+    const res = await fetch(`${FORM15CB_API}/preview`, {
       method: 'POST',
       headers: { ...authHeaders, 'Content-Type':'application/json' },
       body: JSON.stringify({
@@ -638,7 +637,7 @@ doConvert = async function() {
       firmId,
       xmlFilename:   state.filename,
     };
-    const res  = await fetch(`${API}/convert`, {
+    const res  = await fetch(`${FORM15CB_API}/convert`, {
       method: 'POST',
       headers: { ...authHeaders, 'Content-Type':'application/json' },
       body: JSON.stringify(body),

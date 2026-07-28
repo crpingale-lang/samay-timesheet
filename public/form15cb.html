@@ -19,7 +19,6 @@
         <div class="topbar-title">Form 15CB Dashboard</div>
       </div>
       <div class="topbar-actions">
-        <a href="/module-select.html" class="btn btn-ghost btn-sm"><span class="btn-symbol">⇆</span><span class="btn-label">Modules</span></a>
         <a href="/form15cb-convert.html" class="btn btn-primary btn-sm"><span class="btn-symbol">+</span><span class="btn-label">New Conversion</span></a>
       </div>
     </header>
@@ -82,13 +81,13 @@ requireAuth();
 document.getElementById('sidebar-el').innerHTML = FORM15CB_SIDEBAR_HTML();
 buildSidebar();
 
-const API = '/api/form15cb';
+const FORM15CB_API = '/api/form15cb';
 const token = getToken();
 const headers = { 'Authorization': `Bearer ${token}` };
 
 async function loadDashboard() {
   try {
-    const res  = await fetch(`${API}/analytics`, { headers });
+    const res  = await fetch(`${FORM15CB_API}/analytics`, { headers });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
