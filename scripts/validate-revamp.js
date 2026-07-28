@@ -90,6 +90,12 @@ check('SQLite and Firebase UDIN route guards remain represented', () => {
   }
 });
 
+check('dialogs use the shared responsive spacing contract', () => {
+  const css = fs.readFileSync(path.join(publicDir, 'css', 'revamp.css'), 'utf8');
+  for (const token of ['--dialog-edge-gap', '--dialog-gutter', '.modal>form', '.modal>.modal-actions']) {
+    assert(css.includes(token), `dialog spacing contract missing ${token}`);
+  }
+});
 if (failures.length) {
   process.stderr.write(`\n${failures.length} validation check(s) failed.\n`);
   process.exit(1);

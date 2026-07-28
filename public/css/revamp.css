@@ -117,3 +117,30 @@ body:before{content:"";position:fixed;z-index:-1;inset:0;pointer-events:none;opa
 #udin-workspace-grid:not(.detail-panel-open){grid-template-columns:minmax(0,1fr)}#create-section[hidden]{display:none!important}.udin-grid.detail-panel-open{grid-template-columns:minmax(0,1.55fr) minmax(360px,.85fr)}@media(max-width:1100px){.udin-grid.detail-panel-open{grid-template-columns:1fr}}
 
 .search-leading-icon{position:absolute;left:11px;top:50%;display:grid;place-items:center;width:16px;height:16px;color:#6f858b;transform:translateY(-50%);pointer-events:none}.search-leading-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+
+/* Dialog spacing contract */
+:root{--dialog-edge-gap:24px;--dialog-gutter:30px;--dialog-block-gap:24px}
+.modal-overlay{padding:var(--dialog-edge-gap);box-sizing:border-box}
+.modal{width:min(100%,620px);max-height:calc(100dvh - (var(--dialog-edge-gap) * 2))}
+.modal-header{padding:28px var(--dialog-gutter) 22px}
+.modal-body{padding:26px var(--dialog-gutter) 30px}
+.modal>form{padding:26px var(--dialog-gutter) 30px}
+.modal>.form-group{margin-inline:var(--dialog-gutter)}
+.modal>.modal-header+.form-group{margin-top:26px}
+.modal>.alert{margin-inline:var(--dialog-gutter)}
+.modal>.modal-header+.alert{margin-top:26px}
+.modal>[id^="import-step"]{padding:26px var(--dialog-gutter) 30px}
+.modal .modal-actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.modal form>.modal-actions,.modal .modal-body>.modal-actions{margin-top:var(--dialog-block-gap);padding-top:22px;border-top:1px solid var(--border)}
+.modal>.modal-actions,.modal>.attendance-modal-actions{margin:0;padding:22px var(--dialog-gutter) 30px;border-top:1px solid var(--border)}
+.modal>[id^="import-step"]>.modal-actions{margin-top:var(--dialog-block-gap);padding-top:22px;border-top:1px solid var(--border)}
+@media(max-width:768px){
+  :root{--dialog-edge-gap:10px;--dialog-gutter:20px;--dialog-block-gap:20px}
+  .modal-overlay{align-items:flex-end;padding:max(12px,env(safe-area-inset-top,0px)) var(--dialog-edge-gap) 0}
+  .modal{width:100%;height:auto;max-height:calc(100dvh - 12px);border-radius:22px 22px 0 0;border:1px solid rgba(255,255,255,.78);border-bottom:0;padding:0 0 env(safe-area-inset-bottom,0px)}
+  .modal-header{padding:20px var(--dialog-gutter) 16px}
+  .modal-body,.modal>form,.modal>[id^="import-step"]{padding:20px var(--dialog-gutter) 24px}
+  .modal>.modal-header+.form-group,.modal>.modal-header+.alert{margin-top:20px}
+  .modal>.modal-actions,.modal>.attendance-modal-actions{padding:18px var(--dialog-gutter) calc(20px + env(safe-area-inset-bottom,0px))}
+  .modal form>.modal-actions,.modal .modal-body>.modal-actions,.modal>[id^="import-step"]>.modal-actions{padding-top:18px}
+}
