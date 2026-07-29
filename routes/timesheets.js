@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../js/database');
 const { hasPermission } = require('../js/permissions');
+const { buildDayContext, buildTodayActions } = require('../functions/lib/today-actions');
 
-const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 const dashboardCache = new Map();
 
 function requirePermission(req, res, permission) {
@@ -441,13 +442,13 @@ router.get('/dashboard-summary', (req, res) => {
       const userId = req.user.id;
       const userEntries = attachCollaborators(db.prepare(`${entryBaseSelect} WHERE t.user_id = ? ORDER BY t.entry_date DESC, t.created_at DESC`).all(userId));
 
-      const todayHours = userEntries
-        .filter(entry => entry.entry_date === today)
-        .reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
+      const todayEntries = userEntries.filter(entry => entry.entry_date === today);
+      const todayHours = todayEntries.reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
       const weekHours = userEntries
         .filter(entry => entry.entry_date >= weekBounds.from && entry.entry_date <= weekBounds.to)
         .reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
       const draftCount = userEntries.filter(entry => entry.status === 'draft').length;
+      const rejectedCount = userEntries.filter(entry => entry.status === 'rejected').length;
       const weekBreakdown = [0, 0, 0, 0, 0, 0, 0];
 
       userEntries.forEach(entry => {
@@ -488,8 +489,58 @@ router.get('/dashboard-summary', (req, res) => {
         WHERE target_user_id = ? AND status = 'pending'
       `).get(userId).cnt;
 
+      const holiday = db.prepare(`
+        SELECT title FROM timesheet_holidays
+        WHERE holiday_date = ? AND active = 1
+        LIMIT 1
+      `).get(today);
+      const dayContext = buildDayContext({ today, holiday_title: holiday?.title || '' });
+
+      const canUseAttendance = hasPermission(req.user, 'attendance.view_own') || hasPermission(req.user, 'attendance.create_own');
+      const attendanceRecord = canUseAttendance
+        ? db.prepare('SELECT entry_time, exit_time, attendance_status FROM attendance_records WHERE user_id = ? AND attendance_date = ? LIMIT 1').get(userId, today)
+        : null;
+      const attendance = {
+        status: !canUseAttendance
+          ? 'not_available'
+          : attendanceRecord?.exit_time
+            ? 'checked_out'
+            : attendanceRecord?.entry_time
+              ? 'checked_in'
+              : 'not_checked_in',
+        entry_time: attendanceRecord?.entry_time || null,
+        exit_time: attendanceRecord?.exit_time || null
+      };
+
+      const pendingAttendanceCorrections = hasPermission(req.user, 'attendance.approve_corrections')
+        ? db.prepare("SELECT COUNT(*) AS count FROM attendance_corrections WHERE status = 'pending'").get().count
+        : 0;
+      const pendingUdinReviews = hasPermission(req.user, 'udin.review')
+        ? db.prepare("SELECT COUNT(*) AS count FROM udin_requests WHERE workflow_status = 'pending_review'").get().count
+        : 0;
+
+      const actions = buildTodayActions({
+        today,
+        permissions: req.user.permissions,
+        day_context: dayContext,
+        today_entry_count: todayEntries.length,
+        draft_count: draftCount,
+        rejected_count: rejectedCount,
+        pending_approvals: pendingApprovals,
+        collaboration_requests: collaborationCount,
+        attendance,
+        pending_attendance_corrections: pendingAttendanceCorrections,
+        pending_udin_reviews: pendingUdinReviews
+      });
+
       return {
         today,
+        today_entry_count: todayEntries.length,
+        rejected_count: rejectedCount,
+        attendance,
+        day_context: dayContext,
+        actions,
+        generated_at: new Date().toISOString(),
         week_from: weekBounds.from,
         week_to: weekBounds.to,
         today_hours: todayHours,

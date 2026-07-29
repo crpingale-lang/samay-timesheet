@@ -27,6 +27,45 @@
     </header>
     <div class="page-content">
 
+      <section class="today-command-card" aria-labelledby="today-focus-title">
+        <div class="today-command-header">
+          <div class="today-command-copy">
+            <div class="today-kicker">Today command centre</div>
+            <h1 id="today-focus-title">Loading your priorities</h1>
+            <p id="today-focus-description">Checking current workflow states across your workspace.</p>
+            <div class="today-day-context" id="today-day-context">Live workspace summary</div>
+          </div>
+          <button class="btn btn-outline btn-sm" type="button" id="refresh-dashboard-btn" onclick="loadStats({ force: true })">Refresh</button>
+        </div>
+        <div class="today-action-list" id="today-action-list" aria-live="polite" aria-busy="true">
+          <div class="today-action-skeleton"></div>
+          <div class="today-action-skeleton"></div>
+        </div>
+      </section>
+
+      <section class="today-context-grid" aria-label="Today's work context">
+        <article class="today-context-item">
+          <div class="today-context-label">Today's time</div>
+          <div class="today-context-value" id="context-today-hours">--</div>
+          <div class="today-context-meta" id="context-today-meta">No entries yet</div>
+        </article>
+        <article class="today-context-item">
+          <div class="today-context-label">This week</div>
+          <div class="today-context-value" id="context-week-hours">--</div>
+          <div class="today-context-meta">Current week total</div>
+        </article>
+        <article class="today-context-item">
+          <div class="today-context-label">Attendance</div>
+          <div class="today-context-value today-context-value-text" id="context-attendance">Checking</div>
+          <div class="today-context-meta" id="context-attendance-meta">Today's state</div>
+        </article>
+        <article class="today-context-item">
+          <div class="today-context-label">Open drafts</div>
+          <div class="today-context-value" id="context-drafts">--</div>
+          <div class="today-context-meta">Saved, not submitted</div>
+        </article>
+      </section>
+
       <!-- Role-specific info bar -->
       <div id="role-info-bar" style="margin-bottom:16px;"></div>
       <div class="stats-grid">
@@ -39,7 +78,7 @@
       <div class="grid-2">
         <div class="card">
           <div class="card-header">
-            <div><div class="card-title">Recent Entries</div><div class="card-subtitle">Last 10 timesheet entries</div></div>
+            <div><div class="card-title">Recent work</div><div class="card-subtitle">Your latest timesheet activity</div></div>
             <a href="/my-timesheets.html" class="btn btn-ghost btn-sm">View All</a>
           </div>
           <div class="table-wrapper">
@@ -94,20 +133,84 @@ const msgs = {
 const m = msgs[user?.role];
 if (m) infoBar.innerHTML = `<div class="alert ${m.cls}">${m.txt}</div>`;
 let weekChart;
-const DASHBOARD_CACHE_VERSION = 2;
+const DASHBOARD_CACHE_VERSION = 3;
 
 function dashboardCacheKey() {
   return `dashboard-summary:v${DASHBOARD_CACHE_VERSION}:${user.id}:${today()}`;
 }
 
-function applyDashboardSummary(summary = {}) {
+
+function safeInternalActionHref(value) {
+  const href = String(value || '');
+  return href.startsWith('/') && !href.startsWith('//') ? href : '/dashboard.html';
+}
+
+function attendanceLabel(attendance = {}) {
+  const labels = {
+    checked_in: 'Checked in',
+    checked_out: 'Checked out',
+    not_checked_in: 'Not checked in',
+    not_available: 'Not available'
+  };
+  return labels[attendance.status] || 'Not available';
+}
+
+function renderTodayActions(summary = {}, { cached = false } = {}) {
+  const actions = Array.isArray(summary.actions) ? summary.actions : [];
+  const container = document.getElementById('today-action-list');
+  const focusTitle = document.getElementById('today-focus-title');
+  const focusDescription = document.getElementById('today-focus-description');
+  const dayContext = document.getElementById('today-day-context');
+  const first = actions[0];
+
+  container.setAttribute('aria-busy', 'false');
+  focusTitle.textContent = first?.id === 'review-today'
+    ? first.title
+    : actions.length
+      ? `${actions.length} ${actions.length === 1 ? 'priority' : 'priorities'} for today`
+      : 'You are clear for now';
+  focusDescription.textContent = first?.description || 'No open workflow exceptions need your attention.';
+
+  const generated = summary.generated_at ? new Date(summary.generated_at) : null;
+  const updatedLabel = generated && !Number.isNaN(generated.getTime())
+    ? `Updated ${generated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+    : 'Live workspace summary';
+  dayContext.textContent = `${summary.day_context?.label || 'Working day'} - ${cached ? 'saved snapshot' : updatedLabel}`;
+
+  if (!actions.length) {
+    container.innerHTML = `<div class="today-action-empty"><strong>No action required</strong><span>Use Refresh to check again.</span></div>`;
+    return;
+  }
+
+  container.innerHTML = actions.map(action => {
+    const count = action.count == null ? '' : `<span class="today-action-count">${Number(action.count) || 0}</span>`;
+    return `
+      <a class="today-action-item today-action-tone-${escapeHtml(action.tone || 'info')}" href="${escapeHtml(safeInternalActionHref(action.href))}">
+        <span class="today-action-marker" aria-hidden="true"></span>
+        <span class="today-action-copy">
+          <span class="today-action-title-row"><strong>${escapeHtml(action.title || 'Open task')}</strong>${count}</span>
+          <span class="today-action-description">${escapeHtml(action.description || '')}</span>
+        </span>
+        <span class="today-action-link">${escapeHtml(action.action_label || 'Open')}</span>
+      </a>`;
+  }).join('');
+}
+function applyDashboardSummary(summary = {}, options = {}) {
   document.getElementById('stat-today').textContent = fmtHours(summary?.today_hours);
   document.getElementById('stat-week').textContent = fmtHours(summary?.week_hours);
   document.getElementById('stat-pending').textContent = summary?.pending_approvals ?? 0;
   document.getElementById('stat-draft').textContent = summary?.draft_count ?? 0;
   renderRecentEntries(summary?.recent_entries || []);
+  renderTodayActions(summary, options);
   renderWeekChart(summary?.week_breakdown || Array(7).fill(0));
   renderUtilization(summary?.utilization || []);
+  document.getElementById('context-today-hours').textContent = fmtHours(summary?.today_hours);
+  document.getElementById('context-today-meta').textContent = summary?.today_entry_count
+    ? `${summary.today_entry_count} ${summary.today_entry_count === 1 ? 'entry' : 'entries'} recorded`
+    : 'No entries yet';
+  document.getElementById('context-week-hours').textContent = fmtHours(summary?.week_hours);
+  document.getElementById('context-attendance').textContent = attendanceLabel(summary?.attendance);
+  document.getElementById('context-drafts').textContent = summary?.draft_count ?? 0;
 }
 
 function renderRecentEntries(entries) {
@@ -170,12 +273,16 @@ function renderUtilization(data) {
     </div>`).join('');
 }
 
-async function loadStats() {
+async function loadStats({ force = false } = {}) {
   const cacheKey = dashboardCacheKey();
-  const cached = readLocalCache(cacheKey);
+  if (force) clearLocalCache(cacheKey);
+  const cached = force ? null : readLocalCache(cacheKey);
+  const refreshButton = document.getElementById('refresh-dashboard-btn');
+  refreshButton.disabled = true;
+  refreshButton.textContent = 'Refreshing...';
   document.getElementById('recent-entries-body').innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⏳', title: 'Loading dashboard', subtitle: 'Pulling your latest timesheet summary now.' })}</td></tr>`;
   if (cached?.value) {
-    applyDashboardSummary(cached.value);
+    applyDashboardSummary(cached.value, { cached: true });
   }
 
   try {
@@ -188,6 +295,15 @@ async function loadStats() {
       document.getElementById('stat-week').textContent = fmtHours(0);
       document.getElementById('stat-pending').textContent = '0';
       document.getElementById('stat-draft').textContent = '0';
+      document.getElementById('context-today-hours').textContent = fmtHours(0);
+      document.getElementById('context-week-hours').textContent = fmtHours(0);
+      document.getElementById('context-attendance').textContent = 'Unavailable';
+      document.getElementById('context-drafts').textContent = '0';
+      document.getElementById('today-focus-title').textContent = 'Unable to load priorities';
+      document.getElementById('today-focus-description').textContent = 'Check your connection and try again.';
+      document.getElementById('today-action-list').setAttribute('aria-busy', 'false');
+      document.getElementById('today-action-list').innerHTML = `<button class="btn btn-primary" type="button" onclick="loadStats({ force: true })">Retry dashboard</button>`;
+      document.getElementById('today-day-context').textContent = 'Workspace summary unavailable';
       document.getElementById('recent-entries-body').innerHTML = `<tr><td colspan="5">${renderEmptyState({ icon: '⚠', title: 'Dashboard data could not load', subtitle: 'Check your connection or try again in a moment.', actionLabel: 'Retry', action: 'loadStats()' })}</td></tr>`;
       renderWeekChart(Array(7).fill(0));
       document.getElementById('utilization-card').style.display = '';
@@ -199,6 +315,8 @@ async function loadStats() {
     }
   }
   if (user.role === 'manager') document.getElementById('stat-pending-sub').textContent = 'Articles awaiting your review';
+  refreshButton.disabled = false;
+  refreshButton.textContent = 'Refresh';
   if (user.role === 'partner') document.getElementById('stat-pending-sub').textContent = 'Articles awaiting manager approval';
 }
 

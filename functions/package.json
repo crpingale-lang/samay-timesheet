@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node ../scripts/validate-reliability.js"
+    "test": "node ../scripts/validate-reliability.js && node ../scripts/validate-today-command-centre.js"
   },
   "keywords": [],
   "author": "",

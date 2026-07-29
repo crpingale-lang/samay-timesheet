@@ -100,9 +100,13 @@ document.getElementById('submit-selected-btn').style.display = hasPermission('ti
 const MY_TIMESHEETS_VIEW_STATE_KEY = 'my-timesheets';
 const myTimesheetsInitialState = readViewState(MY_TIMESHEETS_VIEW_STATE_KEY) || {};
 
+const myTimesheetsUrlStatus = new URLSearchParams(window.location.search).get('status');
+const allowedTimesheetStatuses = new Set(['draft', 'pending_manager', 'pending_partner', 'approved', 'rejected']);
+const initialTimesheetStatus = allowedTimesheetStatuses.has(myTimesheetsUrlStatus) ? myTimesheetsUrlStatus : (myTimesheetsInitialState.status || '');
+
 document.getElementById('filter-from').value = myTimesheetsInitialState.from || '';
 document.getElementById('filter-to').value = myTimesheetsInitialState.to || '';
-document.getElementById('filter-status').value = myTimesheetsInitialState.status || '';
+document.getElementById('filter-status').value = initialTimesheetStatus;
 
 function persistViewState() {
   writeViewState(MY_TIMESHEETS_VIEW_STATE_KEY, {

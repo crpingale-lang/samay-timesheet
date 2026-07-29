@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { getUsersMap, getClientsMap, remember, invalidateCacheByPrefix } = require('../data-cache');
+const { buildDayContext, buildTodayActions } = require('../lib/today-actions');
 
-const DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 
 function normalizeRole(role) {
   return String(role || '').trim().toLowerCase();
@@ -513,15 +514,15 @@ router.get('/dashboard-summary', async (req, res) => {
       const userDocs = userEntriesSnap.docs;
       const userEntries = userDocs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const todayHours = userEntries
-        .filter(entry => entry.entry_date === today)
-        .reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
+      const todayEntries = userEntries.filter(entry => entry.entry_date === today);
+      const todayHours = todayEntries.reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
 
       const weekHours = userEntries
         .filter(entry => entry.entry_date >= weekBounds.from && entry.entry_date <= weekBounds.to)
         .reduce((sum, entry) => sum + (parseFloat(entry.hours) || 0), 0);
 
       const draftCount = userEntries.filter(entry => entry.status === 'draft').length;
+      const rejectedCount = userEntries.filter(entry => entry.status === 'rejected').length;
       const weekBreakdown = [0, 0, 0, 0, 0, 0, 0];
       userEntries.forEach(entry => {
         if (entry.entry_date < weekBounds.from || entry.entry_date > weekBounds.to) return;
@@ -534,10 +535,42 @@ router.get('/dashboard-summary', async (req, res) => {
 
       const recentEntries = (await hydrateTimesheets(userDocs)).slice(0, 10);
 
-      const collaborationSnap = await db.collection('timesheet_collaboration_requests')
-        .where('target_user_id', '==', userId)
-        .where('status', '==', 'pending')
-        .get();
+      const [collaborationSnap, holidaySnap, attendanceSnap, correctionSnap, udinReviewSnap] = await Promise.all([
+        db.collection('timesheet_collaboration_requests')
+          .where('target_user_id', '==', userId)
+          .where('status', '==', 'pending')
+          .get(),
+        db.collection('timesheet_holidays').where('holiday_date', '==', today).get(),
+        (hasPermission(req, 'attendance.view_own') || hasPermission(req, 'attendance.create_own'))
+          ? db.collection('attendance_records').where('user_id', '==', userId).get()
+          : Promise.resolve(null),
+        hasPermission(req, 'attendance.approve_corrections')
+          ? db.collection('attendance_corrections').where('status', '==', 'pending').get()
+          : Promise.resolve(null),
+        hasPermission(req, 'udin.review')
+          ? db.collection('udin_requests').where('workflow_status', '==', 'pending_review').get()
+          : Promise.resolve(null)
+      ]);
+
+      const holidayDoc = holidaySnap.docs.find(doc => {
+        const data = doc.data() || {};
+        return data.active !== false && data.active !== 0;
+      });
+      const dayContext = buildDayContext({ today, holiday_title: holidayDoc?.data()?.title || '' });
+      const attendanceDoc = attendanceSnap?.docs.find(doc => (doc.data() || {}).attendance_date === today);
+      const attendanceData = attendanceDoc?.data() || {};
+      const canUseAttendance = hasPermission(req, 'attendance.view_own') || hasPermission(req, 'attendance.create_own');
+      const attendance = {
+        status: !canUseAttendance
+          ? 'not_available'
+          : attendanceData.exit_time
+            ? 'checked_out'
+            : attendanceData.entry_time
+              ? 'checked_in'
+              : 'not_checked_in',
+        entry_time: attendanceData.entry_time || null,
+        exit_time: attendanceData.exit_time || null
+      };
 
       let pendingApprovals = userEntries.filter(entry => pendingStatuses.has(entry.status)).length;
       if (hasPermission(req, 'approvals.approve_manager')) {
@@ -553,6 +586,20 @@ router.get('/dashboard-summary', async (req, res) => {
         utilization = await buildUtilizationSummary(monthStart, today);
       }
 
+      const actions = buildTodayActions({
+        today,
+        permissions: req.user.permissions,
+        day_context: dayContext,
+        today_entry_count: todayEntries.length,
+        draft_count: draftCount,
+        rejected_count: rejectedCount,
+        pending_approvals: pendingApprovals,
+        collaboration_requests: collaborationSnap.size,
+        attendance,
+        pending_attendance_corrections: correctionSnap?.size || 0,
+        pending_udin_reviews: udinReviewSnap?.size || 0
+      });
+
       return {
         today,
         week_from: weekBounds.from,
@@ -561,6 +608,12 @@ router.get('/dashboard-summary', async (req, res) => {
         week_hours: weekHours,
         pending_approvals: pendingApprovals,
         draft_count: draftCount,
+        today_entry_count: todayEntries.length,
+        rejected_count: rejectedCount,
+        attendance,
+        day_context: dayContext,
+        actions,
+        generated_at: new Date().toISOString(),
         collaboration_requests: collaborationSnap.size,
         week_breakdown: weekBreakdown,
         recent_entries: recentEntries,

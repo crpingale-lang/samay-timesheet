@@ -375,7 +375,10 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 window.addEventListener('hashchange', syncUdinSidebarActive);
 
 const state = readViewState('udin') || {};
-document.getElementById('scope-filter').value = state.scope || 'all';
+const udinUrlScope = new URLSearchParams(window.location.search).get('scope');
+const allowedUdinScopes = new Set(['all', 'mine', 'review', 'updates']);
+const initialUdinScope = allowedUdinScopes.has(udinUrlScope) ? udinUrlScope : (state.scope || 'all');
+document.getElementById('scope-filter').value = initialUdinScope;
 document.getElementById('status-filter').value = state.status || '';
 document.getElementById('search-box').value = state.q || '';
 document.getElementById('date-of-request').value = today();
