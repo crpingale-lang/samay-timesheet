@@ -96,6 +96,59 @@ check('dialogs use the shared responsive spacing contract', () => {
     assert(css.includes(token), `dialog spacing contract missing ${token}`);
   }
 });
+
+check('time entry separates timeline and duration modes', () => {
+  const source = fs.readFileSync(path.join(publicDir, 'timesheet.html'), 'utf8');
+  for (const token of ['entry-mode-time', 'entry-mode-duration', "modalEntryMode === 'time'", 'recent-entry-suggestion']) {
+    assert(source.includes(token), `time entry simplification missing ${token}`);
+  }
+});
+
+check('access management defaults to role presets with optional overrides', () => {
+  const source = fs.readFileSync(path.join(publicDir, 'users.html'), 'utf8');
+  for (const token of ['ROLE_PRESET_COPY', 'applyRolePreset', 'Customize permissions', 'permission.label']) {
+    assert(source.includes(token), `role preset UX missing ${token}`);
+  }
+  assert(!source.includes("permissionKey.split('.').slice(1)"), 'technical permission keys remain visible');
+});
+
+check('approval queue uses grouped selection without approve-all duplication', () => {
+  const source = fs.readFileSync(path.join(publicDir, 'approvals.html'), 'utf8');
+  assert(source.includes('groupApprovalEntries'));
+  assert(source.includes('Select all visible'));
+  assert(!source.includes('approveAll()'), 'legacy approve-all action remains');
+  assert(!source.includes('>Approve All<'), 'legacy approve-all button remains');
+});
+
+check('approval grouping derives staff-day totals and review flags', () => {
+  const source = fs.readFileSync(path.join(publicDir, 'approvals.html'), 'utf8');
+  const block = source.match(/function approvalEntryFlags[\s\S]*?(?=function getSelected)/);
+  assert(block, 'approval grouping functions could not be extracted');
+  const sandbox = { normalizeWorkClassification: value => value };
+  vm.createContext(sandbox);
+  vm.runInContext(block[0], sandbox);
+  const groups = sandbox.groupApprovalEntries([
+    { id: 1, user_id: 7, staff_name: 'Asha', entry_date: '2026-07-28', hours: 10, description: '', work_classification: 'client_work', client_id: null },
+    { id: 2, user_id: 7, staff_name: 'Asha', entry_date: '2026-07-28', hours: 1.5, description: 'Review', work_classification: 'internal', client_id: null }
+  ]);
+  assert.strictEqual(groups.length, 1);
+  assert.strictEqual(groups[0].items.length, 2);
+  assert.strictEqual(groups[0].totalHours, 11.5);
+  assert.strictEqual(groups[0].flagCount, 3);
+});
+check('attendance uses one export menu and automatic refresh', () => {
+  const source = fs.readFileSync(path.join(publicDir, 'attendance.html'), 'utf8');
+  assert(source.includes('attendance-export-menu'));
+  assert(source.includes('attendanceAutoRefresh'));
+  assert(!source.includes('onclick="refreshAll()">Refresh</button>'), 'manual refresh still competes in the header');
+});
+
+check('permission overrides match across SQLite, Firebase, and browser sessions', () => {
+  const source = fs.readFileSync(path.join(root, 'functions', 'routes', 'staff.js'), 'utf8');
+  assert(source.includes('const selected = current.length ? current :'));
+  assert(source.includes("selected.includes('firm.dashboard.view')"));
+  assert(appSource.includes('current.length ? current : fallback'));
+});
 if (failures.length) {
   process.stderr.write(`\n${failures.length} validation check(s) failed.\n`);
   process.exit(1);

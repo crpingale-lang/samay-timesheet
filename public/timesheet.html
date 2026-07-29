@@ -194,20 +194,28 @@
       <section class="modal-section">
         <div class="modal-section-head">
           <div class="modal-section-title">Schedule</div>
-          <div class="modal-section-note">Choose the date and enter the start and end time manually.</div>
+          <div class="modal-section-note">Choose one clear way to record the time.</div>
+        </div>
+        <div class="entry-mode-switch" role="group" aria-label="Time entry method">
+          <button class="entry-mode-option active" id="entry-mode-time" type="button" aria-pressed="true" onclick="setEntryMode('time')">
+            <strong>Start &amp; end</strong><span>Best for the day timeline</span>
+          </button>
+          <button class="entry-mode-option" id="entry-mode-duration" type="button" aria-pressed="false" onclick="setEntryMode('duration')">
+            <strong>Duration only</strong><span>Quick hours entry</span>
+          </button>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Date</label>
             <input class="form-control" type="date" id="modal-date" onchange="renderModalTimeline()">
           </div>
-          <div class="form-group">
-            <label class="form-label">Hours</label>
+          <div class="form-group" id="modal-hours-group">
+            <label class="form-label" id="modal-hours-label">Calculated Hours</label>
             <input class="form-control" type="number" id="modal-hours" min="0.25" max="24" step="0.25">
           </div>
         </div>
-        <div class="entry-modal-inline-note" id="modal-schedule-note">Set a start and end time for the clearest timeline. You can also enter hours directly for quick logging.</div>
-        <div class="form-row">
+        <div class="entry-modal-inline-note" id="modal-schedule-note">Enter start and end time; Samay will calculate hours automatically.</div>
+        <div class="form-row" id="modal-time-fields">
           <div class="form-group">
             <label class="form-label">From</label>
             <input class="form-control time-text-input" type="text" id="modal-start-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-start-time')" onblur="finalizeModalTimeField('modal-start-time')">
@@ -217,7 +225,7 @@
             <input class="form-control time-text-input" type="text" id="modal-end-time" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="HH:MM" oninput="handleModalTimeFieldInput('modal-end-time')" onblur="finalizeModalTimeField('modal-end-time')">
           </div>
         </div>
-        <div class="form-group modal-timeline-group">
+        <div class="form-group modal-timeline-group" id="modal-timeline-group">
           <div class="field-inline-meta">
             <label class="form-label">Timeline Preview</label>
             <div class="form-help">The timeline updates automatically as you edit the time fields.</div>
@@ -230,6 +238,7 @@
         <div class="modal-section-head">
           <div class="modal-section-title">Matter Details</div>
         </div>
+        <div class="recent-entry-suggestion" id="recent-entry-suggestion" hidden></div>
         <div class="form-group">
           <label class="form-label">Client / Matter</label>
           <input class="form-control" type="text" id="modal-client-search" list="client-list" placeholder="Search client">
@@ -316,6 +325,8 @@ let collaboratorOptions = [];
 let collaborationRequests = [];
 let selectedWorkedWith = [];
 let activeView = timesheetUrlState.view || 'daily';
+let modalEntryMode = 'time';
+let recentEntryPattern = null;
 
 const FALLBACK_WORK_CATEGORIES = [
   'Audit',
@@ -1198,6 +1209,61 @@ function renderCollaborationRequests() {
   `).join('');
 }
 
+function setEntryMode(mode, { remember = true } = {}) {
+  modalEntryMode = mode === 'duration' ? 'duration' : 'time';
+  const isTimeMode = modalEntryMode === 'time';
+  const timeButton = document.getElementById('entry-mode-time');
+  const durationButton = document.getElementById('entry-mode-duration');
+  const timeFields = document.getElementById('modal-time-fields');
+  const timelineGroup = document.getElementById('modal-timeline-group');
+  const hoursInput = document.getElementById('modal-hours');
+  const hoursLabel = document.getElementById('modal-hours-label');
+
+  timeButton.classList.toggle('active', isTimeMode);
+  durationButton.classList.toggle('active', !isTimeMode);
+  timeButton.setAttribute('aria-pressed', String(isTimeMode));
+  durationButton.setAttribute('aria-pressed', String(!isTimeMode));
+  timeFields.hidden = !isTimeMode;
+  timelineGroup.hidden = !isTimeMode;
+  hoursInput.readOnly = isTimeMode;
+  hoursLabel.textContent = isTimeMode ? 'Calculated Hours' : 'Hours';
+  if (remember) sessionStorage.setItem('ts_entry_mode', modalEntryMode);
+  updateModalGuidance();
+  if (isTimeMode) renderModalTimeline();
+}
+
+function findRecentEntryPattern() {
+  return [...currentEntries]
+    .filter(entry => entry.task_type && entry.status !== 'rejected')
+    .sort((a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')))[0] || null;
+}
+
+function renderRecentEntrySuggestion(entry = null) {
+  const container = document.getElementById('recent-entry-suggestion');
+  recentEntryPattern = entry ? null : findRecentEntryPattern();
+  if (!recentEntryPattern) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+  const clientLabel = recentEntryPattern.client_name || recentEntryPattern.client_label || 'Internal / Admin';
+  container.hidden = false;
+  container.innerHTML = `
+    <div>
+      <strong>Use a recent pattern?</strong>
+      <span>${escapeHtml(clientLabel)} · ${escapeHtml(recentEntryPattern.task_type)}</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" type="button" onclick="applyRecentEntrySuggestion()">Use details</button>`;
+}
+
+function applyRecentEntrySuggestion() {
+  if (!recentEntryPattern) return;
+  document.getElementById('modal-client-search').value = clientDisplay(recentEntryPattern);
+  document.getElementById('modal-task-type').value = recentEntryPattern.task_type || '';
+  document.getElementById('modal-work-classification').value = normalizeWorkClassification(recentEntryPattern.work_classification, recentEntryPattern.billable);
+  if (modalEntryMode === 'time' && recentEntryPattern.client_id) applyClientShiftDefaults(recentEntryPattern.client_id, { force: false });
+  toast('Recent client and work category applied', 'success');
+}
 function prefillModal(entry = null) {
   const startTime = formatTypedTimeValue(entry?.start_time || '', true) || entry?.start_time || '';
   const endTime = formatTypedTimeValue(entry?.end_time || '', true) || entry?.end_time || '';
@@ -1216,6 +1282,11 @@ function prefillModal(entry = null) {
   document.getElementById('modal-end-time').dataset.timeDigits = endTime.replace(/\D/g, '');
   document.getElementById('modal-hours').value = entry?.hours || '';
   document.getElementById('modal-work-classification').value = normalizeWorkClassification(entry?.work_classification, entry?.billable);
+  const preferredMode = entry
+    ? (startTime && endTime ? 'time' : 'duration')
+    : (sessionStorage.getItem('ts_entry_mode') || 'time');
+  setEntryMode(preferredMode, { remember: false });
+  renderRecentEntrySuggestion(entry);
   document.getElementById('modal-status').innerHTML = statusBadge(entry?.status || 'draft');
   renderWorkedWithOptions((entry?.worked_with_user_ids || []).map(String));
   const rejection = document.getElementById('modal-rejection');
@@ -1236,7 +1307,7 @@ function prefillModal(entry = null) {
   ['modal-date', 'modal-client-search', 'modal-task-type', 'modal-description', 'modal-start-time', 'modal-end-time', 'modal-hours', 'modal-work-classification'].forEach(id => {
     document.getElementById(id).disabled = locked;
   });
-  document.querySelectorAll('#entry-modal [data-time-adjust], #entry-modal [data-duration-preset]').forEach(el => {
+  document.querySelectorAll('#entry-modal [data-time-adjust], #entry-modal [data-duration-preset], #entry-modal .entry-mode-option').forEach(el => {
     el.disabled = locked;
   });
   document.getElementById('worked-with-select').disabled = locked || !!entry?.collaboration_source_entry_id;
@@ -1316,9 +1387,11 @@ function updateModalGuidance() {
   const submitBtn = document.getElementById('submit-entry-btn');
   const deleteBtn = document.getElementById('delete-entry-btn');
 
-  if (start && end) scheduleNote.textContent = 'Timeline and hours are linked. Adjust either one and the preview will stay in sync.';
-  else if (hours) scheduleNote.textContent = 'Hours are set. Add start and end time too if you want a clearer day timeline.';
-  else scheduleNote.textContent = 'Type time in HH:MM, for example 09:30 or 12:45. You can also enter hours directly for quick logging.';
+  if (modalEntryMode === 'duration') scheduleNote.textContent = hours
+    ? 'Duration-only entry selected. Add the client and work details, then save.'
+    : 'Enter the total duration in quarter-hour steps.';
+  else if (start && end) scheduleNote.textContent = 'Hours are calculated from the start and end time.';
+  else scheduleNote.textContent = 'Enter start and end time in HH:MM; Samay will calculate hours automatically.';
 
   if (!isSavedEntry) statusNote.textContent = 'New entries start as drafts until you save and submit them.';
   else if (isApproved) statusNote.textContent = 'Approved entries are locked to protect the submitted record.';
@@ -1377,8 +1450,8 @@ function modalPayload() {
     client_id: matchedClient ? matchedClient.id : null,
     task_type: document.getElementById('modal-task-type').value,
     description: document.getElementById('modal-description').value,
-    start_time: document.getElementById('modal-start-time').value || null,
-    end_time: document.getElementById('modal-end-time').value || null,
+    start_time: modalEntryMode === 'time' ? (document.getElementById('modal-start-time').value || null) : null,
+    end_time: modalEntryMode === 'time' ? (document.getElementById('modal-end-time').value || null) : null,
     hours: document.getElementById('modal-hours').value,
     work_classification: document.getElementById('modal-work-classification').value,
     worked_with_user_ids: [...selectedWorkedWith]

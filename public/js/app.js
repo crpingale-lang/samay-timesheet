@@ -195,7 +195,7 @@ function inferPermissions(user) {
   if (!user || typeof user !== 'object') return [];
   const current = Array.isArray(user.permissions) ? user.permissions.filter(Boolean) : [];
   const fallback = ROLE_DEFAULT_PERMISSIONS[user.role] || [];
-  const permissions = [...new Set([...current, ...fallback])];
+  const permissions = [...new Set(current.length ? current : fallback)];
   return permissions.includes('firm.dashboard.view')
     ? permissions
     : [...permissions, 'firm.dashboard.view'];

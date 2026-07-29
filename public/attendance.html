@@ -35,11 +35,14 @@
           <div class="report-topbar-subtitle">Geofenced check-in, checkout, corrections, and monthly reports.</div>
         </div>
       </div>
-      <div class="topbar-actions">
-        <button class="btn btn-ghost btn-sm" onclick="openCorrectionModal()">Correction</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportAttendance('csv')">CSV</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportAttendance('xlsx')">XLSX</button>
-        <button class="btn btn-primary btn-sm" onclick="refreshAll()">Refresh</button>
+      <div class="topbar-actions" id="attendance-report-actions">
+        <details class="action-menu" id="attendance-export-menu">
+          <summary class="btn btn-ghost btn-sm" role="button" aria-haspopup="menu">Export</summary>
+          <div class="action-menu-popover">
+            <button type="button" onclick="exportAttendance('xlsx')"><strong>Excel workbook</strong><span>Formatted .xlsx report</span></button>
+            <button type="button" onclick="exportAttendance('csv')"><strong>CSV data</strong><span>Plain rows for other systems</span></button>
+          </div>
+        </details>
       </div>
     </header>
 
@@ -257,6 +260,7 @@ const PAGE_STATE_KEY = 'attendance-v2';
 const state = readViewState(PAGE_STATE_KEY) || {};
 const canViewReports = hasPermission('attendance.view_reports') || hasPermission('staff.view');
 const canApproveCorrections = canViewReports || hasPermission('attendance.approve_corrections');
+document.getElementById('attendance-report-actions').style.display = canViewReports ? '' : 'none';
 let attendanceLocations = [];
 let currentGeo = null;
 let todayState = null;
@@ -264,6 +268,7 @@ let currentPage = state.page || 1;
 let hasMore = false;
 let totalRecords = 0;
 let latestRows = [];
+let refreshAllPromise = null;
 
 document.getElementById('search').value = state.q || '';
 document.getElementById('from').value = state.from || monthStart();
@@ -638,6 +643,7 @@ async function submitCorrection() {
 
 async function exportAttendance(format) {
   if (!canViewReports) return toast('Attendance export is available to managers and partners.', 'error');
+  document.getElementById('attendance-export-menu').open = false;
   const params = new URLSearchParams({
     from: document.getElementById('from').value,
     to: document.getElementById('to').value,
@@ -661,8 +667,16 @@ async function exportAttendance(format) {
 }
 
 async function refreshAll() {
-  await loadToday();
-  await Promise.all([loadLive(), loadAttendance(currentPage), loadCorrections()]);
+  if (refreshAllPromise) return refreshAllPromise;
+  refreshAllPromise = (async () => {
+    await loadToday();
+    await Promise.all([loadLive(), loadAttendance(currentPage), loadCorrections()]);
+  })();
+  try {
+    await refreshAllPromise;
+  } finally {
+    refreshAllPromise = null;
+  }
 }
 
 document.getElementById('search').addEventListener('input', () => loadAttendance(1));
@@ -681,6 +695,13 @@ function closeSidebar() {
 }
 
 refreshAll();
+const attendanceAutoRefresh = setInterval(() => {
+  if (document.visibilityState === 'visible') refreshAll();
+}, 60000);
+window.addEventListener('beforeunload', () => clearInterval(attendanceAutoRefresh));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshAll();
+});
 </script>
 </body>
 </html>

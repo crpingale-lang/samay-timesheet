@@ -272,13 +272,27 @@
       </div>
       <div class="form-group" id="access-group" style="display:none;">
         <label class="form-label">Application Access</label>
-        <div class="table-wrapper" style="border:1px solid var(--border);border-radius:10px;">
-          <table>
-            <thead><tr><th style="width:180px;">Module</th><th>Access Rights</th></tr></thead>
-            <tbody id="access-matrix-body"></tbody>
-          </table>
+        <div class="access-preset-card">
+          <div>
+            <div class="access-preset-kicker" id="access-preset-kicker">Role preset</div>
+            <strong id="access-preset-title">Article access</strong>
+            <p id="access-preset-summary">Standard access will be applied from the selected role.</p>
+          </div>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="applyRolePreset()">Reset to role preset</button>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Grant access per user for users, clients, timesheets, approvals, reports, dashboard, and the firm shell.</div>
+        <details class="access-advanced" id="access-advanced">
+          <summary>
+            <span>Customize permissions</span>
+            <span class="access-change-count" id="access-change-count">No custom changes</span>
+          </summary>
+          <div class="table-wrapper access-matrix-wrapper">
+            <table>
+              <thead><tr><th>Area</th><th>Allowed actions</th></tr></thead>
+              <tbody id="access-matrix-body"></tbody>
+            </table>
+          </div>
+          <div class="form-hint">Only use custom permissions when this person needs access beyond or below the selected role.</div>
+        </details>
       </div>
       <div class="modal-actions">
         <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">Save</button>
@@ -338,6 +352,7 @@ document.querySelectorAll('input[name="user-status"]').forEach(input => {
   input.checked = (usersInitialState.status || 'active') === input.value;
 });
 document.getElementById('add-user-btn').style.display = canCreateUser ? '' : 'none';
+if (canCreateUser && canManageAccess) document.getElementById('add-user-btn').disabled = true;
 
 function getUserStatusFilter() {
   return document.querySelector('input[name="user-status"]:checked')?.value || 'active';
@@ -359,8 +374,38 @@ function normalizeAccessCatalog(groups = []) {
   return [...catalog.values()];
 }
 
-function accessCell(permissionKey) {
-  return `<label style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;margin:4px 6px 4px 0;font-size:12px;cursor:pointer;"><input type="checkbox" data-permission="${permissionKey}"><span>${permissionKey.split('.').slice(1).join(' ')}</span></label>`;
+const ROLE_PRESET_COPY = {
+  article: { title: 'Article access', summary: 'Daily time, attendance, client lookup, and own UDIN requests.' },
+  manager: { title: 'Manager access', summary: 'Article access plus team review, reports, attendance review, and UDIN workflow.' },
+  partner: { title: 'Partner access', summary: 'Full firm, reporting, approval, setup, and compliance access.' }
+};
+
+function getRolePreset(role = document.getElementById('f-role').value) {
+  const permissions = [...(ROLE_DEFAULT_PERMISSIONS[role] || [])];
+  if (!permissions.includes('firm.dashboard.view')) permissions.push('firm.dashboard.view');
+  return [...new Set(permissions)];
+}
+
+function accessCell(permission) {
+  const required = permission.key === 'firm.dashboard.view';
+  return `<label class="access-permission-option"><input type="checkbox" data-permission="${permission.key}" ${required ? 'checked disabled' : ''}><span>${permission.label}${required ? ' (always available)' : ''}</span></label>`;
+}
+
+function updateAccessPresetSummary() {
+  const role = document.getElementById('f-role').value || 'article';
+  const preset = new Set(getRolePreset(role));
+  const selected = new Set(collectSelectedPermissions());
+  const added = [...selected].filter(permission => !preset.has(permission)).length;
+  const removed = [...preset].filter(permission => !selected.has(permission)).length;
+  const changes = added + removed;
+  const copy = ROLE_PRESET_COPY[role] || ROLE_PRESET_COPY.article;
+  document.getElementById('access-preset-title').textContent = copy.title;
+  document.getElementById('access-preset-summary').textContent = changes
+    ? `${added} added and ${removed} removed from the ${role} preset.`
+    : copy.summary;
+  document.getElementById('access-change-count').textContent = changes ? `${changes} custom change${changes === 1 ? '' : 's'}` : 'No custom changes';
+  document.getElementById('access-change-count').classList.toggle('customized', changes > 0);
+  return changes;
 }
 
 function renderAccessMatrix(selected = []) {
@@ -368,13 +413,26 @@ function renderAccessMatrix(selected = []) {
   tbody.innerHTML = accessCatalog.map(group => `
       <tr>
         <td><strong>${group.label}</strong></td>
-        <td>${group.permissions.map(permission => accessCell(permission.key)).join('')}</td>
+        <td><div class="access-permission-options">${group.permissions.map(accessCell).join('')}</div></td>
       </tr>`).join('');
 
   selected.forEach(permission => {
     const input = tbody.querySelector(`[data-permission="${permission}"]`);
     if (input) input.checked = true;
   });
+  updateAccessPresetSummary();
+}
+
+function applyRolePreset(role = document.getElementById('f-role').value) {
+  renderAccessMatrix(getRolePreset(role));
+  document.getElementById('access-advanced').open = false;
+}
+function permissionSummaryText(user) {
+  const preset = new Set(getRolePreset(user.role));
+  const selected = new Set(user.permissions || []);
+  const changes = [...selected].filter(permission => !preset.has(permission)).length
+    + [...preset].filter(permission => !selected.has(permission)).length;
+  return changes ? `${changes} custom change${changes === 1 ? '' : 's'}` : 'Role preset';
 }
 
 function getDeviceStatusFilter() {
@@ -516,6 +574,7 @@ async function loadAccessCatalog() {
   accessCatalog = normalizeAccessCatalog(result.groups || accessCatalog);
   document.getElementById('access-group').style.display = '';
   renderAccessMatrix();
+  if (canCreateUser) document.getElementById('add-user-btn').disabled = false;
 }
 
 function queueUserSearch() {
@@ -571,7 +630,7 @@ async function loadUsers(page = 1) {
       </td>
       <td data-label="Username"><code style="background:var(--primary-bg);padding:2px 8px;border-radius:6px;font-size:11.5px;color:var(--primary);">${u.username}</code></td>
       <td data-label="Designation" class="hide-mobile" style="font-size:12.5px;color:var(--text-muted);">${u.designation || '-'}</td>
-      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${(u.permissions || []).length} accesses</div></td>
+      <td data-label="Role">${roleBadge(u.role)}<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${permissionSummaryText(u)}</div></td>
       <td data-label="Status"><span class="badge ${u.active ? 'badge-approved' : 'badge-draft'}">${u.active ? 'Active' : 'Inactive'}</span></td>
       <td data-label="Action">${canEditUser ? `<button class="btn btn-ghost btn-sm" onclick='editUser(${JSON.stringify(u)})'>Edit</button>` : '<span style="color:var(--text-faint);font-size:12px;">View only</span>'}</td>
     </tr>`).join('');
@@ -592,7 +651,7 @@ function openAddModal() {
   document.getElementById('f-username').readOnly = false;
   document.getElementById('active-group').style.display = 'none';
   document.getElementById('f-password').required = true;
-  if (canManageAccess) renderAccessMatrix();
+  if (canManageAccess) applyRolePreset('article');
   openModal('user-modal');
 }
 
@@ -611,7 +670,10 @@ function editUser(u) {
   document.getElementById('f-active').checked = !!u.active;
   document.getElementById('f-password').value = '';
   document.getElementById('f-password').required = false;
-  if (canManageAccess) renderAccessMatrix(u.permissions || []);
+  if (canManageAccess) {
+    renderAccessMatrix(u.permissions || []);
+    document.getElementById('access-advanced').open = updateAccessPresetSummary() > 0;
+  }
   document.getElementById('active-group').style.display = '';
   openModal('user-modal');
 }
@@ -644,6 +706,13 @@ document.getElementById('user-form').addEventListener('submit', async e => {
   }
 });
 
+document.getElementById('f-role').addEventListener('change', event => {
+  if (canManageAccess) applyRolePreset(event.target.value);
+});
+
+document.getElementById('access-matrix-body').addEventListener('change', event => {
+  if (event.target.matches('[data-permission]')) updateAccessPresetSummary();
+});
 document.querySelectorAll('input[name="user-status"]').forEach(input => {
   input.addEventListener('change', () => loadUsers(1));
 });

@@ -37,8 +37,7 @@
             <select class="form-control" id="filter-staff"><option value="">All</option></select>
           </div>
           <div class="filter-toolbar-actions">
-            <button class="btn btn-primary" onclick="loadEntries()">Filter</button>
-            <button class="btn btn-ghost btn-sm" onclick="approveAll()">Approve All</button>
+            <button class="btn btn-primary" onclick="loadEntries()">Apply filters</button>
           </div>
         </div>
       </div>
@@ -47,22 +46,23 @@
         <div class="card-header">
           <div><div class="card-title">Pending Review <span id="pending-count" style="color:var(--accent);"></span></div></div>
           <label class="mobile-selection-toggle" style="font-size:12px;color:var(--text-muted);cursor:pointer;">
-            <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"> Select All
+            <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)"> Select all visible
           </label>
         </div>
-        <div class="approval-inline-actions" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin:-4px 0 14px;">
+        <div class="approval-inline-actions" style="display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin:-4px 0 14px;">
+          <span class="selection-status" id="approval-selection-status">0 selected</span>
           <button class="btn btn-success btn-sm" id="btn-approve-selected" onclick="approveSelected()" disabled>Approve</button>
           <button class="btn btn-danger btn-sm" id="btn-reject-selected" onclick="openRejectModal()" disabled>Reject</button>
         </div>
         <div class="mobile-sticky-actions" style="display:none;" id="approvals-sticky-actions">
           <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-            <button class="btn btn-success btn-sm" type="button" onclick="approveSelected()">Approve</button>
-            <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()">Reject</button>
+            <button class="btn btn-success btn-sm" id="sticky-approve-selected" type="button" onclick="approveSelected()">Approve</button>
+            <button class="btn btn-danger btn-sm" id="sticky-reject-selected" type="button" onclick="openRejectModal()">Reject</button>
           </div>
         </div>
         <div class="table-wrapper">
             <table class="mobile-stack-table">
-            <thead><tr><th></th><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th class="hide-mobile">Classification</th><th class="hide-mobile">Notes</th></tr></thead>
+            <thead><tr><th></th><th>Date</th><th>Staff</th><th class="hide-mobile">Client</th><th>Task</th><th>Hrs</th><th class="hide-mobile">Classification</th><th>Review</th></tr></thead>
             <tbody id="entries-tbody"></tbody>
           </table>
         </div>
@@ -155,39 +155,92 @@ async function loadEntries() {
     if (!entries.length) {
       tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '✅', title: 'All clear', subtitle: 'There are no pending approvals in this date range.' })}</td></tr>`;
       document.getElementById('select-all').checked = false;
+      document.getElementById('select-all').disabled = true;
       updateSelectionActions();
       return;
     }
-    tbody.innerHTML = entries.map(e => `
-    <tr>
-      <td><input type="checkbox" class="entry-cb" value="${e.id}" onchange="updateSelectionActions()"></td>
-      <td data-label="Date">${fmtDate(e.entry_date)}</td>
-      <td data-label="Staff"><strong>${e.staff_name}</strong><div style="font-size:11px;">${roleBadge(e.staff_role||'article')}</div></td>
-      <td data-label="Client" class="hide-mobile" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name||'Internal'}</td>
-      <td data-label="Task" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.task_type}</td>
-      <td data-label="Hours"><strong>${fmtHours(e.hours)}</strong></td>
-      <td data-label="Classification" class="hide-mobile">${workClassificationBadge(e.work_classification, e.billable)}</td>
-      <td data-label="Notes" class="hide-mobile" style="max-width:140px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.description||'-'}</td>
-    </tr>`).join('');
+    document.getElementById('select-all').disabled = false;
+    const groupedEntries = groupApprovalEntries(entries);
+    tbody.innerHTML = groupedEntries.map(group => `
+      <tr class="approval-group-row">
+        <td colspan="8">
+          <div class="approval-group-summary">
+            <div><strong>${escapeHtml(group.staffName)}</strong><span>${fmtDate(group.date)} · ${group.items.length} ${group.items.length === 1 ? 'entry' : 'entries'} · ${fmtHours(group.totalHours)}</span></div>
+            ${group.flagCount ? `<span class="approval-flag-count">${group.flagCount} to check</span>` : '<span class="approval-ready-count">Ready to review</span>'}
+          </div>
+        </td>
+      </tr>
+      ${group.items.map(e => {
+        const flags = approvalEntryFlags(e);
+        return `<tr class="${flags.length ? 'approval-entry-flagged' : ''}">
+          <td><input type="checkbox" class="entry-cb" value="${e.id}" aria-label="Select ${escapeHtml(e.task_type || 'entry')} for ${escapeHtml(e.staff_name || '')}" onchange="updateSelectionActions()"></td>
+          <td data-label="Date">${fmtDate(e.entry_date)}</td>
+          <td data-label="Staff"><strong>${escapeHtml(e.staff_name)}</strong><div style="font-size:11px;">${roleBadge(e.staff_role||'article')}</div></td>
+          <td data-label="Client" class="hide-mobile">${escapeHtml(e.client_name||'Internal')}</td>
+          <td data-label="Task">${escapeHtml(e.task_type)}</td>
+          <td data-label="Hours"><strong>${fmtHours(e.hours)}</strong></td>
+          <td data-label="Classification" class="hide-mobile">${workClassificationBadge(e.work_classification, e.billable)}</td>
+          <td data-label="Review">${flags.length ? flags.map(flag => `<span class="approval-review-flag">${flag}</span>`).join('') : `<span class="approval-notes">${escapeHtml(e.description||'Ready')}</span>`}</td>
+        </tr>`;
+      }).join('')}`
+    ).join('');
     document.getElementById('select-all').checked = false;
     updateSelectionActions();
   } catch (e) {
     document.getElementById('pending-count').textContent = '(unavailable)';
     tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '⚠', title: 'Approvals could not load', subtitle: 'Please try again in a moment.', actionLabel: 'Retry', action: 'loadEntries()' })}</td></tr>`;
     document.getElementById('select-all').checked = false;
+    document.getElementById('select-all').disabled = true;
     updateSelectionActions();
     toast(e.message, 'error');
   }
 }
 
+function approvalEntryFlags(entry) {
+  const flags = [];
+  const hours = parseFloat(entry.hours) || 0;
+  if (!String(entry.description || '').trim()) flags.push('Missing notes');
+  if (hours >= 10) flags.push('Long entry');
+  if (!entry.client_id && normalizeWorkClassification(entry.work_classification, entry.billable) === 'client_work') flags.push('Client missing');
+  return flags;
+}
+
+function groupApprovalEntries(entries) {
+  const groups = new Map();
+  entries.forEach(entry => {
+    const key = `${entry.user_id || entry.staff_name}|${entry.entry_date}`;
+    if (!groups.has(key)) groups.set(key, {
+      staffName: entry.staff_name || 'Team member',
+      date: entry.entry_date,
+      items: [],
+      totalHours: 0,
+      flagCount: 0
+    });
+    const group = groups.get(key);
+    group.items.push(entry);
+    group.totalHours += parseFloat(entry.hours) || 0;
+    group.flagCount += approvalEntryFlags(entry).length;
+  });
+  return [...groups.values()].sort((a, b) => a.staffName.localeCompare(b.staffName) || String(a.date).localeCompare(String(b.date)));
+}
 function getSelected() { return [...document.querySelectorAll('.entry-cb:checked')].map(c=>c.value); }
 
 function updateSelectionActions() {
-  const hasSelection = getSelected().length > 0;
-  document.getElementById('btn-approve-selected').disabled = !hasSelection;
-  document.getElementById('btn-reject-selected').disabled = !hasSelection;
+  const count = getSelected().length;
+  const hasSelection = count > 0;
+  const approveButton = document.getElementById('btn-approve-selected');
+  const rejectButton = document.getElementById('btn-reject-selected');
+  approveButton.disabled = !hasSelection;
+  rejectButton.disabled = !hasSelection;
+  approveButton.textContent = hasSelection ? `Approve (${count})` : 'Approve';
+  rejectButton.textContent = hasSelection ? `Reject (${count})` : 'Reject';
+  document.getElementById('approval-selection-status').textContent = `${count} selected`;
   const sticky = document.getElementById('approvals-sticky-actions');
-  if (sticky) sticky.style.display = hasSelection ? '' : 'none';
+  if (sticky) {
+    sticky.style.display = hasSelection ? '' : 'none';
+    document.getElementById('sticky-approve-selected').textContent = `Approve (${count})`;
+    document.getElementById('sticky-reject-selected').textContent = `Reject (${count})`;
+  }
 }
 
 function toggleSelectAll(v) {
@@ -200,13 +253,6 @@ async function approveSelected() {
   if (!ids.length) { toast('Select entries first','info'); return; }
   await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'approve'}});
   toast(`${ids.length} entries approved!`,'success'); loadEntries();
-}
-
-async function approveAll() {
-  const ids = [...document.querySelectorAll('.entry-cb')].map(c=>c.value);
-  if (!ids.length) { toast('No entries to approve','info'); return; }
-  await apiFetch('/timesheets/review',{method:'POST',body:{entry_ids:ids,action:'approve'}});
-  toast(`All ${ids.length} entries processed!`,'success'); loadEntries();
 }
 
 function openRejectModal() {

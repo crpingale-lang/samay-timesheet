@@ -189,7 +189,9 @@ function ensurePermissions(role, permissions) {
       ]
     };
   const current = Array.isArray(permissions) ? permissions.filter(Boolean) : [];
-  return [...new Set([...current, ...(fallback[normalizedRole] || [])])];
+  const selected = current.length ? current : (fallback[normalizedRole] || []);
+  const withFirmDashboard = selected.includes('firm.dashboard.view') ? selected : [...selected, 'firm.dashboard.view'];
+  return [...new Set(withFirmDashboard)];
 }
 
 function isValidEmail(value) {
