@@ -16,6 +16,17 @@ function invalidateDashboardCache() {
 function hasPermission(req, permission) {
   return Array.isArray(req.user?.permissions) && req.user.permissions.includes(permission);
 }
+function requirePermission(req, res, permission) {
+  if (!hasPermission(req, permission)) {
+    res.status(403).json({ error: `Permission required: ${permission}` });
+    return false;
+  }
+  return true;
+}
+
+function canViewAllTimesheets(req) {
+  return hasPermission(req, 'timesheets.view_all') || hasPermission(req, 'reports.view');
+}
 
 function nextSubmissionStatus(role) {
   const normalizedRole = normalizeRole(role);
@@ -32,6 +43,52 @@ function normalizeWorkClassification(workClassification, billable) {
   return 'client_work';
 }
 
+const SUGGESTION_LOOKBACK_DAYS = 60;
+const SUGGESTION_MODEL_VERSION = 'frequency_recency_v1';
+
+function suggestionCutoffDate() {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - SUGGESTION_LOOKBACK_DAYS);
+  return cutoff.toISOString().slice(0, 10);
+}
+
+function buildEntrySuggestions(entries = []) {
+  const eligible = entries.filter(entry => (
+    entry
+    && entry.task_type
+    && entry.status !== 'rejected'
+    && String(entry.entry_date || '') >= suggestionCutoffDate()
+  ));
+  if (eligible.length < 2) return [];
+
+  const grouped = new Map();
+  eligible.forEach(entry => {
+    const workClassification = normalizeWorkClassification(entry.work_classification, entry.billable);
+    const key = `${entry.client_id || 'internal'}::${entry.task_type}::${workClassification}`;
+    const current = grouped.get(key) || {
+      client_id: entry.client_id || null,
+      client_name: entry.client_name || 'Internal / Admin',
+      task_type: entry.task_type,
+      work_classification: workClassification,
+      use_count: 0,
+      latest_date: ''
+    };
+    current.use_count += 1;
+    if (String(entry.entry_date || '') > current.latest_date) current.latest_date = String(entry.entry_date || '');
+    grouped.set(key, current);
+  });
+
+  return [...grouped.values()]
+    .map(item => ({
+      ...item,
+      confidence: Number((item.use_count / eligible.length).toFixed(2)),
+      reason: `Used ${item.use_count} times in the last ${SUGGESTION_LOOKBACK_DAYS} days`,
+      source: SUGGESTION_MODEL_VERSION
+    }))
+    .filter(item => item.use_count >= 2 && item.confidence >= 0.15)
+    .sort((a, b) => b.use_count - a.use_count || b.latest_date.localeCompare(a.latest_date))
+    .slice(0, 3);
+}
 function normalizeCollaborators(userIds = [], currentUserId = null) {
   const seen = new Set();
   return (Array.isArray(userIds) ? userIds : [])
@@ -517,11 +574,27 @@ router.get('/dashboard-summary', async (req, res) => {
   }
 });
 
+router.get('/suggestions', async (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.view_own')) return;
+  try {
+    const snapshot = await db.collection('timesheets').where('user_id', '==', req.user.id).get();
+    const rows = await hydrateTimesheets(snapshot.docs);
+    res.json({
+      items: buildEntrySuggestions(rows),
+      lookback_days: SUGGESTION_LOOKBACK_DAYS,
+      confidence_threshold: 0.15,
+      model_version: SUGGESTION_MODEL_VERSION
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 router.get('/', async (req, res) => {
   const { from, to, status, user_id } = req.query;
+  if (!hasPermission(req, 'timesheets.view_own') && !canViewAllTimesheets(req)) return res.status(403).json({ error: 'Timesheet view access required' });
   try {
-    const normalizedRole = normalizeRole(req.user.role);
-    const scopedUserId = normalizedRole === 'article' ? req.user.id : (user_id || null);
+    const canViewAll = canViewAllTimesheets(req);
+    const scopedUserId = canViewAll ? (user_id || null) : req.user.id;
     const scopedStatus = status || null;
     const pendingStatuses = new Set(['pending_manager', 'pending_partner']);
     let docs = [];
@@ -552,6 +625,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.create_own')) return;
   const { entry_date, client_id, task_type, description, hours, billable, work_classification, start_time, end_time, worked_with_user_ids } = req.body;
   if (!entry_date || !task_type || !hours) return res.status(400).json({ error: 'Missing fields' });
   try {
@@ -612,12 +686,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const { entry_date, client_id, task_type, description, hours, billable, work_classification, start_time, end_time, worked_with_user_ids } = req.body;
+  if (!requirePermission(req, res, 'timesheets.edit_own')) return;
   try {
     const ref = db.collection('timesheets').doc(req.params.id);
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Not found' });
     const existing = doc.data();
-    if (existing.user_id !== req.user.id && normalizeRole(req.user.role) !== 'partner') return res.status(403).json({ error: 'Access denied' });
+    if (existing.user_id !== req.user.id) return res.status(403).json({ error: 'Access denied' });
     if (existing.status === 'approved') return res.status(400).json({ error: 'Cannot edit an approved entry' });
 
     const timeValidationError = validateTimeWindow(start_time, end_time);
@@ -686,12 +761,13 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.delete_own')) return;
   try {
     const ref = db.collection('timesheets').doc(req.params.id);
     const doc = await ref.get();
     if (!doc.exists) return res.status(404).json({ error: 'Not found' });
     const existing = doc.data();
-    if (existing.user_id !== req.user.id && normalizeRole(req.user.role) !== 'partner') return res.status(403).json({ error: 'Access denied' });
+    if (existing.user_id !== req.user.id) return res.status(403).json({ error: 'Access denied' });
     if (existing.status === 'approved') return res.status(400).json({ error: 'Cannot delete an approved timesheet' });
 
     const pendingRequests = await db.collection('timesheet_collaboration_requests').where('source_entry_id', '==', req.params.id).where('status', '==', 'pending').get();
@@ -708,13 +784,16 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/submit', async (req, res) => {
   const { entry_ids } = req.body;
+  if (!requirePermission(req, res, 'timesheets.submit_own')) return;
   if (!Array.isArray(entry_ids) || !entry_ids.length) return res.status(400).json({ error: 'No entries provided' });
 
   try {
     const docs = await Promise.all(entry_ids.map(id => db.collection('timesheets').doc(id).get()));
     const invalid = docs.find(doc => !doc.exists || doc.data().user_id !== req.user.id || doc.data().requires_time_confirmation || !['draft', 'rejected'].includes(doc.data().status));
-    if (invalid?.exists && invalid.data().requires_time_confirmation) {
-      return res.status(400).json({ error: 'Update overlapping shared entries before submitting them' });
+    if (invalid) {
+      if (invalid.exists && invalid.data().requires_time_confirmation) return res.status(400).json({ error: 'Update overlapping shared entries before submitting them' });
+      if (invalid.exists && invalid.data().user_id !== req.user.id) return res.status(403).json({ error: 'Access denied' });
+      return res.status(400).json({ error: 'Only your draft or rejected entries can be submitted' });
     }
 
     const targetStatus = nextSubmissionStatus(req.user.role);

@@ -1,5 +1,5 @@
 const express = require('express');
-const XLSX = require('xlsx');
+const { XLSX_MIME, buildWorkbookBuffer, rowsToCsv } = require('../functions/lib/spreadsheets');
 const router = express.Router();
 const db = require('../js/database');
 const { hasPermission } = require('../js/permissions');
@@ -498,7 +498,7 @@ router.get('/corrections', (req, res) => {
   res.json({ items: rows });
 });
 
-router.get('/export', (req, res) => {
+router.get('/export', async (req, res) => {
   if (!requireAccess(req, res, canViewReports(req.user), 'attendance.view_reports')) return;
   const rows = loadAttendanceRows({
     from: String(req.query.from || '').trim(),
@@ -521,17 +521,14 @@ router.get('/export', (req, res) => {
     ShiftEnd: row.shift_end
   }));
   if (String(req.query.format || '').toLowerCase() === 'xlsx') {
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Attendance');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const buffer = await buildWorkbookBuffer(data, 'Attendance');
+    res.setHeader('Content-Type', XLSX_MIME);
     res.setHeader('Content-Disposition', 'attachment; filename="attendance-report.xlsx"');
     return res.send(buffer);
   }
-  const sheet = XLSX.utils.json_to_sheet(data);
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="attendance-report.csv"');
-  res.send(XLSX.utils.sheet_to_csv(sheet));
+  res.send(rowsToCsv(data));
 });
 
 router.get('/', (req, res) => {

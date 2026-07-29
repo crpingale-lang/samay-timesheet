@@ -1,10 +1,14 @@
 const express = require('express');
 const multer = require('multer');
-const XLSX = require('xlsx');
+const { isXlsxUpload, readFirstWorksheetRows } = require('../lib/spreadsheets');
 const router = express.Router();
 const { db } = require('../db');
 const { getClientsMap, invalidateCacheByPrefix } = require('../data-cache');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => callback(null, isXlsxUpload(file))
+});
 
 function hasPermission(req, permission) {
   return Array.isArray(req.user?.permissions) && req.user.permissions.includes(permission);
@@ -28,13 +32,8 @@ function normalizeDateInput(value) {
     return `${year}-${month}-${day}`;
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
-    const parsed = XLSX.SSF?.parse_date_code ? XLSX.SSF.parse_date_code(value) : null;
-    if (parsed) {
-      const year = String(parsed.y).padStart(4, '0');
-      const month = String(parsed.m).padStart(2, '0');
-      const day = String(parsed.d).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
+    const parsed = new Date(Date.UTC(1899, 11, 30) + (Math.floor(value) * 86400000));
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
@@ -71,12 +70,9 @@ function parseDelimitedTextRows(text) {
   return rows;
 }
 
-function readHolidayImportRows(req) {
+async function readHolidayImportRows(req) {
   if (req.file?.buffer?.length) {
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return [];
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+    const rows = await readFirstWorksheetRows(req.file.buffer);
     return rows.map(normalizeImportedRow);
   }
   const text = String(req.body.text || '').trim();
@@ -279,7 +275,7 @@ router.delete('/holidays/:id', async (req, res) => {
 
 router.post('/holidays/import', upload.single('file'), async (req, res) => {
   if (!requirePermission(req, res, 'timesheets.masters.import')) return;
-  const rows = readHolidayImportRows(req);
+  const rows = await readHolidayImportRows(req);
   if (!rows.length) return res.status(400).json({ error: 'No holiday rows provided' });
 
   let inserted = 0;

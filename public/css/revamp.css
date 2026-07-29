@@ -167,3 +167,81 @@ body:before{content:"";position:fixed;z-index:-1;inset:0;pointer-events:none;opa
   .action-menu-popover{position:fixed;right:12px;left:12px;top:72px;min-width:0}.action-menu-popover button{min-height:52px}
   .approval-group-row{display:table-row!important;padding:0!important}.approval-group-row td{display:table-cell!important}.approval-group-summary{align-items:flex-start}.approval-group-summary>div{display:grid;gap:3px}.approval-notes{max-width:none;white-space:normal}
 }
+/* Component layout must never override the semantic hidden state. */
+.quick-entry-panel[hidden] {
+  display: none !important;
+}
+
+/* Reliability sprint: explainable quick-entry suggestions */
+.quick-entry-panel {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(0, 1.3fr);
+  gap: 18px;
+  align-items: center;
+  margin: 16px 0 20px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  border-radius: 16px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--surface)) 0%, var(--surface) 72%);
+}
+
+.quick-entry-actions {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.quick-entry-chip {
+  display: grid;
+  gap: 4px;
+  min-width: 210px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.quick-entry-chip:hover,
+.quick-entry-chip:focus-visible {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.quick-entry-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-entry-chip span,
+.recent-entry-suggestion small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.recent-entry-suggestion small {
+  display: block;
+  margin-top: 3px;
+}
+
+@media (max-width: 760px) {
+  .quick-entry-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .quick-entry-chip {
+    min-width: min(78vw, 250px);
+  }
+}

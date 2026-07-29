@@ -74,6 +74,52 @@ function normalizeWorkClassification(workClassification, billable) {
   if (billable === 0 || billable === false) return 'internal';
   return 'client_work';
 }
+const SUGGESTION_LOOKBACK_DAYS = 60;
+const SUGGESTION_MODEL_VERSION = 'frequency_recency_v1';
+
+function suggestionCutoffDate() {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - SUGGESTION_LOOKBACK_DAYS);
+  return cutoff.toISOString().slice(0, 10);
+}
+
+function buildEntrySuggestions(entries = []) {
+  const eligible = entries.filter(entry => (
+    entry
+    && entry.task_type
+    && entry.status !== 'rejected'
+    && String(entry.entry_date || '') >= suggestionCutoffDate()
+  ));
+  if (eligible.length < 2) return [];
+
+  const grouped = new Map();
+  eligible.forEach(entry => {
+    const workClassification = normalizeWorkClassification(entry.work_classification, entry.billable);
+    const key = `${entry.client_id || 'internal'}::${entry.task_type}::${workClassification}`;
+    const current = grouped.get(key) || {
+      client_id: entry.client_id || null,
+      client_name: entry.client_name || 'Internal / Admin',
+      task_type: entry.task_type,
+      work_classification: workClassification,
+      use_count: 0,
+      latest_date: ''
+    };
+    current.use_count += 1;
+    if (String(entry.entry_date || '') > current.latest_date) current.latest_date = String(entry.entry_date || '');
+    grouped.set(key, current);
+  });
+
+  return [...grouped.values()]
+    .map(item => ({
+      ...item,
+      confidence: Number((item.use_count / eligible.length).toFixed(2)),
+      reason: `Used ${item.use_count} times in the last ${SUGGESTION_LOOKBACK_DAYS} days`,
+      source: SUGGESTION_MODEL_VERSION
+    }))
+    .filter(item => item.use_count >= 2 && item.confidence >= 0.15)
+    .sort((a, b) => b.use_count - a.use_count || b.latest_date.localeCompare(a.latest_date))
+    .slice(0, 3);
+}
 
 function normalizeCollaborators(userIds = [], currentUserId = null) {
   const seen = new Set();
@@ -465,8 +511,22 @@ router.get('/dashboard-summary', (req, res) => {
   }
 });
 
+router.get('/suggestions', (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.view_own')) return;
+  const rows = db.prepare(`
+    ${entryBaseSelect}
+    WHERE t.user_id = ? AND t.entry_date >= ?
+    ORDER BY t.entry_date DESC, t.created_at DESC
+  `).all(req.user.id, suggestionCutoffDate());
+  res.json({
+    items: buildEntrySuggestions(rows),
+    lookback_days: SUGGESTION_LOOKBACK_DAYS,
+    confidence_threshold: 0.15,
+    model_version: SUGGESTION_MODEL_VERSION
+  });
+});
 router.get('/', (req, res) => {
-  if (!hasPermission(req.user, 'timesheets.view_own') && !hasPermission(req.user, 'reports.view')) {
+  if (!hasPermission(req.user, 'timesheets.view_own') && !canViewAllTimesheets(req)) {
     return res.status(403).json({ error: 'Timesheet view access required' });
   }
 

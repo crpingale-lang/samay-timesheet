@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node scripts/validate-revamp.js",
+    "test": "node scripts/validate-revamp.js && node scripts/validate-reliability.js",
     "start": "node server.js",
     "dev": "node server.js"
   },
@@ -15,11 +15,11 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "fast-xml-parser": "^4.4.1",
-    "firebase-admin": "^13.7.0",
+    "fast-xml-parser": "^5.10.1",
+    "firebase-admin": "^14.2.0",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^1.4.5-lts.2",
-    "xlsx": "^0.18.5"
+    "multer": "^2.2.0"
   }
 }

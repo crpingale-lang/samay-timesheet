@@ -42,7 +42,15 @@ const form146Template = require('../form146-template.json');
 const router   = express.Router();
 
 // ─── Multer — in-memory storage (no disk writes) ───────────────────────────
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const name = String(file.originalname || '').toLowerCase();
+    const type = String(file.mimetype || '').toLowerCase();
+    callback(null, name.endsWith('.xml') && ['application/xml', 'text/xml', 'application/octet-stream'].includes(type));
+  }
+});
 const FIRESTORE_TIMEOUT_SENTINEL = Symbol('firestore-timeout');
 const FIRESTORE_READ_TIMEOUT_MS = Math.max(200, parseInt(process.env.FORM15CB_FIRESTORE_READ_TIMEOUT_MS || '1200', 10));
 const FIRESTORE_WRITE_TIMEOUT_MS = Math.max(500, parseInt(process.env.FORM15CB_FIRESTORE_WRITE_TIMEOUT_MS || '2000', 10));

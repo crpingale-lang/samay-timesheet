@@ -52,12 +52,19 @@
               <div class="proto-date-readable" id="selected-date-readable"></div>
             </div>
             <div class="proto-toolbar-actions">
-              <button class="btn btn-primary" type="button" id="add-entry-btn" onclick="openAddModal()">+ Add Entry</button>
+              <button class="btn btn-primary" type="button" id="add-entry-btn" onclick="openAddModal()" title="New entry (N)">+ Add Entry</button>
               <button class="btn btn-outline" type="button" id="save-day-btn" onclick="saveDayState()">Save Day</button>
             </div>
           </div>
 
           <div class="proto-day-summary" id="day-summary"></div>
+          <div class="quick-entry-panel" id="quick-entry-panel" hidden>
+            <div class="quick-entry-copy">
+              <div class="proto-section-title">Quick start</div>
+              <div class="proto-section-sub">Your repeated work patterns. Samay fills the client and category; you still confirm time and write today's description.</div>
+            </div>
+            <div class="quick-entry-actions" id="quick-entry-actions"></div>
+          </div>
 
           <div class="proto-weekbar" style="display:none;">
             <div class="proto-weekbar-copy">
@@ -289,7 +296,7 @@
       </details>
     </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" style="flex:1;justify-content:center;" id="save-entry-btn" onclick="saveModalEntry()">Save Entry</button>
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" id="save-entry-btn" onclick="saveModalEntry()" title="Save (Ctrl+Enter)">Save Entry</button>
         <button class="btn btn-outline" type="button" id="submit-entry-btn" onclick="submitModalEntry()">Submit</button>
         <button class="btn btn-danger-ghost" type="button" id="delete-entry-btn" onclick="deleteModalEntry()">Delete</button>
     </div>
@@ -327,6 +334,8 @@ let selectedWorkedWith = [];
 let activeView = timesheetUrlState.view || 'daily';
 let modalEntryMode = 'time';
 let recentEntryPattern = null;
+let entrySuggestions = [];
+let entrySaveInFlight = false;
 
 const FALLBACK_WORK_CATEGORIES = [
   'Audit',
@@ -1114,6 +1123,7 @@ function renderAll() {
   document.getElementById('selected-date-readable').textContent = toDateObj(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
   renderDayStrip();
   renderDaySummary();
+  renderQuickEntrySuggestions();
   renderSelectedDayTimeline();
   renderDailyRows();
   renderDailyMetrics();
@@ -1232,10 +1242,24 @@ function setEntryMode(mode, { remember = true } = {}) {
   if (isTimeMode) renderModalTimeline();
 }
 
+function renderQuickEntrySuggestions() {
+  const panel = document.getElementById('quick-entry-panel');
+  const actions = document.getElementById('quick-entry-actions');
+  if (!entrySuggestions.length || isFutureDate(selectedDate) || !hasPermission('timesheets.create_own')) {
+    panel.hidden = true;
+    actions.innerHTML = '';
+    return;
+  }
+  panel.hidden = false;
+  actions.innerHTML = entrySuggestions.map((suggestion, index) => `
+    <button class="quick-entry-chip" type="button" onclick="openAddModal(${index})" aria-label="Start ${escapeHtml(suggestion.task_type)} for ${escapeHtml(suggestion.client_name)}">
+      <strong>${escapeHtml(suggestion.client_name || 'Internal / Admin')}</strong>
+      <span>${escapeHtml(suggestion.task_type)} &middot; ${escapeHtml(suggestion.reason)}</span>
+    </button>
+  `).join('');
+}
 function findRecentEntryPattern() {
-  return [...currentEntries]
-    .filter(entry => entry.task_type && entry.status !== 'rejected')
-    .sort((a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')))[0] || null;
+  return entrySuggestions[0] || null;
 }
 
 function renderRecentEntrySuggestion(entry = null) {
@@ -1250,8 +1274,9 @@ function renderRecentEntrySuggestion(entry = null) {
   container.hidden = false;
   container.innerHTML = `
     <div>
-      <strong>Use a recent pattern?</strong>
+      <strong>Likely match</strong>
       <span>${escapeHtml(clientLabel)} · ${escapeHtml(recentEntryPattern.task_type)}</span>
+      <small>${escapeHtml(recentEntryPattern.reason || '')}</small>
     </div>
     <button class="btn btn-ghost btn-sm" type="button" onclick="applyRecentEntrySuggestion()">Use details</button>`;
 }
@@ -1262,7 +1287,9 @@ function applyRecentEntrySuggestion() {
   document.getElementById('modal-task-type').value = recentEntryPattern.task_type || '';
   document.getElementById('modal-work-classification').value = normalizeWorkClassification(recentEntryPattern.work_classification, recentEntryPattern.billable);
   if (modalEntryMode === 'time' && recentEntryPattern.client_id) applyClientShiftDefaults(recentEntryPattern.client_id, { force: false });
-  toast('Recent client and work category applied', 'success');
+  document.getElementById('modal-description').value = '';
+  renderModalTimeline();
+  toast('Client and work category applied. Add today\'s description.', 'success');
 }
 function prefillModal(entry = null) {
   const startTime = formatTypedTimeValue(entry?.start_time || '', true) || entry?.start_time || '';
@@ -1341,13 +1368,17 @@ function applyPendingEditFromSession() {
   } catch (_) {}
 }
 
-function openAddModal() {
+function openAddModal(suggestionIndex = null) {
   if (!hasPermission('timesheets.create_own')) { toast('Create access required', 'error'); return; }
   if (isFutureDate(selectedDate)) {
     toast('Future dates cannot be logged yet', 'error');
     return;
   }
   prefillModal();
+  if (Number.isInteger(suggestionIndex) && entrySuggestions[suggestionIndex]) {
+    recentEntryPattern = entrySuggestions[suggestionIndex];
+    applyRecentEntrySuggestion();
+  }
   openModal('entry-modal');
 }
 
@@ -1459,6 +1490,7 @@ function modalPayload() {
 }
 
 async function saveModalEntry() {
+  if (entrySaveInFlight) return;
   const entryIdForSave = document.getElementById('modal-entry-id').value;
   const requiredPermission = entryIdForSave ? 'timesheets.edit_own' : 'timesheets.create_own';
   if (!hasPermission(requiredPermission)) { toast('Access required to save entry', 'error'); return; }
@@ -1473,6 +1505,8 @@ async function saveModalEntry() {
     toast(timelineError, 'error');
     return;
   }
+  entrySaveInFlight = true;
+  document.getElementById('save-entry-btn').disabled = true;
   try {
     if (id) await apiFetch(`/timesheets/${id}`, { method: 'PUT', body: payload });
     else await apiFetch('/timesheets', { method: 'POST', body: payload });
@@ -1481,9 +1515,14 @@ async function saveModalEntry() {
     closeModal('entry-modal');
     setSyncLabel('Day updated', true);
     toast('Entry saved', 'success');
-    loadEntries();
+    await loadEntries();
+    await loadEntrySuggestions();
   } catch (e) {
     toast(e.message, 'error');
+  }
+  finally {
+    entrySaveInFlight = false;
+    updateModalGuidance();
   }
 }
 
@@ -1590,6 +1629,16 @@ async function loadCollaborationRequests() {
   }
   renderCollaborationRequests();
 }
+async function loadEntrySuggestions() {
+  try {
+    const result = await apiFetch('/timesheets/suggestions');
+    entrySuggestions = Array.isArray(result?.items) ? result.items : [];
+  } catch (error) {
+    entrySuggestions = [];
+    console.warn('Timesheet suggestions unavailable', error);
+  }
+  renderQuickEntrySuggestions();
+}
 
 async function loadEntries() {
   const weekDays = weekRangeFromAnchor(weekAnchor);
@@ -1645,6 +1694,23 @@ function closeSidebar() {
   document.getElementById('sidebar-el').classList.remove('open');
   document.getElementById('sb-overlay').classList.remove('open');
 }
+document.addEventListener('keydown', event => {
+  const target = event.target;
+  const isTyping = target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+  const entryModalOpen = document.getElementById('entry-modal').classList.contains('open');
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && entryModalOpen) {
+    const saveButton = document.getElementById('save-entry-btn');
+    if (!saveButton.disabled) {
+      event.preventDefault();
+      saveModalEntry();
+    }
+    return;
+  }
+  if (!isTyping && !entryModalOpen && event.key.toLowerCase() === 'n') {
+    event.preventDefault();
+    openAddModal();
+  }
+});
 
 async function initPage() {
   try {
@@ -1667,6 +1733,7 @@ async function initPage() {
   applyPendingEditFromSession();
   await loadEntries();
   await loadClients();
+  await loadEntrySuggestions();
   loadCollaborators();
   loadCollaborationRequests();
 }

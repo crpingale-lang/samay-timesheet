@@ -4,7 +4,17 @@ const { db, admin } = require('../db');
 const { getUsersMap, getUdinLocationMasterItems, invalidateCacheByPrefix } = require('../data-cache');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 2 },
+  fileFilter: (_req, file, callback) => {
+    const name = String(file.originalname || '').toLowerCase();
+    const type = String(file.mimetype || '').toLowerCase();
+    const extensionAllowed = /\.(pdf|png|jpe?g)$/.test(name);
+    const typeAllowed = ['application/pdf', 'image/png', 'image/jpeg', 'application/octet-stream'].includes(type);
+    callback(null, extensionAllowed && typeAllowed);
+  }
+});
 const COL = {
   requests: 'udin_requests',
   audit: 'udin_audit_log'

@@ -3,25 +3,25 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node ../scripts/validate-reliability.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
+    "exceljs": "^4.4.0",
     "express": "^4.22.1",
-    "fast-xml-parser": "^4.4.1",
-    "firebase-admin": "^13.7.0",
-    "firebase-functions": "^7.2.3",
+    "fast-xml-parser": "^5.10.1",
+    "firebase-admin": "^14.2.0",
+    "firebase-functions": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^1.4.5-lts.2",
-    "nodemailer": "^8.0.5",
-    "xlsx": "^0.18.5"
+    "multer": "^2.2.0",
+    "nodemailer": "^8.0.5"
   }
 }

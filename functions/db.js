@@ -1,4 +1,6 @@
-const admin = require('firebase-admin');
+const { initializeApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getStorage } = require('firebase-admin/storage');
 const fs = require('fs');
 const path = require('path');
 
@@ -33,8 +35,10 @@ if (projectId) {
   appOptions.projectId = projectId;
 }
 
-admin.initializeApp(appOptions);
-const db = admin.firestore();
+const firebaseApp = initializeApp(appOptions);
+const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
+const admin = { storage: () => storage };
 
 function fullAdminPermissions() {
   return [
