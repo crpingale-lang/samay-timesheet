@@ -297,7 +297,7 @@
     </div>
       <div class="modal-actions">
         <button class="btn btn-primary" style="flex:1;justify-content:center;" id="save-entry-btn" onclick="saveModalEntry()" title="Save (Ctrl+Enter)">Save Entry</button>
-        <button class="btn btn-outline" type="button" id="submit-entry-btn" onclick="submitModalEntry()">Submit</button>
+        <button class="btn btn-outline" type="button" id="submit-entry-btn" onclick="handleEntrySecondaryAction()">Submit</button>
         <button class="btn btn-danger-ghost" type="button" id="delete-entry-btn" onclick="deleteModalEntry()">Delete</button>
     </div>
   </div>
@@ -1429,8 +1429,8 @@ function updateModalGuidance() {
   else statusNote.textContent = 'Save updates first, then submit when this entry is ready for review.';
 
   saveBtn.textContent = isSavedEntry ? 'Save Changes' : 'Save Entry';
-  submitBtn.textContent = isSavedEntry ? 'Submit Entry' : 'Save Before Submit';
-  submitBtn.disabled = !isSavedEntry || isApproved;
+  submitBtn.textContent = isSavedEntry ? 'Submit Entry' : 'Save & Add Another';
+  submitBtn.disabled = isApproved;
   deleteBtn.disabled = !isSavedEntry || isApproved;
 }
 
@@ -1489,7 +1489,7 @@ function modalPayload() {
   };
 }
 
-async function saveModalEntry() {
+async function saveModalEntry({ addAnother = false } = {}) {
   if (entrySaveInFlight) return;
   const entryIdForSave = document.getElementById('modal-entry-id').value;
   const requiredPermission = entryIdForSave ? 'timesheets.edit_own' : 'timesheets.create_own';
@@ -1517,11 +1517,18 @@ async function saveModalEntry() {
     else await apiFetch('/timesheets', { method: 'POST', body: payload });
     selectedDate = payload.entry_date;
     weekAnchor = payload.entry_date;
-    closeModal('entry-modal');
     setSyncLabel('Day updated', true);
-    toast('Entry saved', 'success');
     await loadEntries();
     await loadEntrySuggestions();
+    if (addAnother && !id) {
+      prefillModal();
+      toast('Entry saved. Add another entry for the same day.', 'success');
+      const nextField = modalEntryMode === 'time' ? 'modal-start-time' : 'modal-hours';
+      document.getElementById(nextField)?.focus();
+    } else {
+      closeModal('entry-modal');
+      toast('Entry saved', 'success');
+    }
   } catch (e) {
     toast(e.message, 'error');
   }
@@ -1531,13 +1538,19 @@ async function saveModalEntry() {
   }
 }
 
+async function handleEntrySecondaryAction() {
+  const id = document.getElementById('modal-entry-id').value;
+  if (!id) {
+    await saveModalEntry({ addAnother: true });
+    return;
+  }
+  await submitModalEntry();
+}
+
 async function submitModalEntry() {
   if (!hasPermission('timesheets.submit_own')) { toast('Submit access required', 'error'); return; }
   const id = document.getElementById('modal-entry-id').value;
-  if (!id) {
-    toast('Save the entry first before submitting', 'info');
-    return;
-  }
+  if (!id) return;
   try {
     await apiFetch('/timesheets/submit', { method: 'POST', body: { entry_ids: [id] } });
     closeModal('entry-modal');

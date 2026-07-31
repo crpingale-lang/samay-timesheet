@@ -119,6 +119,8 @@ function testStaticContracts() {
   const firebaseApp = read('functions/app.js');
   const localRoute = read('routes/timer.js');
   const firebaseRoute = read('functions/routes/timer.js');
+  const localTimesheetsRoute = read('routes/timesheets.js');
+  const firebaseTimesheetsRoute = read('functions/routes/timesheets.js');
   const frontend = read('public/js/focus-timer.js');
   const timerStyles = read('public/css/focus-timer.css');
   const app = read('public/js/app.js');
@@ -172,6 +174,15 @@ function testStaticContracts() {
   assert(serviceWorker.includes('/js/focus-timer.js'));
   assert(serviceWorker.includes('/css/focus-timer.css'));
   assert(logTimePage.includes("escapeHtml(entry.description || 'No description')"));
+  assert(localTimesheetsRoute.includes('INSERT INTO timesheet_entries'));
+  assert(firebaseTimesheetsRoute.includes("db.collection('timesheets').add({"));
+  assert(logTimePage.includes("'Save & Add Another'"));
+  assert(logTimePage.includes('async function saveModalEntry({ addAnother = false } = {})'));
+  assert(logTimePage.includes('onclick="handleEntrySecondaryAction()"'));
+  assert(logTimePage.includes('async function handleEntrySecondaryAction()'));
+  assert(logTimePage.includes('await saveModalEntry({ addAnother: true })'));
+  assert(logTimePage.includes('Entry saved. Add another entry for the same day.'));
+  assert(!logTimePage.includes('Save Before Submit'));
   assert(myWorkPage.includes('function editLoadedEntry(index)'));
   assert(!myWorkPage.includes('JSON.stringify(entry)'));
   assert(myWorkPage.includes('escapeHtml(e.rejection_reason'));
@@ -245,6 +256,55 @@ async function testLocalApi() {
     const task = masters.payload.work_categories.find(item => item.active !== 0);
     const classification = masters.payload.work_classifications.find(item => item.key === 'client_work');
     assert(client && task && classification);
+    const sameDay = '2026-07-30';
+    const manualBase = {
+      entry_date: sameDay,
+      client_id: client.id,
+      task_type: task.label,
+      description: 'Manual same-day entry',
+      hours: 1,
+      work_classification: classification.key,
+      billable: 1,
+      worked_with_user_ids: []
+    };
+
+    const firstManual = await request(baseUrl, '/timesheets', {
+      method: 'POST',
+      token,
+      body: { ...manualBase, start_time: '09:00', end_time: '10:00' }
+    });
+    assert.equal(firstManual.status, 200);
+    const adjacentManual = await request(baseUrl, '/timesheets', {
+      method: 'POST',
+      token,
+      body: { ...manualBase, description: 'Second same-day entry', start_time: '10:00', end_time: '11:00' }
+    });
+    assert.equal(adjacentManual.status, 200);
+    const overlappingManual = await request(baseUrl, '/timesheets', {
+      method: 'POST',
+      token,
+      body: { ...manualBase, description: 'Overlapping entry', start_time: '09:30', end_time: '10:30' }
+    });
+    assert.equal(overlappingManual.status, 400);
+    assert.match(overlappingManual.payload.error, /overlaps another entry/i);
+    const durationManual = await request(baseUrl, '/timesheets', {
+      method: 'POST',
+      token,
+      body: {
+        ...manualBase,
+        description: 'Duration-only same-day entry',
+        start_time: null,
+        end_time: null,
+        hours: 0.5
+      }
+    });
+    assert.equal(durationManual.status, 200);
+
+    const sameDayEntries = await request(baseUrl, `/timesheets?from=${sameDay}&to=${sameDay}`, { token });
+    assert.equal(sameDayEntries.status, 200);
+    const sameDayRows = sameDayEntries.payload.filter(entry => entry.entry_date === sameDay);
+    assert.equal(sameDayRows.length, 3);
+    assert.equal(new Set(sameDayRows.map(entry => String(entry.id))).size, 3);
     const timerBody = {
       client_id: client.id,
       task_type: task.label,

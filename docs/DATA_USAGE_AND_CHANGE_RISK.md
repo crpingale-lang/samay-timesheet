@@ -108,3 +108,27 @@ The production JWT signing key is sourced only from Firebase Secret Manager and 
   safe draft creation, overlap handling, and the 24-hour boundary remain authoritative.
 - Rollback: remove/disable the extension. Server data remains ordinary timer sessions
   and timesheet drafts; no schema rollback or data migration is required.
+
+## Same-day multi-entry workflow assessment
+
+- Current-data-first result: no schema or API contract change is required. Every
+  timesheet entry already has its own identity, while `entry_date` is a grouping and
+  reporting field rather than a unique key.
+- SQLite creates each entry with `INSERT INTO timesheet_entries`; Firestore creates
+  each entry with `timesheets.add()`. Daily totals, approvals, dashboards, reports,
+  and exports already aggregate all matching records.
+- The change is limited to the Add Entry modal. For a new record, its previously
+  disabled Save Before Submit action becomes Save & Add Another.
+- After saving, the modal retains the selected date, reloads the day's records and
+  timeline, then resets the entry-specific fields for another independent record.
+- Existing overlap validation remains authoritative for clock-based entries. Adjacent
+  ranges and duration-only entries are allowed; intersecting start/end ranges are not.
+- Permissions are unchanged: Save & Add Another uses `timesheets.create_own`; submitting
+  a saved entry still requires `timesheets.submit_own`.
+- Rollback is presentation-only: restore the former modal action. Entries already
+  created remain ordinary independent timesheet transactions.
+
+| Test level | Same-day cases |
+| --- | --- |
+| Soft | Create one record and close normally |
+| Normal | Save two adjacent timed records for one date; use Save & Add Another |
