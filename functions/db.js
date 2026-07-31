@@ -53,6 +53,7 @@ function fullAdminPermissions() {
 }
 
 async function seedDefaultAdmin() {
+  if (process.env.K_SERVICE || process.env.NODE_ENV === 'production') return;
   const usersRef = db.collection('users');
   const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash('admin123', 10);
@@ -77,10 +78,7 @@ async function seedDefaultAdmin() {
   if (adminSnapshot.empty) {
     await usersRef.add(payload);
     console.log('Default firebase admin created: admin / admin123');
-    return;
   }
-
-  await adminSnapshot.docs[0].ref.set(payload, { merge: true });
 }
 
 module.exports = { db, admin, seedDefaultAdmin };

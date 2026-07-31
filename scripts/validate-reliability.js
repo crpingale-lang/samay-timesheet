@@ -41,6 +41,8 @@ async function run() {
   assert(firebaseDb.includes("require('firebase-admin/firestore')"), 'Firebase Admin must use the modular Firestore API');
   assert(firebaseDb.includes('getFirestore(firebaseApp)'), 'Firestore must be initialized from the Firebase app');
   assert(!firebaseDb.includes('admin.firestore()'), 'legacy Firebase Admin namespace API must not return');
+  assert(firebaseDb.includes("process.env.K_SERVICE || process.env.NODE_ENV === 'production'"), 'production must never seed the default admin');
+  assert(!firebaseDb.includes("adminSnapshot.docs[0].ref.set(payload"), 'login must not reset an existing admin account to default credentials');
 
   const legacyJwtSecret = 'ca-timesheet-secret-' + '2024';
   for (const configFile of ['config.js', 'functions/config.js']) {
