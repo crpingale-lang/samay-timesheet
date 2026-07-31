@@ -36,7 +36,7 @@ check('all HTML inline scripts parse beside the shared app', () => {
 });
 
 check('every product screen loads the revamp stylesheet', () => {
-  const excluded = new Set(['udin-coming-soon.html']);
+  const excluded = new Set();
   const missing = htmlFiles.filter(file => !excluded.has(file))
     .filter(file => !fs.readFileSync(path.join(publicDir, file), 'utf8').includes('/css/revamp.css'));
   assert.deepStrictEqual(missing, []);
@@ -87,6 +87,16 @@ check('SQLite and Firebase UDIN route guards remain represented', () => {
     for (const permission of ['udin.view_own', 'udin.create', 'udin.update', 'udin.review', 'udin.revoke']) {
       assert(source.includes(permission), `${relative} missing ${permission}`);
     }
+  }
+});
+
+check('mobile header actions stay touch-safe and inside the top bar', () => {
+  const css = fs.readFileSync(path.join(publicDir, 'css', 'revamp.css'), 'utf8');
+  assert(css.includes('.btn,.tab,.tab-btn{min-height:44px}'), 'mobile touch-target rule is missing');
+  assert(css.includes('.topbar-actions-compact{width:auto;margin-left:auto;flex-wrap:nowrap}'), 'compact header action rule is missing');
+  for (const relative of ['dashboard.html', 'form15cb.html']) {
+    const source = fs.readFileSync(path.join(publicDir, relative), 'utf8');
+    assert(source.includes('topbar-actions topbar-actions-compact'), `${relative} can wrap its primary action below the fixed mobile header`);
   }
 });
 

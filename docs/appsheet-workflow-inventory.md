@@ -204,7 +204,7 @@ Important design points:
 
 - `public/module-select.html`
 - `public/attendance.html`
-- `public/udin-coming-soon.html`
+- `public/udin.html`
 - `public/dashboard.html`
 - `public/js/app.js`
 - `functions/routes/auth.js`

@@ -1,10 +1,9 @@
-const CACHE_NAME = 'samay-v11';
+const CACHE_NAME = 'samay-v12';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/module-select.html',
   '/firm-dashboard.html',
-  '/udin-coming-soon.html',
   '/dashboard.html',
   '/timesheet.html',
   '/my-timesheets.html',

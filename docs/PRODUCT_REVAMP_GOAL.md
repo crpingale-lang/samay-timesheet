@@ -122,6 +122,7 @@ Shared CSS and `public/js/app.js` affect all authenticated screens. Changes must
 - Consolidated the legacy Staff screen into People & Access (`users.html`) while preserving old bookmarks through a redirect.
 - Repaired Form 15CB's global API constant collision, which previously prevented every page in that module from initializing.
 - Aligned SQLite UDIN permission defaults with Firebase and removed article-level update/review/revoke permissions from the browser fallback.
+- Removed production-exposed prototype, obsolete “coming soon,” and abandoned timesheet backup artifacts; the service-worker shell now caches only supported product routes.
 
 ## Outcome
 

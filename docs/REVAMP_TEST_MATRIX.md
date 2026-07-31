@@ -59,12 +59,14 @@
 
 | Check | Result |
 | --- | --- |
-| Static shared/inline JavaScript compilation across 21 HTML screens | Pass |
+| Static shared/inline JavaScript compilation across 19 supported HTML screens | Pass |
 | Direct workspace routing and removal of legacy continue flow | Pass |
 | Duplicate top-bar workspace links | None found |
+| Obsolete prototype, placeholder, and backup files in deployable public output | Removed; no supported route references remain |
 | Shared navigation factory and permission visibility | Pass |
 | Desktop render matrix at 1440 x 900 across 17 routed screens | Pass; no horizontal overflow |
 | Mobile render matrix at 390 x 844 across 17 routed screens | Pass; no horizontal overflow |
+| Mobile header quick actions and touch targets | Pass; primary actions stay inside the header and shared buttons/tabs are at least 44 px high |
 | Active navigation and skip-link semantics | Pass on standard shell; UDIN uses equivalent workflow state |
 | Mobile navigation accessibility state | Pass |
 | Fresh-session browser runtime log across dashboard, UDIN, and all Form 15CB pages | Zero errors |
