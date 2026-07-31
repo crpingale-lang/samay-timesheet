@@ -99,6 +99,7 @@ document.getElementById('submit-selected-btn').style.display = hasPermission('ti
 
 const MY_TIMESHEETS_VIEW_STATE_KEY = 'my-timesheets';
 const myTimesheetsInitialState = readViewState(MY_TIMESHEETS_VIEW_STATE_KEY) || {};
+let loadedTimesheetEntries = [];
 
 const myTimesheetsUrlStatus = new URLSearchParams(window.location.search).get('status');
 const allowedTimesheetStatuses = new Set(['draft', 'pending_manager', 'pending_partner', 'approved', 'rejected']);
@@ -116,12 +117,17 @@ function persistViewState() {
   });
 }
 
-function renderActionButtons(entry) {
+function renderActionButtons(entry, index) {
   if (entry.status === 'approved') return '';
   const buttons = [];
-  if (hasPermission('timesheets.edit_own')) buttons.push(`<button class="btn btn-ghost btn-sm" onclick='editInPlace(${JSON.stringify(entry)})'>Edit</button>`);
+  if (hasPermission('timesheets.edit_own')) buttons.push(`<button class="btn btn-ghost btn-sm" onclick="editLoadedEntry(${Number(index)})">Edit</button>`);
   if (hasPermission('timesheets.delete_own')) buttons.push(`<button class="btn btn-danger btn-sm" onclick="deleteEntry('${entry.id}')">Delete</button>`);
   return buttons.join(' ');
+}
+
+function editLoadedEntry(index) {
+  const entry = loadedTimesheetEntries[Number(index)];
+  if (entry) editInPlace(entry);
 }
 
 async function loadEntries() {
@@ -136,6 +142,7 @@ async function loadEntries() {
   tbody.innerHTML = `<tr><td colspan="8">${renderEmptyState({ icon: '⏳', title: 'Loading entries', subtitle: 'Fetching your timesheet list.' })}</td></tr>`;
   try {
     const entries = await apiFetch(url);
+    loadedTimesheetEntries = entries;
 
     const total = entries.reduce((s,e)=>s+parseFloat(e.hours||0),0);
     const approved = entries.filter(e=>e.status==='approved').reduce((s,e)=>s+parseFloat(e.hours||0),0);
@@ -151,19 +158,20 @@ async function loadEntries() {
       syncStickySubmitAction();
       return;
     }
-    tbody.innerHTML = entries.map(e => `
+    tbody.innerHTML = entries.map((e, index) => `
     <tr>
       <td data-label="">${['draft','rejected'].includes(e.status) && hasPermission('timesheets.submit_own') ? `<input type="checkbox" class="entry-cb" value="${e.id}">` : ''}</td>
       <td data-label="Date">${fmtDate(e.entry_date)}</td>
-      <td data-label="Client" class="hide-mobile" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.client_name || '-'}</td>
-      <td data-label="Task" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.task_type}</td>
+      <td data-label="Client" class="hide-mobile" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.client_name || '-')}</td>
+      <td data-label="Task" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.task_type)}</td>
       <td data-label="Hours"><strong>${fmtHours(e.hours)}</strong></td>
       <td data-label="Classification" class="hide-mobile">${workClassificationBadge(e.work_classification, e.billable)}</td>
-      <td data-label="Status">${statusBadge(e.status)}${e.status==='rejected' ? `<div style="font-size:11px;color:var(--danger);margin-top:3px;">${e.rejection_reason||''}</div>` : ''}</td>
-      <td data-label="Action">${renderActionButtons(e)}</td>
+      <td data-label="Status">${statusBadge(e.status)}${e.status==='rejected' ? `<div style="font-size:11px;color:var(--danger);margin-top:3px;">${escapeHtml(e.rejection_reason || '')}</div>` : ''}</td>
+      <td data-label="Action">${renderActionButtons(e, index)}</td>
     </tr>`).join('');
     syncStickySubmitAction();
   } catch (e) {
+    loadedTimesheetEntries = [];
     document.getElementById('ms-total').textContent = fmtHours(0);
     document.getElementById('ms-approved').textContent = fmtHours(0);
     document.getElementById('ms-pending').textContent = fmtHours(0);

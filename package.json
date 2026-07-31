@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node scripts/validate-revamp.js && node scripts/validate-reliability.js && node scripts/validate-today-command-centre.js",
+    "test": "node scripts/validate-revamp.js && node scripts/validate-reliability.js && node scripts/validate-today-command-centre.js && node scripts/validate-focus-timer.js",
     "start": "node server.js",
     "dev": "node server.js"
   },

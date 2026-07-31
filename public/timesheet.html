@@ -728,16 +728,16 @@ function renderDailyRows() {
   }
   tbody.innerHTML = entries.map(entry => `
     <tr onclick="openEntryModal('${entry.id}')">
-      <td data-label="Client / Matter"><div class="proto-cell-title">${entry.client_name || 'Internal / Admin'}</div><div class="proto-cell-sub">${compactStatusBadge(entry.status)}</div></td>
-      <td data-label="Work Category">${entry.task_type || '—'}</td>
-      <td data-label="Class">${workClassificationMeta(entry.work_classification, entry.billable).shortLabel}</td>
-      <td data-label="Description">${entry.description || 'No description'}</td>
+      <td data-label="Client / Matter"><div class="proto-cell-title">${escapeHtml(entry.client_name || 'Internal / Admin')}</div><div class="proto-cell-sub">${compactStatusBadge(entry.status)}</div></td>
+      <td data-label="Work Category">${escapeHtml(entry.task_type || '—')}</td>
+      <td data-label="Class">${escapeHtml(workClassificationMeta(entry.work_classification, entry.billable).shortLabel)}</td>
+      <td data-label="Description">${escapeHtml(entry.description || 'No description')}</td>
       <td data-label="From">${entry.start_time || '—'}</td>
       <td data-label="To">${entry.end_time || '—'}</td>
       <td data-label="Hours"><strong>${fmtHours(entry.hours)}</strong></td>
       <td data-label="Action">${entry.status === 'approved' ? '<span style="color:var(--text-faint);">Locked</span>' : '<span style="color:var(--text-muted);">Edit</span>'}</td>
     </tr>
-    ${entry.status === 'rejected' ? `<tr class="proto-rejection-row"><td colspan="8">Rejected: ${entry.rejection_reason || 'Needs changes'}</td></tr>` : ''}
+    ${entry.status === 'rejected' ? `<tr class="proto-rejection-row"><td colspan="8">Rejected: ${escapeHtml(entry.rejection_reason || 'Needs changes')}</td></tr>` : ''}
     ${entry.requires_time_confirmation ? `<tr class="proto-rejection-row"><td colspan="8">Shared entry needs time confirmation before it can be submitted.</td></tr>` : ''}
   `).join('');
 }

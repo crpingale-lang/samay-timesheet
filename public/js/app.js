@@ -1282,6 +1282,7 @@ function enhanceApplicationShell() {
     const visibleActions = [...group.children].filter(item => !item.hidden && item.style.display !== 'none');
     group.classList.toggle('topbar-actions-many', visibleActions.length > 2);
   });
+  bootFocusTimer();
   document.documentElement.dataset.shellReady = 'true';
 }
 const NAV_ICONS = {
@@ -1359,6 +1360,32 @@ function FORM15CB_SIDEBAR_HTML() { return createSidebarHTML('form15cb'); }
 function FIRM_SIDEBAR_HTML() { return createSidebarHTML('firm'); }
 function getTaskTypes(includeInactive = false) {
   return getWorkCategories(includeInactive).map(item => item.label);
+}
+
+function bootFocusTimer() {
+  if (!hasPermission('timesheets.create_own') || !getUser()) return;
+  if (!document.getElementById('focus-timer-styles')) {
+    const stylesheet = document.createElement('link');
+    stylesheet.id = 'focus-timer-styles';
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = '/css/focus-timer.css';
+    document.head.appendChild(stylesheet);
+  }
+  if (window.SamayFocusTimer) {
+    window.SamayFocusTimer.init();
+    return;
+  }
+  if (document.getElementById('focus-timer-script')) return;
+  const script = document.createElement('script');
+  script.id = 'focus-timer-script';
+  script.src = '/js/focus-timer.js';
+  script.defer = true;
+  script.addEventListener('load', () => window.SamayFocusTimer?.init(), { once: true });
+  script.addEventListener('error', () => {
+    script.remove();
+    console.warn('Focus timer controls could not be loaded.');
+  }, { once: true });
+  document.head.appendChild(script);
 }
 
 if (typeof window !== 'undefined' && window.location.pathname !== '/') {

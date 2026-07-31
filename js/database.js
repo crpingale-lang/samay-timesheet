@@ -127,6 +127,26 @@ db.exec(`
     FOREIGN KEY (client_id) REFERENCES clients(id)
   );
 
+  CREATE TABLE IF NOT EXISTS time_sessions (
+    user_id INTEGER PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    client_id INTEGER,
+    task_type TEXT NOT NULL,
+    description TEXT,
+    work_classification TEXT NOT NULL DEFAULT 'client_work',
+    source TEXT NOT NULL DEFAULT 'web',
+    status TEXT NOT NULL DEFAULT 'running',
+    started_at TEXT NOT NULL,
+    stopped_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_time_sessions_status
+    ON time_sessions(status, user_id);
+
   CREATE TABLE IF NOT EXISTS timesheet_entry_collaborators (
     entry_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,

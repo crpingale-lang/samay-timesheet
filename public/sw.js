@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samay-v8';
+const CACHE_NAME = 'samay-v9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -15,6 +15,8 @@ const STATIC_ASSETS = [
   '/reports.html',
   '/css/style.css',
   '/js/app.js',
+  '/css/focus-timer.css',
+  '/js/focus-timer.js',
   '/manifest.json',
   '/icons/samay-icon.svg'
 ];
