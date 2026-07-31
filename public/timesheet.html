@@ -1491,8 +1491,9 @@ function updateModalGuidance() {
 
   saveBtn.textContent = isSavedEntry ? 'Save Changes' : 'Save Entry';
   submitBtn.textContent = isSavedEntry ? 'Submit Entry' : 'Save & Add Another';
-  submitBtn.disabled = isApproved;
-  deleteBtn.disabled = !isSavedEntry || isApproved;
+  saveBtn.disabled = isApproved || entrySaveInFlight;
+  submitBtn.disabled = isApproved || entrySaveInFlight;
+  deleteBtn.disabled = !isSavedEntry || isApproved || entrySaveInFlight;
 }
 
 function validateModalTimeline(payload, currentId = '') {
@@ -1572,7 +1573,7 @@ async function saveModalEntry({ addAnother = false } = {}) {
     return;
   }
   entrySaveInFlight = true;
-  document.getElementById('save-entry-btn').disabled = true;
+  updateModalGuidance();
   try {
     if (id) await apiFetch(`/timesheets/${id}`, { method: 'PUT', body: payload });
     else await apiFetch('/timesheets', { method: 'POST', body: payload });

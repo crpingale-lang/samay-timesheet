@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node scripts/validate-revamp.js && node scripts/validate-reliability.js && node scripts/validate-today-command-centre.js && node scripts/validate-focus-timer.js && node scripts/validate-browser-extension.js && node scripts/validate-extension-banner.js && node scripts/test-browser-extension-background.js && node scripts/test-daily-draft-auto-submit.js && node scripts/validate-jwt-rotation.js",
+    "test": "node scripts/validate-revamp.js && node scripts/validate-reliability.js && node scripts/validate-today-command-centre.js && node scripts/validate-focus-timer.js && node scripts/validate-browser-extension.js && node scripts/validate-extension-banner.js && node scripts/test-browser-extension-background.js && node scripts/test-daily-draft-auto-submit.js && node scripts/test-entry-save-state.js && node scripts/validate-jwt-rotation.js",
     "start": "node server.js",
     "dev": "node server.js"
   },

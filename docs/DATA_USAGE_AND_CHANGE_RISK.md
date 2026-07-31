@@ -174,3 +174,23 @@ The production JWT signing key is sourced only from Firebase Secret Manager and 
   values. Because the existing daily report starts in the same minute, it can observe the
   status mix immediately before or after the idempotent run.
 - Compatibility: old records without the optional metadata remain valid. Rollback removes
+  the scheduled workflow and UI notice; no migration or destructive operation is required.
+
+## Entry save-button state regression
+
+- Current-data-first result: no table, collection, field, API payload, permission, or
+  validation rule changes. The existing modal values and API remain the source of truth.
+- Root cause: the save handler directly disabled Save Entry, while the shared modal-state
+  refresh restored only Submit and Delete. A completed or failed request could therefore
+  leave an editable draft with a permanently disabled save control.
+- Change: updateModalGuidance is now the single owner of Save, Save & Add Another/Submit,
+  and Delete disabled states. All mutation controls lock while a save is in flight, recover
+  in finally, and remain locked for approved entries.
+- Security and data risk: authorization, required work notes, timeline validation,
+  overlap detection, request payloads, and server writes are unchanged. The in-flight
+  guard still prevents duplicate submissions.
+- Rollback: restore the prior button assignments. No data migration or recovery is needed.
+
+| Test level | Save-button cases |
+| --- | --- |
+| Soft | New valid draft opens with Save Entry and Save & Add Another enabled |
