@@ -28,7 +28,7 @@ function activeRef(userId) {
 function activePayload(snapshot) {
   if (!snapshot?.exists) return null;
   const data = snapshot.data();
-  return data.status === 'running' ? { id: snapshot.id, ...data } : null;
+  return ['running', 'paused'].includes(data.status) ? { id: snapshot.id, ...data } : null;
 }
 
 async function validateLinkedData(input) {
@@ -88,7 +88,8 @@ router.get('/active', async (req, res) => {
 
 router.post('/start', async (req, res) => {
   if (!requirePermission(req, res, 'timesheets.create_own')) return;
-  const input = normalizeTimerInput(req.body);
+  const normalized = normalizeTimerInput(req.body);
+  const input = { ...normalized, work_classification: normalized.client_id ? 'client_work' : 'internal' };
   try {
     const validationError = await validateLinkedData(input);
     if (validationError) return res.status(400).json({ error: validationError });
@@ -116,6 +117,8 @@ router.post('/start', async (req, res) => {
         source: input.source,
         status: 'running',
         started_at: now,
+        paused_at: null,
+        total_paused_ms: 0,
         stopped_at: null,
         created_at: now,
         updated_at: now
@@ -130,6 +133,64 @@ router.post('/start', async (req, res) => {
       active: error.active || undefined,
       server_now: new Date().toISOString()
     });
+  }
+});
+
+router.post('/pause', async (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.create_own')) return;
+  const now = new Date().toISOString();
+  const ref = activeRef(req.user.id);
+  try {
+    const active = await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(ref);
+      const session = activePayload(snapshot);
+      if (!session || session.status !== 'running') {
+        const conflict = new Error('No running timer is available to pause');
+        conflict.statusCode = 409;
+        throw conflict;
+      }
+      const updates = { status: 'paused', paused_at: now, updated_at: now };
+      transaction.update(ref, updates);
+      return { ...session, ...updates };
+    });
+    res.json({ active, server_now: now });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
+
+router.post('/resume', async (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.create_own')) return;
+  const now = new Date().toISOString();
+  const ref = activeRef(req.user.id);
+  try {
+    const active = await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(ref);
+      const session = activePayload(snapshot);
+      if (!session || session.status !== 'paused') {
+        const conflict = new Error('No paused timer is available to resume');
+        conflict.statusCode = 409;
+        throw conflict;
+      }
+      const pausedAtMs = Date.parse(session.paused_at);
+      if (!Number.isFinite(pausedAtMs)) {
+        const conflict = new Error('Paused timer state is invalid');
+        conflict.statusCode = 409;
+        throw conflict;
+      }
+      const totalPausedMs = (Number(session.total_paused_ms) || 0) + Math.max(0, Date.parse(now) - pausedAtMs);
+      const updates = {
+        status: 'running',
+        paused_at: null,
+        total_paused_ms: totalPausedMs,
+        updated_at: now
+      };
+      transaction.update(ref, updates);
+      return { ...session, ...updates };
+    });
+    res.json({ active, server_now: now });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
@@ -156,8 +217,17 @@ router.post('/stop', async (req, res) => {
       );
       const existing = existingSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const description = finalDescription === undefined ? session.description : finalDescription;
+      const pausedAtMs = session.status === 'paused' ? Date.parse(session.paused_at) : null;
+      const finalPausedMs = (Number(session.total_paused_ms) || 0) +
+        (Number.isFinite(pausedAtMs) ? Math.max(0, Date.parse(stoppedAt) - pausedAtMs) : 0);
       const drafts = buildDraftEntries(
-        { ...session, description },
+        {
+          ...session,
+          status: 'stopped',
+          paused_at: null,
+          total_paused_ms: finalPausedMs,
+          description
+        },
         stoppedAt,
         groupEntriesByDate(existing)
       );
@@ -178,6 +248,8 @@ router.post('/stop', async (req, res) => {
       transaction.update(ref, {
         description,
         status: 'stopped',
+        paused_at: null,
+        total_paused_ms: finalPausedMs,
         stopped_at: stoppedAt,
         updated_at: stoppedAt
       });
@@ -215,6 +287,7 @@ router.post('/discard', async (req, res) => {
       }
       transaction.update(ref, {
         status: 'discarded',
+        paused_at: null,
         stopped_at: stoppedAt,
         updated_at: stoppedAt
       });

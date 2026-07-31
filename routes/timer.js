@@ -28,7 +28,7 @@ function getSession(userId) {
 
 function activeSession(userId) {
   const session = getSession(userId);
-  return session?.status === 'running' ? session : null;
+  return ['running', 'paused'].includes(session?.status) ? session : null;
 }
 
 function validateLinkedData(input) {
@@ -65,7 +65,8 @@ router.get('/active', (req, res) => {
 
 router.post('/start', (req, res) => {
   if (!requirePermission(req, res, 'timesheets.create_own')) return;
-  const input = normalizeTimerInput(req.body);
+  const normalized = normalizeTimerInput(req.body);
+  const input = { ...normalized, work_classification: normalized.client_id ? 'client_work' : 'internal' };
   const validationError = validateLinkedData(input);
   if (validationError) return res.status(400).json({ error: validationError });
 
@@ -94,6 +95,8 @@ router.post('/start', (req, res) => {
       source = excluded.source,
       status = 'running',
       started_at = excluded.started_at,
+      paused_at = NULL,
+      total_paused_ms = 0,
       stopped_at = NULL,
       created_at = datetime('now'),
       updated_at = datetime('now')
@@ -114,6 +117,43 @@ router.post('/start', (req, res) => {
   });
 });
 
+router.post('/pause', (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.create_own')) return;
+  const session = activeSession(req.user.id);
+  if (!session || session.status !== 'running') {
+    return res.status(409).json({ error: 'No running timer is available to pause' });
+  }
+  const now = new Date().toISOString();
+  const update = db.prepare(`
+    UPDATE time_sessions
+    SET status = 'paused', paused_at = ?, updated_at = datetime('now')
+    WHERE user_id = ? AND session_id = ? AND status = 'running'
+  `).run(now, req.user.id, session.session_id);
+  if (!update.changes) return res.status(409).json({ error: 'Timer changed before it could be paused' });
+  res.json({ active: activeSession(req.user.id), server_now: now });
+});
+
+router.post('/resume', (req, res) => {
+  if (!requirePermission(req, res, 'timesheets.create_own')) return;
+  const session = activeSession(req.user.id);
+  if (!session || session.status !== 'paused') {
+    return res.status(409).json({ error: 'No paused timer is available to resume' });
+  }
+  const now = new Date().toISOString();
+  const pausedAt = Date.parse(session.paused_at);
+  if (!Number.isFinite(pausedAt)) return res.status(409).json({ error: 'Paused timer state is invalid' });
+  const addedPausedMs = Math.max(0, Date.parse(now) - pausedAt);
+  const update = db.prepare(`
+    UPDATE time_sessions
+    SET status = 'running', paused_at = NULL,
+        total_paused_ms = COALESCE(total_paused_ms, 0) + ?,
+        updated_at = datetime('now')
+    WHERE user_id = ? AND session_id = ? AND status = 'paused'
+  `).run(addedPausedMs, req.user.id, session.session_id);
+  if (!update.changes) return res.status(409).json({ error: 'Timer changed before it could be resumed' });
+  res.json({ active: activeSession(req.user.id), server_now: now });
+});
+
 router.post('/stop', (req, res) => {
   if (!requirePermission(req, res, 'timesheets.create_own')) return;
   const session = activeSession(req.user.id);
@@ -128,8 +168,17 @@ router.post('/stop', (req, res) => {
     FROM timesheet_entries
     WHERE user_id = ? AND start_time IS NOT NULL AND end_time IS NOT NULL
   `).all(req.user.id);
+  const pausedAtMs = session.status === 'paused' ? Date.parse(session.paused_at) : null;
+  const finalPausedMs = (Number(session.total_paused_ms) || 0) +
+    (Number.isFinite(pausedAtMs) ? Math.max(0, Date.parse(stoppedAt) - pausedAtMs) : 0);
   const result = buildDraftEntries(
-    { ...session, description: finalDescription },
+    {
+      ...session,
+      status: 'stopped',
+      paused_at: null,
+      total_paused_ms: finalPausedMs,
+      description: finalDescription
+    },
     stoppedAt,
     groupEntriesByDate(existing)
   );
@@ -142,8 +191,9 @@ router.post('/stop', (req, res) => {
   `);
   const stopSession = db.prepare(`
     UPDATE time_sessions
-    SET description = ?, status = 'stopped', stopped_at = ?, updated_at = datetime('now')
-    WHERE user_id = ? AND session_id = ? AND status = 'running'
+    SET description = ?, status = 'stopped', paused_at = NULL, total_paused_ms = ?,
+        stopped_at = ?, updated_at = datetime('now')
+    WHERE user_id = ? AND session_id = ? AND status IN ('running', 'paused')
   `);
 
   const commitStop = db.transaction(() => {
@@ -159,7 +209,7 @@ router.post('/stop', (req, res) => {
       entry.work_classification,
       entry.billable
     ).lastInsertRowid);
-    const update = stopSession.run(finalDescription, stoppedAt, req.user.id, session.session_id);
+    const update = stopSession.run(finalDescription, finalPausedMs, stoppedAt, req.user.id, session.session_id);
     if (!update.changes) throw new Error('Timer changed before it could be stopped');
     return entryIds;
   });
@@ -186,7 +236,7 @@ router.post('/discard', (req, res) => {
   const result = db.prepare(`
     UPDATE time_sessions
     SET status = 'discarded', stopped_at = ?, updated_at = datetime('now')
-    WHERE user_id = ? AND session_id = ? AND status = 'running'
+    WHERE user_id = ? AND session_id = ? AND status IN ('running', 'paused')
   `).run(stoppedAt, req.user.id, session.session_id);
   if (!result.changes) return res.status(409).json({ error: 'Timer changed before it could be discarded' });
   res.json({ success: true, stopped_at: stoppedAt });

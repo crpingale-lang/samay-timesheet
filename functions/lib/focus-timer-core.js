@@ -48,6 +48,14 @@ function roundedHours(milliseconds) {
   return Math.max(0.01, Number((milliseconds / 3600000).toFixed(4)));
 }
 
+function pausedDurationMs(session, stoppedAtMs) {
+  const stored = Math.max(0, Number(session?.total_paused_ms) || 0);
+  if (session?.status !== 'paused') return stored;
+  const pausedAtMs = parseTimestamp(session.paused_at);
+  if (pausedAtMs == null) return stored;
+  return stored + Math.max(0, stoppedAtMs - pausedAtMs);
+}
+
 function splitAcrossIndiaDates(startedAtMs, stoppedAtMs) {
   const segments = [];
   let cursor = startedAtMs + INDIA_OFFSET_MS;
@@ -74,7 +82,11 @@ function buildDraftEntries(session, stoppedAt, existingByDate = {}) {
     throw new Error('Timer timestamps are invalid');
   }
 
-  const elapsedMs = stoppedAtMs - startedAtMs;
+  const totalPausedMs = pausedDurationMs(session, stoppedAtMs);
+  const elapsedMs = stoppedAtMs - startedAtMs - totalPausedMs;
+  if (elapsedMs <= 0) {
+    throw new Error('Timer has no recorded working time');
+  }
   const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000));
   const base = {
     client_id: session.client_id || null,
@@ -97,6 +109,20 @@ function buildDraftEntries(session, stoppedAt, existingByDate = {}) {
   const stopParts = localDateParts(stoppedAtMs);
   const startDate = isoDate(startParts);
   const stopDate = isoDate(stopParts);
+
+  if (totalPausedMs > 0) {
+    return {
+      entries: [{
+        ...base,
+        entry_date: startDate,
+        start_time: null,
+        end_time: null,
+        hours: roundedHours(elapsedMs)
+      }],
+      elapsed_seconds: elapsedSeconds,
+      warning: 'Paused time was excluded. Samay saved the exact active duration as a draft without an assumed start/end window so you can review it safely.'
+    };
+  }
 
   if (startDate === stopDate) {
     const startTime = hhmm(startParts);
@@ -180,5 +206,6 @@ module.exports = {
   groupEntriesByDate,
   hasOverlap,
   normalizeTimerInput,
+  pausedDurationMs,
   parseTimestamp
 };

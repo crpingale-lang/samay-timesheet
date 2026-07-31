@@ -18,6 +18,29 @@ The first revamp phase does not require new database tables or fields. Navigatio
 | Form 15CB masters/conversions | Form 15CB storage/templates | Conversion, history, downloads | Form 15CB APIs | High; tax/remittance data |
 | Feedback | Feedback storage | Feedback form and reports | Feedback APIs | Potentially sensitive |
 | Session state | JWT plus cached browser user | All frontend API calls | Auth APIs and session helpers | High |
+| Timer running/paused state | `time_sessions` | Focus timer recovery and one-active-session rule | Start, Pause, Resume, End, Discard APIs | Medium-high |
+| Timer pause interval | `paused_at`, `total_paused_ms` on `time_sessions` | Exact active-duration calculation | Server timestamps and transactional API transitions | Medium-high |
+
+## Timer pause/resume change assessment
+
+- Current-data-first result: the existing `time_sessions` operational entity remains
+  the correct source of truth. No new table or collection is needed.
+- New fields are justified because `started_at` and `stopped_at` alone cannot distinguish
+  working time from paused time after refresh or cross-device recovery.
+- Classification capture is reduced: `work_classification` is derived from the existing
+  client link (`client_work` when selected, otherwise `internal`) and remains stored on
+  the completed draft for reporting compatibility.
+- Affected consumers: SQLite and Firestore timer APIs, elapsed display, draft duration
+  calculation, timer module tests, and module documentation. Existing dashboard,
+  approval, report, and export consumers continue reading ordinary timesheet drafts.
+- Migration: SQLite adds both columns idempotently; Firestore fields are additive.
+  Missing values are treated as `null` and zero for backward compatibility.
+- Accuracy risk: a paused session cannot honestly produce one continuous clock window,
+  so End creates a duration-only draft with paused time excluded and a review warning.
+- Concurrency risk: Pause and Resume use guarded state transitions/transactions. Duplicate
+  or stale transitions return HTTP 409 instead of altering duration twice.
+- Rollback: older code ignores additive fields; completed drafts remain valid. An active
+  paused session should be resumed or ended before rolling back the API to avoid hiding it.
 
 ## Existing links and auto-population opportunities
 

@@ -137,6 +137,8 @@ db.exec(`
     source TEXT NOT NULL DEFAULT 'web',
     status TEXT NOT NULL DEFAULT 'running',
     started_at TEXT NOT NULL,
+    paused_at TEXT,
+    total_paused_ms INTEGER NOT NULL DEFAULT 0,
     stopped_at TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
@@ -456,6 +458,14 @@ db.exec(`
     ELSE work_classification
   END
 `);
+
+const timeSessionCols = db.prepare("PRAGMA table_info(time_sessions)").all().map(c => c.name);
+if (!timeSessionCols.includes('paused_at')) {
+  db.exec("ALTER TABLE time_sessions ADD COLUMN paused_at TEXT");
+}
+if (!timeSessionCols.includes('total_paused_ms')) {
+  db.exec("ALTER TABLE time_sessions ADD COLUMN total_paused_ms INTEGER NOT NULL DEFAULT 0");
+}
 
 // Migrate roles: rename old 'admin' -> 'partner', 'staff' -> 'article'
 db.exec("UPDATE users SET role='partner' WHERE role='admin'");

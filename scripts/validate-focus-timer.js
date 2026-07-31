@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const SqliteDatabase = require('better-sqlite3');
 const {
   buildDraftEntries,
   groupEntriesByDate,
@@ -45,6 +46,18 @@ function testCore() {
   }, '2026-07-31T04:30:50.000Z');
   assert.equal(subMinute.entries[0].hours, 0.01);
   assert.match(subMinute.warning, /shorter than one/i);
+
+  const paused = buildDraftEntries({
+    task_type: 'Review',
+    work_classification: 'internal',
+    status: 'stopped',
+    started_at: '2026-07-31T04:30:00.000Z',
+    total_paused_ms: 15 * 60 * 1000
+  }, '2026-07-31T05:30:00.000Z');
+  assert.equal(paused.elapsed_seconds, 45 * 60);
+  assert.equal(paused.entries[0].hours, 0.75);
+  assert.equal(paused.entries[0].start_time, null);
+  assert.match(paused.warning, /paused time was excluded/i);
 
   const midnight = buildDraftEntries({
     task_type: 'Tax Audit',
@@ -103,25 +116,33 @@ function testStaticContracts() {
     assert(route.includes("'timesheets.create_own'"));
     assert(route.includes("router.get('/active'"));
     assert(route.includes("router.post('/start'"));
+    assert(route.includes("router.post('/pause'"));
+    assert(route.includes("router.post('/resume'"));
     assert(route.includes("router.post('/stop'"));
     assert(route.includes("router.post('/discard'"));
   }
   assert(schema.includes('CREATE TABLE IF NOT EXISTS time_sessions'));
+  assert(schema.includes('total_paused_ms INTEGER NOT NULL DEFAULT 0'));
+  assert(schema.includes("ALTER TABLE time_sessions ADD COLUMN paused_at TEXT"));
   assert(frontend.includes("'documentPictureInPicture' in window"));
   assert(frontend.includes("apiFetch('/timer/start'"));
+  assert(frontend.includes('apiFetch(`/timer/${action}`'));
   assert(frontend.includes("apiFetch('/timer/stop'"));
   assert(frontend.includes("BroadcastChannel('samay-focus-timer')"));
-  assert(frontend.includes('idle: { width: 360, height: 390 }'));
-  assert(frontend.includes('running: { width: 300, height: 185 }'));
+  assert(frontend.includes('idle: { width: 316, height: 300 }'));
+  assert(frontend.includes('collapsed: { width: 226, height: 58 }'));
+  assert(frontend.includes('running: { width: 286, height: 176 }'));
   assert(frontend.includes('data-timer-input="client_id"'));
   assert(frontend.includes('data-timer-input="task_type"'));
-  assert(frontend.includes('data-timer-input="work_classification"'));
   assert(frontend.includes('data-timer-input="description"'));
-  assert(frontend.includes('Draft saved. Ready for the next timer.'));
+  assert(frontend.includes('data-timer-pip-action="collapse"'));
+  assert(frontend.includes('data-timer-pip-action="reenter"'));
   assert(frontend.includes('rememberActiveAsDraft(completed, { clearDescription: true })'));
-  assert(!frontend.includes('state.pipWindow?.close()'));
+  assert(!frontend.includes('Open floating box'));
+  assert(!frontend.includes('Not now'));
   assert(timerStyles.includes('.focus-timer-pip-card'));
-  assert(timerStyles.includes('.focus-timer-pip-running'));
+  assert(timerStyles.includes('.focus-timer-pip-banner'));
+  assert(timerStyles.includes('backdrop-filter: blur(18px)'));
   assert(app.includes('bootFocusTimer()'));
   assert(serviceWorker.includes('/js/focus-timer.js'));
   assert(serviceWorker.includes('/css/focus-timer.css'));
@@ -151,7 +172,29 @@ async function testLocalApi() {
   let server;
   let db;
   try {
+    const legacyDb = new SqliteDatabase(path.join(tempRoot, 'timesheet.db'));
+    legacyDb.exec(`
+      CREATE TABLE time_sessions (
+        user_id INTEGER PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        client_id INTEGER,
+        task_type TEXT NOT NULL,
+        description TEXT,
+        work_classification TEXT NOT NULL DEFAULT 'client_work',
+        source TEXT NOT NULL DEFAULT 'web',
+        status TEXT NOT NULL DEFAULT 'running',
+        started_at TEXT NOT NULL,
+        stopped_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+    legacyDb.close();
+
     db = require('../js/database');
+    const migratedTimerColumns = db.prepare('PRAGMA table_info(time_sessions)').all().map(column => column.name);
+    assert(migratedTimerColumns.includes('paused_at'));
+    assert(migratedTimerColumns.includes('total_paused_ms'));
     const { app } = require('../local-app');
     server = await new Promise(resolve => {
       const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
@@ -196,6 +239,29 @@ async function testLocalApi() {
     assert.equal(recovered.payload.active.task_type, task.label);
     assert.equal(recovered.payload.active.client_id, client.id);
 
+    const paused = await request(baseUrl, '/timer/pause', { method: 'POST', token, body: {} });
+    assert.equal(paused.status, 200);
+    assert.equal(paused.payload.active.status, 'paused');
+    assert(paused.payload.active.paused_at);
+
+    const secondPause = await request(baseUrl, '/timer/pause', { method: 'POST', token, body: {} });
+    assert.equal(secondPause.status, 409);
+
+    const resumed = await request(baseUrl, '/timer/resume', { method: 'POST', token, body: {} });
+    assert.equal(resumed.status, 200);
+    assert.equal(resumed.payload.active.status, 'running');
+    assert.equal(resumed.payload.active.paused_at, null);
+
+    const secondResume = await request(baseUrl, '/timer/resume', { method: 'POST', token, body: {} });
+    assert.equal(secondResume.status, 409);
+
+    const tenMinutesAgo = new Date(Date.now() - (10 * 60 * 1000)).toISOString();
+    db.prepare(`
+      UPDATE time_sessions
+      SET started_at = ?, total_paused_ms = ?
+      WHERE user_id = ?
+    `).run(tenMinutesAgo, 2 * 60 * 1000, login.payload.user.id);
+
     const stopped = await request(baseUrl, '/timer/stop', {
       method: 'POST',
       token,
@@ -203,7 +269,8 @@ async function testLocalApi() {
     });
     assert.equal(stopped.status, 200);
     assert.equal(stopped.payload.entry_ids.length, 1);
-    assert.match(stopped.payload.warning, /shorter than one/i);
+    assert(stopped.payload.elapsed_seconds >= 479 && stopped.payload.elapsed_seconds <= 481);
+    assert.match(stopped.payload.warning, /paused time was excluded/i);
 
     const entries = await request(baseUrl, '/timesheets?from=2020-01-01&to=2030-12-31', { token });
     assert.equal(entries.status, 200);
@@ -211,6 +278,8 @@ async function testLocalApi() {
     assert(created);
     assert.equal(created.status, 'draft');
     assert.equal(created.description, 'Completed through timer integration test');
+    assert.equal(created.start_time, null);
+    assert.equal(created.end_time, null);
 
     const secondStop = await request(baseUrl, '/timer/stop', { method: 'POST', token, body: {} });
     assert.equal(secondStop.status, 409);
@@ -222,8 +291,20 @@ async function testLocalApi() {
       body: { task_type: task.label, work_classification: internal.key, source: 'pwa' }
     });
     assert.equal(internalStart.status, 201);
+    const pausedBeforeDiscard = await request(baseUrl, '/timer/pause', { method: 'POST', token, body: {} });
+    assert.equal(pausedBeforeDiscard.status, 200);
     const discarded = await request(baseUrl, '/timer/discard', { method: 'POST', token, body: {} });
     assert.equal(discarded.status, 200);
+
+    const conflictingClassification = await request(baseUrl, '/timer/start', {
+      method: 'POST',
+      token,
+      body: { ...timerBody, work_classification: 'internal' }
+    });
+    assert.equal(conflictingClassification.status, 201);
+    assert.equal(conflictingClassification.payload.active.work_classification, 'client_work');
+    const discardConflictTest = await request(baseUrl, '/timer/discard', { method: 'POST', token, body: {} });
+    assert.equal(discardConflictTest.status, 200);
 
     const hash = bcrypt.hashSync('blocked123', 4);
     db.prepare(`
@@ -237,6 +318,8 @@ async function testLocalApi() {
     assert.equal(blockedLogin.status, 200);
     const forbidden = await request(baseUrl, '/timer/active', { token: blockedLogin.payload.token });
     assert.equal(forbidden.status, 403);
+    const forbiddenPause = await request(baseUrl, '/timer/pause', { method: 'POST', token: blockedLogin.payload.token, body: {} });
+    assert.equal(forbiddenPause.status, 403);
 
     const tampered = await request(baseUrl, '/timer/start', {
       method: 'POST',
