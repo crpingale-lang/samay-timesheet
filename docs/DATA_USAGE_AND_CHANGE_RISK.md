@@ -72,6 +72,13 @@ The first revamp phase does not require new database tables or fields. Navigatio
 
 Passwords, signing secrets, database credentials, document processing, privileged exports, and permissions stay server-side. Browser code is public. Browser-readable JWT storage is documented security debt and must not be expanded; secure HTTP-only cookie migration is a separate high-risk authentication project.
 
+The production JWT signing key is sourced only from Firebase Secret Manager and is bound only to the `api` function. Managed runtime startup fails closed when the secret is missing. Local development uses a process-local ephemeral key instead of a repository fallback. Rotating `JWT_SECRET` invalidates existing sessions by design; rollback can re-enable the preceding Secret Manager version and redeploy the API if required.
+
+## JWT signing-key change assessment
+
+- Data impact: no user or timesheet fields change. Rotation invalidates outstanding JWTs and requires users to sign in again.
+- Security impact: removes a signing key from source and Git history as an active credential, limits runtime access to the API function, and prevents production fallback to a known value.
+
 ## Excel import assessment
 
 - Clients: required and already supported.

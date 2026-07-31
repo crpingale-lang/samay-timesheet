@@ -42,6 +42,55 @@ async function run() {
   assert(firebaseDb.includes('getFirestore(firebaseApp)'), 'Firestore must be initialized from the Firebase app');
   assert(!firebaseDb.includes('admin.firestore()'), 'legacy Firebase Admin namespace API must not return');
 
+  const legacyJwtSecret = 'ca-timesheet-secret-' + '2024';
+  for (const configFile of ['config.js', 'functions/config.js']) {
+    const source = read(configFile);
+    assert(!source.includes(legacyJwtSecret), `${configFile} still exposes the legacy JWT signing key`);
+    assert(source.includes('crypto.randomBytes(48)'), `${configFile} must use an ephemeral local-only signing key`);
+  }
+  const functionsIndex = read('functions/index.js');
+  assert(
+    functionsIndex.includes("onRequest({ secrets: ['JWT_SECRET'] }, app)"),
+    'Firebase API must bind JWT_SECRET from Secret Manager'
+  );
+
+  function loadConfigForEnv(relative, env) {
+    const source = read(relative);
+    const moduleRecord = { exports: {} };
+    vm.runInNewContext(source, {
+      module: moduleRecord,
+      exports: moduleRecord.exports,
+      process: { env },
+      require: moduleName => {
+        assert.strictEqual(moduleName, 'crypto');
+        return require('crypto');
+      }
+    });
+    return moduleRecord.exports;
+  }
+
+  const productionConfigChecks = [
+    { relative: './config', env: { NODE_ENV: 'production', K_SERVICE: '' } },
+    { relative: './functions/config', env: { NODE_ENV: 'development', K_SERVICE: 'samay-api' } }
+  ];
+  for (const checkConfig of productionConfigChecks) {
+    const configFile = checkConfig.relative.slice(2) + '.js';
+    assert.throws(
+      () => loadConfigForEnv(configFile, { ...checkConfig.env, JWT_SECRET: '' }),
+      /JWT_SECRET/,
+      `${checkConfig.relative} accepted a missing production JWT secret`
+    );
+    const localConfig = loadConfigForEnv(configFile, {
+      NODE_ENV: 'development',
+      K_SERVICE: '',
+      JWT_SECRET: ''
+    });
+    assert.match(localConfig.JWT_SECRET, /^[a-f0-9]{96}$/, `${checkConfig.relative} local secret is not ephemeral`);
+    const configuredSecret = 'samay-test-only-signing-key';
+    const configured = loadConfigForEnv(configFile, { ...checkConfig.env, JWT_SECRET: configuredSecret });
+    assert.strictEqual(configured.JWT_SECRET, configuredSecret, `${checkConfig.relative} rejected a configured JWT secret`);
+  }
+
   const functionsTimesheets = read('functions/routes/timesheets.js');
   for (const permission of ['timesheets.view_own', 'timesheets.create_own', 'timesheets.edit_own', 'timesheets.delete_own', 'timesheets.submit_own']) {
     assert(functionsTimesheets.includes(permission), `Firebase timesheets missing ${permission} guard`);

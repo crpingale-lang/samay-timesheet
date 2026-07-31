@@ -11,7 +11,7 @@ Make daily time entry feel smaller and safer without hiding required controls or
 - Spreadsheet import/export uses ExcelJS. The deprecated `xlsx` package is removed.
 - Multer is upgraded to the maintained 2.x line.
 - Spreadsheet, XML, PDF, PNG, and JPEG uploads have explicit extension/MIME allowlists, file-count limits, and size limits.
-- Production secrets remain server-side; no credentials or service keys are added to browser bundles.
+- Production secrets remain server-side; `JWT_SECRET` is bound from Firebase Secret Manager only to the API function, while local development uses a process-local ephemeral key.
 
 ## Faster entry workflow
 
