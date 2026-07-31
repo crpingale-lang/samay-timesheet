@@ -132,3 +132,25 @@ The production JWT signing key is sourced only from Firebase Secret Manager and 
 | --- | --- |
 | Soft | Create one record and close normally |
 | Normal | Save two adjacent timed records for one date; use Save & Add Another |
+
+## Extension banner and download assessment
+
+- Current-data-first result: the banner needs no server data, API, table, field, or
+  analytics event. It is static product guidance on Log Time.
+- The versioned ZIP is generated from the reviewed `extension/` source and hosted as
+  a public static asset. Extension code is already public by design and the archive
+  contains no credential, token, environment value, database configuration, or user data.
+- The only new state is `samay_extension_promo_dismissed_v1` in local storage. It is
+  a non-sensitive display preference used only to keep the dismissed banner hidden.
+  It is never transmitted, synchronized, or used for permissions.
+- Downloading does not authenticate or install the extension. Chrome/Edge still presents
+  the extension's site-access permissions when the user explicitly loads the unpacked folder.
+- The install guide states the security boundary: the extension does not persist passwords
+  and continues to use Samay's server-side auth, permissions, master validation, and timer API.
+- Rollback: remove the banner stylesheet/markup and downloadable ZIP. User timesheets,
+  extension sessions, and any already extracted extension remain unaffected.
+
+| Test level | Banner cases |
+| --- | --- |
+| Soft | Banner appears for a user with no dismissal preference |
+| Normal | Download ZIP; expand/collapse instructions; dismiss and keep hidden on reload |

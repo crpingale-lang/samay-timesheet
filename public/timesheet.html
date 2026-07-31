@@ -7,6 +7,7 @@
   <link rel="icon" href="/icons/samay-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/revamp.css">
+  <link rel="stylesheet" href="/css/extension-promo.css?v=1">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0F766E">
 </head>
@@ -28,6 +29,32 @@
 
     <div class="page-content proto-page">
       <div class="proto-caption" style="display:none;">Architected dual-view timesheet system with daily entries feeding weekly aggregation</div>
+      <section class="extension-promo" id="extension-promo" aria-labelledby="extension-promo-title" hidden>
+        <button class="extension-promo-dismiss" type="button" onclick="dismissExtensionPromo()" aria-label="Dismiss browser extension banner" title="Dismiss">&times;</button>
+        <div class="extension-promo-icon" aria-hidden="true">
+          <img src="/icons/samay-icon.svg" alt="">
+        </div>
+        <div class="extension-promo-copy">
+          <div class="extension-promo-kicker">Samay browser extension</div>
+          <h2 id="extension-promo-title">Keep your timer within reach on every tab</h2>
+          <p>Start work from any Chrome or Edge webpage, collapse it to a subtle timer, then pause or end without returning to Samay.</p>
+          <div class="extension-promo-meta" aria-label="Extension details">
+            <span>Chrome + Edge</span>
+            <span>Manifest V3</span>
+            <span>Session-only sign-in</span>
+          </div>
+        </div>
+        <div class="extension-promo-actions">
+          <a class="btn btn-primary" href="/downloads/samay-focus-timer-extension-1.0.0.zip" download="samay-focus-timer-extension-1.0.0.zip">Download extension</a>
+          <button class="btn btn-outline" type="button" id="extension-install-toggle" onclick="toggleExtensionInstallGuide()" aria-expanded="false" aria-controls="extension-install-guide">How to install</button>
+        </div>
+        <div class="extension-install-guide" id="extension-install-guide" hidden>
+          <div class="extension-install-step"><strong>1</strong><span>Extract the downloaded ZIP to a permanent folder.</span></div>
+          <div class="extension-install-step"><strong>2</strong><span>Open <code>chrome://extensions</code> or <code>edge://extensions</code> and enable Developer mode.</span></div>
+          <div class="extension-install-step"><strong>3</strong><span>Choose Load unpacked, select the extracted folder, then pin Samay and sign in.</span></div>
+          <p>Your password is never stored by the extension. It uses your existing Samay permissions and server-side timer.</p>
+        </div>
+      </section>
       <div class="alert alert-info" id="holiday-banner" style="display:none;margin-bottom:16px;"></div>
 
       <div class="proto-tabs" style="margin-bottom:18px;">
@@ -336,6 +363,39 @@ let modalEntryMode = 'time';
 let recentEntryPattern = null;
 let entrySuggestions = [];
 let entrySaveInFlight = false;
+const EXTENSION_PROMO_DISMISSED_KEY = 'samay_extension_promo_dismissed_v1';
+
+function initializeExtensionPromo() {
+  const promo = document.getElementById('extension-promo');
+  if (!promo) return;
+  let dismissed = false;
+  try {
+    dismissed = localStorage.getItem(EXTENSION_PROMO_DISMISSED_KEY) === '1';
+  } catch (_) {
+    dismissed = false;
+  }
+  promo.hidden = dismissed;
+}
+
+function dismissExtensionPromo() {
+  const promo = document.getElementById('extension-promo');
+  if (promo) promo.hidden = true;
+  const guide = document.getElementById('extension-install-guide');
+  if (guide) guide.hidden = true;
+  try {
+    localStorage.setItem(EXTENSION_PROMO_DISMISSED_KEY, '1');
+  } catch (_) {}
+}
+
+function toggleExtensionInstallGuide() {
+  const guide = document.getElementById('extension-install-guide');
+  const toggle = document.getElementById('extension-install-toggle');
+  if (!guide || !toggle) return;
+  const opening = guide.hidden;
+  guide.hidden = !opening;
+  toggle.setAttribute('aria-expanded', String(opening));
+  toggle.textContent = opening ? 'Hide instructions' : 'How to install';
+}
 
 const FALLBACK_WORK_CATEGORIES = [
   'Audit',
@@ -1731,6 +1791,7 @@ document.addEventListener('keydown', event => {
 });
 
 async function initPage() {
+  initializeExtensionPromo();
   try {
     await ensureMasterDataLoaded();
   } catch (e) {

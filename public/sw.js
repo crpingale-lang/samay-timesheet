@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samay-v14';
+const CACHE_NAME = 'samay-v15';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
   '/staff.html',
   '/reports.html',
   '/css/style.css',
+  '/css/extension-promo.css?v=1',
   '/js/app.js?v=15',
   '/css/focus-timer.css?v=3',
   '/js/focus-timer.js?v=3',

@@ -42,6 +42,18 @@ The broad `http://*/*` and `https://*/*` content-script match is necessary for a
 6. The service worker broadcasts the resulting state to all open tabs so each overlay stays consistent.
 7. End creates a Samay draft through the existing server transaction; the extension does not write timesheet data itself.
 
+## Install from the Log Time portal
+
+1. Open **Log Time** in Samay and select **Download extension** in the extension banner.
+2. Extract the ZIP to a permanent folder; Chrome and Edge need that folder after installation.
+3. Open `chrome://extensions` or `edge://extensions`.
+4. Enable **Developer mode**, choose **Load unpacked**, and select the extracted folder.
+5. Pin **Samay Focus Timer**, open its toolbar icon, and sign in.
+
+The portal hosts the reviewed versioned ZIP as a static public asset. It contains only
+the extension package and no account data, token, environment value, or credential.
+The banner's dismissed state is an optional local browser preference and never reaches
+the Samay API.
 ## Load locally in Chrome
 
 1. Open `chrome://extensions`.
