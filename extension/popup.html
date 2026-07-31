@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Samay Focus Timer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup-shell">
+    <header class="brand-header">
+      <img src="icons/icon-128.png" alt="" class="logo">
+      <div>
+        <div class="eyebrow">Samay</div>
+        <h1>Focus Timer</h1>
+      </div>
+    </header>
+
+    <section id="loading-view" class="panel status-panel" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Connecting to Samay…</span>
+    </section>
+
+    <section id="login-view" class="panel" hidden>
+      <h2>Sign in</h2>
+      <p class="supporting">Use your existing Samay account. Credentials are sent directly to Samay and the password is never stored.</p>
+      <form id="login-form">
+        <label for="identifier">Username or email</label>
+        <input id="identifier" name="identifier" type="text" autocomplete="username" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <div id="login-error" class="error" role="alert" hidden></div>
+        <button id="login-button" class="button button-primary full" type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <section id="account-view" class="panel" hidden>
+      <div class="account-row">
+        <div class="avatar" id="user-initials" aria-hidden="true">S</div>
+        <div class="account-copy">
+          <h2 id="user-name">Samay user</h2>
+          <p id="user-role">Signed in</p>
+        </div>
+        <span class="connected-dot" title="Connected"></span>
+      </div>
+      <div id="timer-status" class="timer-status">
+        <span class="status-dot"></span>
+        <div><strong id="status-title">Ready to record</strong><span id="status-detail">No timer running</span></div>
+      </div>
+      <div id="account-error" class="error" role="alert" hidden></div>
+      <button id="show-overlay" class="button button-primary full" type="button">Show timer on this page</button>
+      <button id="open-samay" class="button button-secondary full" type="button">Open Samay</button>
+      <button id="sign-out" class="text-button" type="button">Sign out of extension</button>
+    </section>
+
+    <footer>Works on normal Chrome and Edge webpages. Browser system pages and desktop apps do not allow webpage overlays.</footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

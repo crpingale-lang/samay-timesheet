@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Samay Focus Timer",
+  "version": "1.0.0",
+  "minimum_chrome_version": "102",
+  "description": "A subtle Samay timer that follows your work across Chrome and Edge.",
+  "icons": {
+    "72": "icons/icon-72.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Samay Focus Timer",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "72": "icons/icon-72.png",
+      "96": "icons/icon-96.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://samay-timesheet.web.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "exclude_matches": [
+        "https://samay-timesheet.web.app/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/icon-128.png"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ]
+}

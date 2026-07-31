@@ -180,7 +180,7 @@ function normalizeTimerInput(body = {}) {
     ? String(rawClientId).trim().slice(0, 128)
     : '';
   const classification = String(body.work_classification || 'client_work').trim();
-  const allowedSources = new Set(['web', 'chrome_pip', 'pwa']);
+  const allowedSources = new Set(['web', 'chrome_pip', 'pwa', 'browser_extension']);
   const source = String(body.source || 'web').trim().toLowerCase();
   return {
     client_id: clientId || null,

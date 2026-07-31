@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Samay extension visual fixture</title>
+  <style>
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; color: #26383b; background: #eef2f1; }
+    .topbar { height: 62px; display: flex; align-items: center; gap: 30px; padding: 0 28px; color: #f8ffff; background: #263f44; }
+    .topbar strong { font-size: 17px; }
+    .topbar span { color: #b8cccf; font-size: 13px; }
+    .workspace { display: grid; grid-template-columns: 230px 1fr; min-height: calc(100vh - 62px); }
+    aside { padding: 24px 18px; background: #fff; border-right: 1px solid #dde5e3; }
+    aside div { margin: 5px 0; border-radius: 9px; padding: 10px; color: #607477; font-size: 13px; }
+    aside div:first-child { color: #0f766e; background: #e7f4f1; font-weight: 700; }
+    main { padding: 30px; }
+    h1 { margin: 0 0 22px; font-size: 23px; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { min-height: 120px; border: 1px solid #dce5e3; border-radius: 15px; padding: 18px; background: #fff; box-shadow: 0 8px 20px rgba(30,54,58,.05); }
+    .card small { color: #798c8f; }
+    .card p { font-size: 25px; font-weight: 750; }
+  </style>
+</head>
+<body>
+  <div class="topbar"><strong>Example work application</strong><span>Projects</span><span>Documents</span><span>Reports</span></div>
+  <div class="workspace">
+    <aside><div>Today</div><div>Assignments</div><div>Messages</div><div>Settings</div></aside>
+    <main><h1>Current work</h1><div class="cards"><div class="card"><small>Open tasks</small><p>12</p></div><div class="card"><small>Due this week</small><p>5</p></div><div class="card"><small>Completed</small><p>31</p></div></div></main>
+  </div>
+  <script>
+    const listeners = [];
+    const state = {
+      authenticated: true,
+      user: { name: 'Aarav Mehta', role: 'manager' },
+      active: null,
+      clients: [
+        { id: 'c1', name: 'Aster Advisory', code: 'AST' },
+        { id: 'c2', name: 'Blue Oak Industries', code: 'BOI' },
+        { id: 'c3', name: 'Cedar Retail Private Limited', code: 'CRP' }
+      ],
+      categories: [
+        { label: 'Statutory Audit' },
+        { label: 'GST Filing' },
+        { label: 'Review and Advisory' }
+      ],
+      lastSaved: null,
+      optionsNotice: '',
+      serverNow: new Date().toISOString()
+    };
+    window.chrome = {
+      runtime: {
+        lastError: null,
+        getURL(path) { return new URL(`../../extension/${path}`, location.href).href; },
+        onMessage: { addListener(listener) { listeners.push(listener); } },
+        sendMessage(message, callback) {
+          if (message.type === 'SAMAY_START') {
+            state.active = {
+              status: 'running', started_at: new Date().toISOString(), total_paused_ms: 0,
+              client_name: message.clientId ? 'Aster Advisory' : null,
+              task_type: message.taskType, description: message.description
+            };
+          }
+          if (message.type === 'SAMAY_PAUSE' && state.active) {
+            state.active.status = 'paused';
+            state.active.paused_at = new Date().toISOString();
+          }
+          if (message.type === 'SAMAY_RESUME' && state.active) {
+            state.active.status = 'running';
+            state.active.paused_at = null;
+          }
+          if (message.type === 'SAMAY_STOP') {
+            state.active = null;
+            state.lastSaved = { elapsedSeconds: 3723, warning: '' };
+          }
+          callback({ ok: true, state: { ...state, serverNow: new Date().toISOString() } });
+        }
+      }
+    };
+  </script>
+  <script src="../../extension/content.js"></script>
+</body>
+</html>

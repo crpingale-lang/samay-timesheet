@@ -10,7 +10,7 @@ that can remain visible while the user works outside Samay.
 ## Purpose and users
 
 The Focus Timer lets any user with `timesheets.create_own` select an existing client,
-work category, and optional note, then start, pause, resume, and end a server-backed
+work category, and required work note, then start, pause, resume, and end a server-backed
 timer. Work classification is derived from the linked client instead of captured again:
 a selected client means client work; no client means internal work. On end, Samay creates
 one or more ordinary draft timesheet entries for review.
@@ -26,7 +26,7 @@ one or more ordinary draft timesheet entries for review.
 - The PiP window is optional and never owns timer state. Closing it does not stop or
   lose the server-side session.
 - The PiP window is a complete mini workflow: a small searchable input state captures
-  client, work, and an optional note; Start auto-collapses it to a translucent live
+  client, work, and a required work note; Start auto-collapses it to a translucent live
   banner showing only status and elapsed time. The expanded state shows client, work,
   Pause/Resume, and End. The saved state offers Re-enter, New timer, and Exit.
 - Pause and resume are server-authoritative. A paused timestamp plus accumulated paused
@@ -71,8 +71,8 @@ and enforce timesheet permissions server-side.
 ### `POST /start`
 
 - Permission: `timesheets.create_own`
-- Body: `client_id`, `task_type`, `work_classification`, optional `description`,
-  optional `source`
+- Body: `client_id`, `task_type`, required `description`, optional
+  `work_classification`, and optional `source`
 - Derives classification server-side from the client link, validates linked active
   masters, and prevents a second running or paused session.
 - Response: `{ active: TimeSession, server_now: ISODateTime }`
@@ -94,7 +94,7 @@ and enforce timesheet permissions server-side.
 ### `POST /stop`
 
 - Permission: `timesheets.create_own`
-- Body: optional final `description`
+- Body: optional final `description`; when omitted, the required start note is retained
 - Atomically stops the session and creates draft timesheet data when safe.
 - Response: `{ success, entry_ids, entries, warning, elapsed_seconds }`
 - If a precise time window would overlap, the draft is duration-only and the
@@ -167,6 +167,9 @@ are additive, so Firestore needs no destructive migration.
 - SQLite schema: `js/database.js`
 - Existing draft editing/submission: `routes/timesheets.js`,
   `functions/routes/timesheets.js`, `public/timesheet.html`
+- Browser extension: `extension/manifest.json`, `extension/background.js`,
+  `extension/content.js`, `extension/popup.html`
+- Extension architecture and installation: `docs/BROWSER_EXTENSION.md`
 
 ## Change risk and recovery
 
@@ -204,7 +207,7 @@ are additive, so Firestore needs no destructive migration.
 | Normal | Search client/work; start; auto-collapse; expand; pause; resume; end; re-enter; start next; page refresh |
 | Edge | Sub-minute stop; midnight split; archived master after start; long labels |
 | Failure | Offline start/stop; API 500; retry after response loss |
-| Security | Missing permission; another user's session; client/master tampering |
+| Security | Missing permission; another user's session; client/master tampering; extension content script cannot access JWT |
 | Concurrency | Two starts; double pause/resume/end; state change on a second device |
 | Extreme | Timer over 24 hours; malformed timestamps; very long text |
 | UI fit | 360x800, 768x1024, 1366x768, 1920x1080; 316x300 input; 286x176 expanded; 226x58 collapsed |

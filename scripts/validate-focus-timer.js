@@ -91,6 +91,11 @@ function testCore() {
   assert.equal(normalized.task_type.length, 160);
   assert.equal(normalized.description.length, 2000);
   assert.equal(normalized.source, 'web');
+  const extensionNormalized = normalizeTimerInput({
+    task_type: 'Review',
+    source: 'browser_extension'
+  });
+  assert.equal(extensionNormalized.source, 'browser_extension');
   const missingDefaults = missingDefaultMasterData([{ category: 'financial_year', key: '2024-25' }]);
   assert(!missingDefaults.some(item => item.category === 'financial_year' && item.key === '2024-25'));
   assert(missingDefaults.some(item => item.category === 'work_category' && item.key === 'gst_filing'));

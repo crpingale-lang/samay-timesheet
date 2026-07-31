@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+  color: #14363a;
+  background: #edf7f5;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 344px;
+  min-height: 390px;
+  margin: 0;
+  background:
+    radial-gradient(circle at 88% 5%, rgba(8,145,178,.16), transparent 34%),
+    linear-gradient(155deg, #f7fcfb 0%, #eef8f6 62%, #e8f5f3 100%);
+}
+
+button, input { font: inherit; }
+
+.popup-shell { padding: 18px; }
+
+.brand-header { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.logo { width: 42px; height: 42px; border-radius: 12px; box-shadow: 0 8px 18px rgba(15,118,110,.18); }
+.eyebrow { color: #0f766e; font-size: 10px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+h1 { margin: 1px 0 0; font-size: 18px; letter-spacing: -.01em; }
+
+.panel {
+  border: 1px solid rgba(15,118,110,.15);
+  border-radius: 17px;
+  padding: 16px;
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 15px 30px rgba(20,70,73,.09), inset 0 1px 0 #fff;
+}
+.panel[hidden] { display: none; }
+.panel h2 { margin: 0; font-size: 15px; }
+.supporting { margin: 6px 0 15px; color: #587377; font-size: 12px; line-height: 1.5; }
+.status-panel { min-height: 104px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #587377; font-size: 12px; }
+
+label { display: block; margin: 11px 0 5px; color: #405f62; font-size: 11px; font-weight: 700; }
+input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cadbd8;
+  border-radius: 11px;
+  outline: 0;
+  padding: 9px 11px;
+  color: #15383c;
+  background: #fff;
+}
+input:focus { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,.12); }
+
+.button {
+  min-height: 42px;
+  margin-top: 9px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  padding: 9px 12px;
+  font-weight: 720;
+  cursor: pointer;
+}
+.button:disabled { opacity: .62; cursor: wait; }
+.full { width: 100%; }
+.button-primary { color: #fff; background: linear-gradient(135deg, #0f766e, #0891b2); box-shadow: 0 8px 18px rgba(8,145,178,.17); }
+.button-secondary { border-color: #d2e1de; color: #365a5e; background: rgba(255,255,255,.82); }
+.text-button { width: 100%; margin-top: 12px; border: 0; padding: 5px; color: #6a7f81; background: transparent; cursor: pointer; font-size: 11px; }
+.text-button:hover { color: #9b3c35; }
+
+.account-row { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 13px; color: #0f6d65; background: #dff5f0; font-size: 14px; font-weight: 800; }
+.account-copy { min-width: 0; flex: 1; }
+.account-copy h2, .account-copy p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-copy p { margin: 2px 0 0; color: #6b8183; font-size: 11px; text-transform: capitalize; }
+.connected-dot, .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,.11); }
+
+.timer-status { display: flex; align-items: center; gap: 11px; margin: 14px 0 7px; border-radius: 12px; padding: 11px; background: #edf8f6; }
+.timer-status strong, .timer-status span { display: block; }
+.timer-status strong { color: #20484c; font-size: 12px; }
+.timer-status span:not(.status-dot) { margin-top: 1px; color: #698184; font-size: 10px; }
+.timer-status.active .status-dot { background: #0f9f83; }
+.timer-status.paused .status-dot { background: #f59e0b; box-shadow: 0 0 0 4px rgba(245,158,11,.12); }
+
+.error { margin-top: 11px; border-radius: 10px; padding: 8px 10px; color: #9b2c2c; background: #fff0ef; font-size: 11px; }
+.error[hidden] { display: none; }
+.spinner { width: 17px; height: 17px; border: 2px solid #cfe2df; border-top-color: #0f766e; border-radius: 50%; animation: spin .7s linear infinite; }
+footer { margin: 12px 4px 0; color: #718689; font-size: 10px; line-height: 1.45; text-align: center; }
+:focus-visible { outline: 3px solid rgba(8,145,178,.26); outline-offset: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; } }

@@ -18,6 +18,7 @@ The first revamp phase does not require new database tables or fields. Navigatio
 | Form 15CB masters/conversions | Form 15CB storage/templates | Conversion, history, downloads | Form 15CB APIs | High; tax/remittance data |
 | Feedback | Feedback storage | Feedback form and reports | Feedback APIs | Potentially sensitive |
 | Session state | JWT plus cached browser user | All frontend API calls | Auth APIs and session helpers | High |
+| Extension session and safe option cache | Chrome/Edge session storage | Extension background service and floating timer | Recreated on sign-in; cleared on browser exit/sign-out | High for JWT; medium for timer context |
 | Timer running/paused state | `time_sessions` | Focus timer recovery and one-active-session rule | Start, Pause, Resume, End, Discard APIs | Medium-high |
 | Timer pause interval | `paused_at`, `total_paused_ms` on `time_sessions` | Exact active-duration calculation | Server timestamps and transactional API transitions | Medium-high |
 
@@ -87,3 +88,23 @@ The production JWT signing key is sourced only from Firebase Secret Manager and 
 - Work categories/classifications: low normal volume; retain manual entry until evidence supports import.
 - Form 15CB masters: potentially useful for remitters, remittees, and banks; reassess after master UX normalization.
 - Transactional timesheets and approvals: no bulk import in the UX revamp phase.
+
+## Browser extension change assessment
+
+- Current-data-first result: the extension reuses existing auth, client, master-data,
+  and timer contracts. It adds no database collection, status, or reporting path.
+- The extension sends `source: browser_extension`; the shared timer normalizer accepts
+  that audit value while retaining the existing safe fallback for unknown sources.
+- The JWT is held only in `chrome.storage.session` with access restricted to trusted
+  extension contexts. It is never sent to the page content script, local storage,
+  sync storage, a URL, or application logs.
+- Content scripts receive the minimum data needed to render the workflow: user summary,
+  active clients, active work categories, current timer, notices, and server time.
+- The broad webpage match is a presentation requirement for an automatic overlay.
+  The extension does not inspect DOM content, capture activity, or transmit page URLs.
+- A closed Shadow DOM isolates the component, but any visible overlay should still be
+  treated as on-screen information. Users can exit it per tab.
+- Existing server permissions, one-active-session transactions, master validation,
+  safe draft creation, overlap handling, and the 24-hour boundary remain authoritative.
+- Rollback: remove/disable the extension. Server data remains ordinary timer sessions
+  and timesheet drafts; no schema rollback or data migration is required.
