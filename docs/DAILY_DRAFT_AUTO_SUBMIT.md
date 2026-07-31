@@ -5,6 +5,8 @@
 Samay automatically submits eligible timesheet drafts every day at **8:00 PM
 Asia/Kolkata**. The job uses the India calendar date at execution time and runs
 server-side, so a user does not need to keep the portal or extension open.
+The server workflow uses the equivalent UTC cron time, 14:30, because India has no
+daylight-saving shift.
 
 ## Eligibility and status transitions
 
@@ -20,16 +22,19 @@ server-side, so a user does not need to keep the portal or extension open.
 
 Each changed entry receives `submission_source=daily_8pm`, `submitted_at`, and an
 updated `updated_at` value. Approved manager/partner entries retain the existing
-approval actor fields. The scheduled function logs date-level counts only; work
+approval actor fields. The scheduled workflow logs date-level counts only; work
 notes, client details, usernames, and other sensitive content are not logged.
 
 ## Reliability
 
 - Writes are committed in batches of at most 400, below Firestore's 500-write limit.
 - A repeated run is idempotent because only records still in `draft` are eligible.
-- Errors are allowed to fail the function so Cloud Scheduler can retry and surface
-  the failed execution instead of reporting a false success.
-- The daily management report runs at 8:05 PM so it sees the post-submission state.
+- Concurrency control prevents two scheduled or manual runs from overlapping.
+- Errors fail visibly in GitHub Actions instead of reporting a false success; the
+  idempotent status gate makes a manual rerun safe after a partial commit.
+- Manual workflow runs default to dry-run and perform no writes.
+- The existing daily management report also starts at 8:00 PM and may observe the
+  status mix immediately before or after auto-submit.
 
 ## Test matrix
 
@@ -39,11 +44,11 @@ notes, client details, usernames, and other sensitive content are not logged.
 | Normal | Article, manager, and partner drafts receive their existing role-based status |
 | Edge | Rejected/approved/other-day entries and confirmation-required shared entries remain unchanged |
 | Security | Missing, inactive, and permission-restricted users are skipped; no narrative data is logged |
-| Failure | Missing Firestore connection fails explicitly; commit errors propagate for scheduler retry |
+| Failure | Missing Firestore connection and commit errors fail visibly; dry-run performs no writes |
 | Extreme | 451 eligible drafts are split into two write batches; a repeated run performs zero writes |
 
 ## Rollback
 
-Disable or remove the `dailyDraftAutoSubmit` export to stop future executions. No
-schema migration is required. Existing status history remains readable because the
+Disable or remove the scheduled workflow to stop future executions. No schema migration
+is required. Existing status history remains readable because the
 new submission metadata fields are optional and additive.

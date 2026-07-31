@@ -1,0 +1,43 @@
+name: Daily draft auto-submit
+
+on:
+  schedule:
+    - cron: '30 14 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Read and report eligible drafts without changing them
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: samay-daily-draft-auto-submit
+  cancel-in-progress: false
+
+jobs:
+  auto_submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci --prefix functions
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SAMAY_TIMESHEET }}
+      - name: Submit current-day drafts
+        env:
+          FIREBASE_PROJECT_ID: samay-timesheet
+          GOOGLE_CLOUD_PROJECT: samay-timesheet
+          K_SERVICE: github-actions-samay-auto-submit
+          NODE_ENV: production
+          SAMAY_AUTO_SUBMIT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: node scripts/run-daily-draft-auto-submit.js

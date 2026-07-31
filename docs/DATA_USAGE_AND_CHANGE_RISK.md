@@ -161,16 +161,16 @@ The production JWT signing key is sourced only from Firebase Secret Manager and 
   timesheets.entry_date, timesheets.status, timesheets.requires_time_confirmation,
   and the owning user's existing role, active state, and permissions. No new collection,
   table, index, or duplicated workflow record is required.
-- Two optional transaction fields are added only when submission occurs:
-  submission_source identifies manual versus daily_8pm submission, and submitted_at
-  records the server execution time. These fields are necessary because updated_at alone
-  cannot distinguish submission from an ordinary edit.
-- The Firebase scheduled function is the only privileged automation consumer. It reads
+- Two optional transaction fields are added to automated submissions only:
+  submission_source=`daily_8pm` and submitted_at record the source and server
+  execution time. Existing entries without those fields remain valid manual or legacy
+  submissions.
+- The authenticated GitHub Actions schedule is the only privileged automation consumer. It reads
   current-day timesheets and users, applies the same role-based transition as the
   authenticated manual API, and writes only eligible draft records.
 - Security boundary: no browser token or credential is used. Inactive, missing, and
   explicitly submission-restricted users are skipped. Logs contain aggregate counts only.
 - Downstream impact: approval queues and management reporting see the same existing status
-  values. The daily management report moves from 8:00 PM to 8:05 PM to avoid reading a
-  partially submitted state.
+  values. Because the existing daily report starts in the same minute, it can observe the
+  status mix immediately before or after the idempotent run.
 - Compatibility: old records without the optional metadata remain valid. Rollback removes

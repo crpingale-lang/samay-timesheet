@@ -114,7 +114,7 @@ async function commitInChunks(db, updates, batchSize = DEFAULT_BATCH_SIZE) {
   return batchCount;
 }
 
-async function submitDailyDrafts({ db, now = new Date(), date, logger = console, batchSize } = {}) {
+async function submitDailyDrafts({ db, now = new Date(), date, logger = console, batchSize, dryRun = false } = {}) {
   if (!db || typeof db.collection !== 'function' || typeof db.batch !== 'function') {
     throw new Error('Firestore database connection is required');
   }
@@ -132,8 +132,8 @@ async function submitDailyDrafts({ db, now = new Date(), date, logger = console,
     submissionDate,
     submittedAt
   });
-  const batches = await commitInChunks(db, plan.updates, batchSize);
-  const result = { ...plan.summary, batches };
+  const batches = dryRun ? 0 : await commitInChunks(db, plan.updates, batchSize);
+  const result = { ...plan.summary, batches, dry_run: Boolean(dryRun) };
 
   logger.info?.('[daily-draft-auto-submit]', result);
   return result;

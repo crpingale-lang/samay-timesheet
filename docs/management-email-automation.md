@@ -4,7 +4,7 @@ This project now includes two Firebase scheduled functions that email management
 
 ## Schedule
 
-- Daily report: every day at 8:05 PM, `Asia/Kolkata` (after the 8:00 PM draft auto-submit)
+- Daily report: every day at 8:00 PM, `Asia/Kolkata`
 - Weekly report: every Monday at 8:00 AM, `Asia/Kolkata`
 - Weekly range: previous Monday through Sunday
 

@@ -51,18 +51,17 @@ function fakeFirestore({ entries, users }) {
 async function run() {
   const root = path.resolve(__dirname, '..');
   const functionsIndex = fs.readFileSync(path.join(root, 'functions', 'index.js'), 'utf8');
-  const firebaseTimesheets = fs.readFileSync(path.join(root, 'functions', 'routes', 'timesheets.js'), 'utf8');
   const timesheetPage = fs.readFileSync(path.join(root, 'public', 'timesheet.html'), 'utf8');
-  const deploymentWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'firebase-hosting-merge.yml'), 'utf8');
-  assert(functionsIndex.includes("exports.dailyDraftAutoSubmit = functions.pubsub"));
+  const scheduledWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'daily-draft-auto-submit.yml'), 'utf8');
+  assert(!functionsIndex.includes('dailyDraftAutoSubmit'));
   assert(functionsIndex.includes(".schedule('0 20 * * *')"));
-  assert(functionsIndex.includes(".schedule('5 20 * * *')"));
   assert(functionsIndex.includes(".timeZone('Asia/Kolkata')"));
-  assert(functionsIndex.includes('getDailyDraftSubmitter().runDailyDraftAutoSubmit()'));
-  assert(firebaseTimesheets.includes("submission_source: 'manual'"));
   assert(timesheetPage.includes('Auto-submit: daily at 8:00 PM IST'));
-  assert(deploymentWorkflow.includes('deploy --only functions --project samay-timesheet --non-interactive'));
-  assert(deploymentWorkflow.includes('needs: deploy_functions'));
+  assert(scheduledWorkflow.includes("cron: '30 14 * * *'"));
+  assert(scheduledWorkflow.includes('concurrency:'));
+  assert(scheduledWorkflow.includes('cancel-in-progress: false'));
+  assert(scheduledWorkflow.includes('SAMAY_AUTO_SUBMIT_DRY_RUN:'));
+  assert(scheduledWorkflow.includes('run: node scripts/run-daily-draft-auto-submit.js'));
 
   assert.equal(currentIndiaDate(new Date('2026-08-01T14:30:00.000Z')), '2026-08-01');
   assert.equal(nextSubmissionStatus('article'), 'pending_manager');
@@ -125,6 +124,20 @@ async function run() {
   assert.equal(result.batches, 2);
   assert.equal(db.commitCount, 2);
   assert.equal(db.committed.length, 451);
+
+  const dryRunDb = fakeFirestore({
+    entries,
+    users: [doc('article-1', { role: 'article', active: true })]
+  });
+  const dryRun = await submitDailyDrafts({
+    db: dryRunDb,
+    now: new Date('2026-08-01T14:30:00.000Z'),
+    dryRun: true,
+    logger: { info() {} }
+  });
+  assert.equal(dryRun.submitted, 451);
+  assert.equal(dryRun.dry_run, true);
+  assert.equal(dryRunDb.commitCount, 0);
 
   const secondRunDb = fakeFirestore({
     entries: entries.map(item => doc(item.id, { ...item.data(), status: 'pending_manager' })),
