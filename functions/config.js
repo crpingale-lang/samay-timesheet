@@ -1,14 +1,9 @@
 const crypto = require('crypto');
-const SECRETLESS_FUNCTION_TARGETS = new Set([
-  'dailyManagementReport',
-  'weeklyManagementReport'
-]);
 
 function resolveJwtSecret() {
   const configured = String(process.env.JWT_SECRET || '').trim();
   if (configured) return configured;
-  const functionTarget = String(process.env.FUNCTION_TARGET || '').trim();
-  if (process.env.K_SERVICE && !SECRETLESS_FUNCTION_TARGETS.has(functionTarget)) {
+  if (process.env.K_SERVICE) {
     throw new Error('JWT_SECRET must be bound from Firebase Secret Manager');
   }
   return crypto.randomBytes(48).toString('hex');
