@@ -610,6 +610,8 @@ router.post('/', (req, res) => {
 
   const { entry_date, client_id, task_type, description, start_time, end_time, hours, billable, work_classification, worked_with_user_ids } = req.body;
   if (!entry_date || !task_type || hours == null) return res.status(400).json({ error: 'Date, task type and hours are required' });
+  const normalizedDescription = String(description || '').trim().slice(0, 2000);
+  if (!normalizedDescription) return res.status(400).json({ error: 'Work note is required' });
   const timeValidationError = validateTimeWindow(start_time, end_time);
   if (timeValidationError) return res.status(400).json({ error: timeValidationError });
   const futureTimeError = validateNotFutureTime(entry_date, start_time, end_time);
@@ -632,7 +634,7 @@ router.post('/', (req, res) => {
     entry_date,
     client_id || null,
     task_type,
-    description || '',
+    normalizedDescription,
     start_time || null,
     end_time || null,
     normalizedHours,
@@ -644,7 +646,7 @@ router.post('/', (req, res) => {
     entry_date,
     client_id,
     task_type,
-    description,
+    description: normalizedDescription,
     start_time,
     end_time,
     hours: normalizedHours,
@@ -663,6 +665,8 @@ router.put('/:id', (req, res) => {
   if (entry.status === 'approved') return res.status(400).json({ error: 'Cannot edit an approved entry' });
 
   const { entry_date, client_id, task_type, description, start_time, end_time, hours, billable, work_classification, worked_with_user_ids } = req.body;
+  const normalizedDescription = String(description || '').trim().slice(0, 2000);
+  if (!normalizedDescription) return res.status(400).json({ error: 'Work note is required' });
   const timeValidationError = validateTimeWindow(start_time, end_time);
   if (timeValidationError) return res.status(400).json({ error: timeValidationError });
   const futureTimeError = validateNotFutureTime(entry_date, start_time, end_time);
@@ -691,7 +695,7 @@ router.put('/:id', (req, res) => {
     entry_date,
     client_id || null,
     task_type,
-    description || '',
+    normalizedDescription,
     start_time || null,
     end_time || null,
     normalizedHours,
@@ -707,7 +711,7 @@ router.put('/:id', (req, res) => {
       entry_date,
       client_id,
       task_type,
-      description,
+      description: normalizedDescription,
       start_time,
       end_time,
       hours: normalizedHours,

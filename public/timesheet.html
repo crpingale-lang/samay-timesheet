@@ -256,8 +256,8 @@
           <select class="form-control" id="modal-task-type"><option value="">Select task</option></select>
         </div>
         <div class="form-group">
-          <label class="form-label">Description</label>
-          <textarea class="form-control" id="modal-description" rows="3" placeholder="What was done?"></textarea>
+          <label class="form-label" for="modal-description">What are you working on? <span aria-hidden="true">*</span></label>
+          <textarea class="form-control" id="modal-description" rows="3" maxlength="2000" required aria-required="true" placeholder="Add a clear work note"></textarea>
         </div>
       </section>
 
@@ -312,7 +312,7 @@
   </div>
 </nav>
 
-<script src="/js/app.js"></script>
+<script src="/js/app.js?v=15"></script>
 <script>
 requireAuth();
 if (!hasPermission('timesheets.view_own')) window.location.href = '/dashboard.html';
@@ -1480,7 +1480,7 @@ function modalPayload() {
     entry_date: document.getElementById('modal-date').value,
     client_id: matchedClient ? matchedClient.id : null,
     task_type: document.getElementById('modal-task-type').value,
-    description: document.getElementById('modal-description').value,
+    description: document.getElementById('modal-description').value.trim(),
     start_time: modalEntryMode === 'time' ? (document.getElementById('modal-start-time').value || null) : null,
     end_time: modalEntryMode === 'time' ? (document.getElementById('modal-end-time').value || null) : null,
     hours: document.getElementById('modal-hours').value,
@@ -1498,6 +1498,11 @@ async function saveModalEntry() {
   const payload = modalPayload();
   if (!payload.entry_date || !payload.task_type || !payload.hours) {
     toast('Date, work category, and hours are required', 'error');
+    return;
+  }
+  if (!payload.description) {
+    toast('What you are working on is required', 'error');
+    document.getElementById('modal-description').focus();
     return;
   }
   const timelineError = validateModalTimeline(payload, id);

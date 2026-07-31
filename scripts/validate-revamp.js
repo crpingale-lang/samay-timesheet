@@ -100,6 +100,38 @@ check('mobile header actions stay touch-safe and inside the top bar', () => {
   }
 });
 
+check('visible form controls receive durable accessible names', () => {
+  for (const token of [
+    'function repairAccessibleControlLabels',
+    'function bootAccessibleControlLabels',
+    "accessibleLabelObserver.observe(document.body, { childList: true, subtree: true })"
+  ]) {
+    assert(appSource.includes(token), `form accessibility repair missing ${token}`);
+  }
+});
+
+check('shared UI assets use explicit cache versions', () => {
+  const unversioned = htmlFiles.filter(file => {
+    const source = fs.readFileSync(path.join(publicDir, file), 'utf8');
+    return source.includes('/js/app.js') && !source.includes('/js/app.js?v=15');
+  });
+  assert.deepStrictEqual(unversioned, []);
+  const serviceWorker = fs.readFileSync(path.join(publicDir, 'sw.js'), 'utf8');
+  for (const asset of ['/js/app.js?v=15', '/css/focus-timer.css?v=3', '/js/focus-timer.js?v=3']) {
+    assert(serviceWorker.includes(asset), `service worker is missing ${asset}`);
+  }
+});
+
+check('work notes are mandatory for timer and manual entries', () => {
+  const timesheet = fs.readFileSync(path.join(publicDir, 'timesheet.html'), 'utf8');
+  assert(timesheet.includes('id="modal-description"'));
+  assert(/id="modal-description"[^>]*\brequired\b/.test(timesheet), 'manual work note is not required in the form');
+  assert(timesheet.includes("if (!payload.description)"), 'manual work note is not checked before save');
+  for (const relative of ['routes/timer.js', 'functions/routes/timer.js', 'routes/timesheets.js', 'functions/routes/timesheets.js']) {
+    const source = fs.readFileSync(path.join(root, relative), 'utf8');
+    assert(source.includes("Work note is required"), `${relative} does not enforce a work note`);
+  }
+});
 check('dialogs use the shared responsive spacing contract', () => {
   const css = fs.readFileSync(path.join(publicDir, 'css', 'revamp.css'), 'utf8');
   for (const token of ['--dialog-edge-gap', '--dialog-gutter', '.modal>form', '.modal>.modal-actions']) {

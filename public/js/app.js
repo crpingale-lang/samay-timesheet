@@ -935,6 +935,72 @@ function bootMobileListPickers(root = document) {
   root.querySelectorAll('input.form-control[list]').forEach(syncMobileListPickerState);
 }
 
+let accessibleLabelObserver = null;
+
+function normalizedControlLabel(value = '') {
+  return String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\*\s*$/, '')
+    .trim();
+}
+
+function controlHasAccessibleName(control) {
+  if (!control) return true;
+  if (normalizedControlLabel(control.getAttribute('aria-label'))) return true;
+  if (normalizedControlLabel(control.getAttribute('aria-labelledby'))) return true;
+  return [...(control.labels || [])].some(label => normalizedControlLabel(label.textContent));
+}
+
+function accessibleControlLabel(control) {
+  const container = control.closest('.toggle-row, .form-group, .filter-group, .form-field, .field');
+  const labels = container ? [...container.querySelectorAll('label')] : [];
+  const visibleLabel = labels.find(label => (
+    !label.contains(control) && normalizedControlLabel(label.textContent)
+  )) || labels.find(label => normalizedControlLabel(label.textContent));
+
+  if (visibleLabel && control.id && (!visibleLabel.htmlFor || visibleLabel.htmlFor === control.id)) {
+    visibleLabel.htmlFor = control.id;
+    if (controlHasAccessibleName(control)) return '';
+  }
+
+  return normalizedControlLabel(
+    visibleLabel?.textContent ||
+    control.dataset.mobilePickerTitle ||
+    control.getAttribute('placeholder') ||
+    control.getAttribute('title') ||
+    control.getAttribute('name') ||
+    humanizeKey(control.id)
+  );
+}
+
+function repairAccessibleControlLabels(root = document) {
+  const selector = 'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]), select, textarea';
+  const controls = [];
+  if (root instanceof Element && root.matches(selector)) controls.push(root);
+  if (root?.querySelectorAll) controls.push(...root.querySelectorAll(selector));
+
+  controls.forEach(control => {
+    if (controlHasAccessibleName(control)) return;
+    const label = accessibleControlLabel(control);
+    if (label) control.setAttribute('aria-label', label);
+  });
+}
+
+function bootAccessibleControlLabels() {
+  repairAccessibleControlLabels(document);
+  if (accessibleLabelObserver || !document.body) return;
+  accessibleLabelObserver = new MutationObserver(mutations => {
+    const roots = new Set();
+    mutations.forEach(mutation => mutation.addedNodes.forEach(node => {
+      if (!(node instanceof Element)) return;
+      roots.add(node);
+      if (node.matches('label') && node.parentElement) roots.add(node.parentElement);
+    }));
+    roots.forEach(root => repairAccessibleControlLabels(root));
+  });
+  accessibleLabelObserver.observe(document.body, { childList: true, subtree: true });
+}
+
 // Format helpers
 function fmtDate(d) { if (!d) return '-'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtHours(h) {
@@ -1368,7 +1434,7 @@ function bootFocusTimer() {
     const stylesheet = document.createElement('link');
     stylesheet.id = 'focus-timer-styles';
     stylesheet.rel = 'stylesheet';
-    stylesheet.href = '/css/focus-timer.css';
+    stylesheet.href = '/css/focus-timer.css?v=3';
     document.head.appendChild(stylesheet);
   }
   if (window.SamayFocusTimer) {
@@ -1378,7 +1444,7 @@ function bootFocusTimer() {
   if (document.getElementById('focus-timer-script')) return;
   const script = document.createElement('script');
   script.id = 'focus-timer-script';
-  script.src = '/js/focus-timer.js';
+  script.src = '/js/focus-timer.js?v=3';
   script.defer = true;
   script.addEventListener('load', () => window.SamayFocusTimer?.init(), { once: true });
   script.addEventListener('error', () => {
@@ -1395,10 +1461,12 @@ if (typeof window !== 'undefined' && window.location.pathname !== '/') {
       bootSessionKeepAlive();
       bootContactCatchupGate();
       bootMobileListPickers();
+      bootAccessibleControlLabels();
     }, { once: true });
   } else {
     bootMobileKeyboardSupport();
     bootSessionKeepAlive();
+    bootAccessibleControlLabels();
     bootContactCatchupGate();
     bootMobileListPickers();
   }

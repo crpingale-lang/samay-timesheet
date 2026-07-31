@@ -681,6 +681,8 @@ router.post('/', async (req, res) => {
   if (!requirePermission(req, res, 'timesheets.create_own')) return;
   const { entry_date, client_id, task_type, description, hours, billable, work_classification, start_time, end_time, worked_with_user_ids } = req.body;
   if (!entry_date || !task_type || !hours) return res.status(400).json({ error: 'Missing fields' });
+  const normalizedDescription = String(description || '').trim().slice(0, 2000);
+  if (!normalizedDescription) return res.status(400).json({ error: 'Work note is required' });
   try {
     const timeValidationError = validateTimeWindow(start_time, end_time);
     if (timeValidationError) return res.status(400).json({ error: timeValidationError });
@@ -708,7 +710,7 @@ router.post('/', async (req, res) => {
       entry_date,
       client_id: client_id || null,
       task_type,
-      description: description || '',
+      description: normalizedDescription,
       hours: normalizedHours,
       start_time: start_time || null,
       end_time: end_time || null,
@@ -725,7 +727,7 @@ router.post('/', async (req, res) => {
       entry_date,
       client_id,
       task_type,
-      description,
+      description: normalizedDescription,
       start_time,
       end_time,
       hours: normalizedHours,
@@ -740,6 +742,8 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { entry_date, client_id, task_type, description, hours, billable, work_classification, start_time, end_time, worked_with_user_ids } = req.body;
   if (!requirePermission(req, res, 'timesheets.edit_own')) return;
+  const normalizedDescription = String(description || '').trim().slice(0, 2000);
+  if (!normalizedDescription) return res.status(400).json({ error: 'Work note is required' });
   try {
     const ref = db.collection('timesheets').doc(req.params.id);
     const doc = await ref.get();
@@ -782,7 +786,7 @@ router.put('/:id', async (req, res) => {
       entry_date,
       client_id: client_id || null,
       task_type,
-      description: description || '',
+      description: normalizedDescription,
       hours: normalizedHours,
       start_time: start_time || null,
       end_time: end_time || null,
@@ -799,7 +803,7 @@ router.put('/:id', async (req, res) => {
         entry_date,
         client_id,
         task_type,
-        description,
+        description: normalizedDescription,
         start_time,
         end_time,
         hours: normalizedHours,
