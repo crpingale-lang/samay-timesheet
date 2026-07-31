@@ -2,49 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { getMasterDataItems, getUdinLocationMasterItems, invalidateCache } = require('../data-cache');
+const { missingDefaultMasterData } = require('../lib/master-data-defaults');
 
 const ALLOWED_CATEGORIES = new Set(['work_category', 'work_classification', 'udin_assignment', 'financial_year']);
 const TIMESHEET_MASTER_CATEGORIES = new Set(['work_category', 'work_classification']);
 
-const DEFAULT_MASTER_DATA = {
-  work_classification: [
-    { key: 'client_work', label: 'Client Work', short_label: 'Client', sort_order: 1 },
-    { key: 'internal', label: 'Internal', short_label: 'Internal', sort_order: 2 },
-    { key: 'admin', label: 'Admin', short_label: 'Admin', sort_order: 3 },
-    { key: 'business_development', label: 'Business Development', short_label: 'Biz Dev', sort_order: 4 },
-    { key: 'learning', label: 'Learning', short_label: 'Learning', sort_order: 5 }
-  ],
-  work_category: [
-    { key: 'gst_filing', label: 'GST Filing', sort_order: 1 },
-    { key: 'gst_reconciliation', label: 'GST Reconciliation', sort_order: 2 },
-    { key: 'income_tax_return', label: 'Income Tax Return', sort_order: 3 },
-    { key: 'tds_tcs_filing', label: 'TDS / TCS Filing', sort_order: 4 },
-    { key: 'statutory_audit', label: 'Statutory Audit', sort_order: 5 },
-    { key: 'tax_audit', label: 'Tax Audit', sort_order: 6 },
-    { key: 'internal_audit', label: 'Internal Audit', sort_order: 7 },
-    { key: 'roc_mca_filing', label: 'ROC / MCA Filing', sort_order: 8 },
-    { key: 'company_incorporation', label: 'Company Incorporation', sort_order: 9 },
-    { key: 'accounts_bookkeeping', label: 'Accounts & Bookkeeping', sort_order: 10 },
-    { key: 'payroll_processing', label: 'Payroll Processing', sort_order: 11 },
-    { key: 'advisory_consultation', label: 'Advisory / Consultation', sort_order: 12 },
-    { key: 'client_meeting', label: 'Client Meeting', sort_order: 13 },
-    { key: 'internal_meeting', label: 'Internal Meeting', sort_order: 14 },
-    { key: 'training_cpd', label: 'Training / CPD', sort_order: 15 },
-    { key: 'fema_rbi_compliance', label: 'FEMA / RBI Compliance', sort_order: 16 },
-    { key: 'administrative', label: 'Administrative', sort_order: 17 },
-    { key: 'other', label: 'Other', sort_order: 18 }
-  ],
-  udin_assignment: [
-    { key: 'certificate', label: 'Certificate', short_label: 'CERT', sort_order: 1 },
-    { key: 'consultancy', label: 'Consultancy', short_label: 'CONS', sort_order: 2 },
-    { key: 'professional_services', label: 'Professional Services', short_label: 'PS', sort_order: 3 }
-  ],
-  financial_year: [
-    { key: '2024-25', label: '2024-25', short_label: '2024-25', sort_order: 1 },
-    { key: '2025-26', label: '2025-26', short_label: '2025-26', sort_order: 2 },
-    { key: '2026-27', label: '2026-27', short_label: '2026-27', sort_order: 3 }
-  ]
-};
 
 function canManageMasters(req) {
   return req.user?.role === 'partner' || (Array.isArray(req.user?.permissions) && req.user.permissions.includes('access.manage'));
@@ -70,32 +32,37 @@ function normalizeMasterDataPayload(body = {}) {
   };
 }
 
-async function ensureMasterData() {
-  const existing = await getMasterDataItems();
-  if (existing.length) return;
+let ensureMasterDataPromise = null;
+let masterDataEnsured = false;
 
-  let batch = db.batch();
-  let count = 0;
-  for (const [category, items] of Object.entries(DEFAULT_MASTER_DATA)) {
-    for (const item of items) {
-      const ref = db.collection('master_data').doc();
-      batch.set(ref, {
-        category,
-        key: item.key,
-        label: item.label,
-        short_label: item.short_label || null,
-        sort_order: item.sort_order || 0,
-        active: true
-      });
-      count++;
-      if (count % 400 === 0) {
+async function ensureMasterData() {
+  if (masterDataEnsured) return;
+  if (ensureMasterDataPromise) return ensureMasterDataPromise;
+  ensureMasterDataPromise = (async () => {
+    const snapshot = await db.collection('master_data').get();
+    const existing = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const missing = missingDefaultMasterData(existing);
+    if (!missing.length) return;
+
+    let batch = db.batch();
+    for (let index = 0; index < missing.length; index++) {
+      const { id, ...payload } = missing[index];
+      batch.set(db.collection('master_data').doc(id), payload);
+      if ((index + 1) % 400 === 0) {
         await batch.commit();
         batch = db.batch();
       }
     }
+    if (missing.length % 400 !== 0) await batch.commit();
+    invalidateCache('master-data:all');
+  })();
+
+  try {
+    await ensureMasterDataPromise;
+    masterDataEnsured = true;
+  } finally {
+    ensureMasterDataPromise = null;
   }
-  if (count % 400 !== 0) await batch.commit();
-  invalidateCache('master-data:all');
 }
 
 async function listCategory(category) {

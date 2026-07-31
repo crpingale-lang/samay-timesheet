@@ -33,6 +33,7 @@ function activeSession(userId) {
 
 function validateLinkedData(input) {
   if (!input.task_type) return 'Work category is required';
+  if (!input.description) return 'Work note is required';
   const task = db.prepare(`
     SELECT id FROM master_data_options
     WHERE category = 'work_category' AND label = ? AND active = 1

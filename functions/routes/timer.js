@@ -33,6 +33,7 @@ function activePayload(snapshot) {
 
 async function validateLinkedData(input) {
   if (!input.task_type) return 'Work category is required';
+  if (!input.description) return 'Work note is required';
   const masters = await getMasterDataItems();
   const task = masters.find(item => (
     item.category === 'work_category' &&

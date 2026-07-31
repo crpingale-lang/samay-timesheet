@@ -9,6 +9,7 @@ const {
   groupEntriesByDate,
   normalizeTimerInput
 } = require('../functions/lib/focus-timer-core');
+const { missingDefaultMasterData } = require('../functions/lib/master-data-defaults');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
@@ -90,6 +91,18 @@ function testCore() {
   assert.equal(normalized.task_type.length, 160);
   assert.equal(normalized.description.length, 2000);
   assert.equal(normalized.source, 'web');
+  const missingDefaults = missingDefaultMasterData([{ category: 'financial_year', key: '2024-25' }]);
+  assert(!missingDefaults.some(item => item.category === 'financial_year' && item.key === '2024-25'));
+  assert(missingDefaults.some(item => item.category === 'work_category' && item.key === 'gst_filing'));
+  assert(missingDefaults.some(item => item.category === 'work_category' && item.key === 'statutory_audit'));
+  assert(missingDefaults.some(item => item.category === 'work_classification' && item.key === 'internal'));
+  assert.equal(new Set(missingDefaults.map(item => item.id)).size, missingDefaults.length);
+  assert(missingDefaults.every(item => item.id.startsWith('default__') && item.active === true));
+  const configuredCategory = missingDefaultMasterData([
+    { category: 'work_category', key: 'gst_filing' }
+  ]);
+  assert(!configuredCategory.some(item => item.category === 'work_category'));
+
   assert.deepEqual(groupEntriesByDate([
     { entry_date: '2026-07-31', id: 1 },
     { entry_date: '2026-07-31', id: 2 }
@@ -120,11 +133,14 @@ function testStaticContracts() {
     assert(route.includes("router.post('/resume'"));
     assert(route.includes("router.post('/stop'"));
     assert(route.includes("router.post('/discard'"));
+    assert(route.includes("if (!input.description) return 'Work note is required'"));
   }
   assert(schema.includes('CREATE TABLE IF NOT EXISTS time_sessions'));
   assert(schema.includes('total_paused_ms INTEGER NOT NULL DEFAULT 0'));
   assert(schema.includes("ALTER TABLE time_sessions ADD COLUMN paused_at TEXT"));
   assert(frontend.includes("'documentPictureInPicture' in window"));
+  assert(frontend.includes('const pip = await requestPiPWindow()'));
+  assert(frontend.includes('if (pip) return'));
   assert(frontend.includes("apiFetch('/timer/start'"));
   assert(frontend.includes('apiFetch(`/timer/${action}`'));
   assert(frontend.includes("apiFetch('/timer/stop'"));
@@ -135,6 +151,10 @@ function testStaticContracts() {
   assert(frontend.includes('data-timer-input="client_id"'));
   assert(frontend.includes('data-timer-input="task_type"'));
   assert(frontend.includes('data-timer-input="description"'));
+  assert(frontend.includes('Promise.allSettled'));
+  assert(frontend.includes('role="combobox"'));
+  assert(frontend.includes('required aria-required="true"'));
+  assert(!frontend.includes('<datalist'));
   assert(frontend.includes('data-timer-pip-action="collapse"'));
   assert(frontend.includes('data-timer-pip-action="reenter"'));
   assert(frontend.includes('rememberActiveAsDraft(completed, { clearDescription: true })'));
@@ -228,6 +248,14 @@ async function testLocalApi() {
       source: 'web'
     };
 
+    const missingNote = await request(baseUrl, '/timer/start', {
+      method: 'POST',
+      token,
+      body: { ...timerBody, description: '   ' }
+    });
+    assert.equal(missingNote.status, 400);
+    assert.match(missingNote.payload.error, /work note is required/i);
+
     const simultaneous = await Promise.all([
       request(baseUrl, '/timer/start', { method: 'POST', token, body: timerBody }),
       request(baseUrl, '/timer/start', { method: 'POST', token, body: timerBody })
@@ -288,7 +316,7 @@ async function testLocalApi() {
     const internalStart = await request(baseUrl, '/timer/start', {
       method: 'POST',
       token,
-      body: { task_type: task.label, work_classification: internal.key, source: 'pwa' }
+      body: { task_type: task.label, work_classification: internal.key, description: 'Internal administration', source: 'pwa' }
     });
     assert.equal(internalStart.status, 201);
     const pausedBeforeDiscard = await request(baseUrl, '/timer/pause', { method: 'POST', token, body: {} });

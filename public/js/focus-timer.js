@@ -9,6 +9,7 @@
     pipCollapsed: false,
     pipRenderedMode: '',
     pipNotice: '',
+    optionsNotice: '',
     lastSaved: null,
     tickHandle: null,
     pollHandle: null,
@@ -168,23 +169,103 @@
     addOption(client, 'Internal / no client', '');
     state.clients.forEach(item => addOption(client, clientLabel(item), item.id));
     task.replaceChildren();
-    addOption(task, 'Select work', '');
+    addOption(task, state.categories.length ? 'Select work' : 'No work categories configured', '');
     state.categories.forEach(item => addOption(task, item.label, item.label));
+    task.disabled = state.categories.length === 0;
     applyDraft(document);
   }
 
+  function pipOptionItems(name) {
+    if (name === 'client_id') {
+      return [
+        { label: 'Internal / no client', value: '' },
+        ...state.clients.map(item => ({ label: clientLabel(item), value: clientLabel(item) }))
+      ];
+    }
+    return state.categories.map(item => ({ label: item.label, value: item.label }));
+  }
+
+  function closePiPOptions(root, except = '') {
+    root.querySelectorAll('[data-timer-options]').forEach(list => {
+      if (list.dataset.timerOptions === except) return;
+      list.hidden = true;
+      const input = timerInput(root, list.dataset.timerOptions);
+      input?.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function renderPiPOptions(root, name, open = true, showAll = false) {
+    const input = timerInput(root, name);
+    const list = root.querySelector(`[data-timer-options="${name}"]`);
+    if (!input || !list) return;
+    const query = showAll ? '' : input.value.trim().toLocaleLowerCase();
+    const allItems = pipOptionItems(name);
+    const matches = allItems
+      .filter(item => !query || item.label.toLocaleLowerCase().includes(query))
+      .slice(0, 10);
+
+    list.replaceChildren();
+    if (!matches.length) {
+      const empty = root.createElement('div');
+      empty.className = 'focus-timer-pip-option-empty';
+      empty.textContent = allItems.length ? 'No matching option' : (name === 'client_id' ? 'No active clients configured' : 'No active work configured');
+      list.appendChild(empty);
+    } else {
+      matches.forEach(item => {
+        const option = root.createElement('button');
+        option.type = 'button';
+        option.className = 'focus-timer-pip-option';
+        option.setAttribute('role', 'option');
+        option.textContent = item.label;
+        option.addEventListener('pointerdown', event => event.preventDefault());
+        option.addEventListener('click', () => {
+          input.value = item.value;
+          captureDraft(root);
+          closePiPOptions(root);
+          input.focus();
+        });
+        list.appendChild(option);
+      });
+    }
+    closePiPOptions(root, name);
+    list.hidden = !open;
+    input.setAttribute('aria-expanded', String(open));
+  }
+
+  function bindPiPCombobox(root, name) {
+    const input = timerInput(root, name);
+    if (!input) return;
+    input.addEventListener('focus', () => {
+      input.select();
+      renderPiPOptions(root, name, true, true);
+    });
+    input.addEventListener('input', () => {
+      captureDraft(root);
+      renderPiPOptions(root, name, true);
+    });
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closePiPOptions(root);
+        event.stopPropagation();
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        renderPiPOptions(root, name, true, true);
+        root.querySelector(`[data-timer-options="${name}"] .focus-timer-pip-option`)?.focus();
+      }
+    });
+    input.addEventListener('blur', () => {
+      root.defaultView?.setTimeout(() => {
+        const combobox = input.closest('.focus-timer-pip-combobox');
+        if (!combobox?.contains(root.activeElement)) closePiPOptions(root);
+      }, 100);
+    });
+  }
+
   function populatePiPInputs(root) {
-    const clientList = root.querySelector('[data-timer-client-options]');
-    const taskList = root.querySelector('[data-timer-task-options]');
-    if (clientList) {
-      clientList.replaceChildren();
-      state.clients.forEach(item => addOption(clientList, '', clientLabel(item)));
-    }
-    if (taskList) {
-      taskList.replaceChildren();
-      state.categories.forEach(item => addOption(taskList, '', item.label));
-    }
     applyDraft(root);
+    renderPiPOptions(root, 'client_id', false);
+    renderPiPOptions(root, 'task_type', false);
   }
 
   function pipMode() {
@@ -286,8 +367,8 @@
                 <select id="${ids.task}"><option value="">Select work</option></select>
               </div>
               <div class="focus-timer-field is-wide">
-                <label for="${ids.description}">Note <span>(optional)</span></label>
-                <textarea id="${ids.description}" maxlength="2000" placeholder="What are you working on?"></textarea>
+                <label for="${ids.description}">What are you working on?</label>
+                <textarea id="${ids.description}" maxlength="2000" required aria-required="true" placeholder="Add a clear work note"></textarea>
               </div>
             </div>
             <div class="focus-timer-actions">
@@ -369,7 +450,7 @@
     const overlay = el(ids.overlay);
     overlay.classList.add('is-open');
     overlay.setAttribute('aria-hidden', 'false');
-    showNotice('');
+    showNotice(state.optionsNotice);
     window.setTimeout(() => {
       const target = state.active ? overlay.querySelector('[data-timer-action="toggle"]') : el(ids.client);
       target?.focus();
@@ -385,22 +466,42 @@
 
   async function openTimer() {
     if (supportsPiP()) {
-      await requestPiPWindow();
-      return;
+      const pip = await requestPiPWindow();
+      if (pip) return;
     }
     openModal();
   }
 
   async function loadOptions() {
-    try {
-      const [clients, masters] = await Promise.all([apiFetch('/clients'), apiFetch('/master-data')]);
-      state.clients = (clients || []).filter(item => item.active !== false && item.active !== 0 && item.active !== '0');
-      state.categories = (masters?.work_categories || []).filter(item => item.active !== false && item.active !== 0 && item.active !== '0');
-      populateMainOptions();
-      if (state.pipWindow) renderPiP(true);
-    } catch (error) {
-      showNotice(error.message || 'Timer options could not be loaded.');
+    const [clientsResult, mastersResult] = await Promise.allSettled([
+      apiFetch('/clients'),
+      apiFetch('/master-data')
+    ]);
+    const isActive = item => item.active !== false && item.active !== 0 && item.active !== '0';
+    const issues = [];
+
+    if (clientsResult.status === 'fulfilled') {
+      const payload = Array.isArray(clientsResult.value) ? clientsResult.value : clientsResult.value?.items;
+      state.clients = (Array.isArray(payload) ? payload : []).filter(isActive);
+      if (!state.clients.length) issues.push('No active clients are configured. Internal work is still available.');
+    } else {
+      issues.push('Clients could not be loaded. Internal work is still available.');
     }
+
+    if (mastersResult.status === 'fulfilled') {
+      const categories = mastersResult.value?.work_categories;
+      state.categories = (Array.isArray(categories) ? categories : []).filter(isActive);
+      if (!state.categories.length) issues.push('No active work categories are configured.');
+    } else {
+      issues.push('Work categories could not be loaded.');
+    }
+
+    const notice = issues.join(' ');
+    state.optionsNotice = notice;
+    state.pipNotice = notice;
+    populateMainOptions();
+    showNotice(notice);
+    if (state.pipWindow) renderPiP(true);
   }
 
   async function loadActive({ quiet = true } = {}) {
@@ -512,9 +613,9 @@
           </header>
           <div class="focus-timer-pip-notice" data-timer-pip-notice hidden></div>
           <div class="focus-timer-pip-form">
-            <label>Client <span>optional</span><input type="search" autocomplete="off" list="focus-timer-pip-client-list" data-timer-input="client_id" placeholder="Search name or code"><datalist id="focus-timer-pip-client-list" data-timer-client-options></datalist></label>
-            <label>Work<input type="search" autocomplete="off" list="focus-timer-pip-task-list" data-timer-input="task_type" placeholder="Search work"><datalist id="focus-timer-pip-task-list" data-timer-task-options></datalist></label>
-            <label>Note <span>optional</span><input type="text" maxlength="2000" data-timer-input="description" placeholder="What are you working on?"></label>
+            <div class="focus-timer-pip-field"><label for="focus-timer-pip-client">Client <span>optional</span></label><div class="focus-timer-pip-combobox"><input id="focus-timer-pip-client" type="search" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="focus-timer-pip-client-options" data-timer-input="client_id" placeholder="Search name or code"><div class="focus-timer-pip-options" id="focus-timer-pip-client-options" role="listbox" data-timer-options="client_id" hidden></div></div></div>
+            <div class="focus-timer-pip-field"><label for="focus-timer-pip-task">Work</label><div class="focus-timer-pip-combobox"><input id="focus-timer-pip-task" type="search" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="focus-timer-pip-task-options" data-timer-input="task_type" placeholder="Search work"><div class="focus-timer-pip-options" id="focus-timer-pip-task-options" role="listbox" data-timer-options="task_type" hidden></div></div></div>
+            <div class="focus-timer-pip-field"><label for="focus-timer-pip-description">What are you working on?</label><input id="focus-timer-pip-description" type="text" maxlength="2000" required aria-required="true" data-timer-input="description" placeholder="Add a clear work note"></div>
           </div>
           <div class="focus-timer-pip-actions">
             <button class="focus-timer-pip-btn is-quiet" type="button" data-timer-pip-action="exit">Exit</button>
@@ -524,10 +625,11 @@
       body.appendChild(shell);
       populatePiPInputs(pip.document);
       showInputNotice(pip.document, state.pipNotice);
-      shell.querySelectorAll('[data-timer-input]').forEach(input => {
-        input.addEventListener('input', () => captureDraft(pip.document));
-        input.addEventListener('change', () => captureDraft(pip.document));
-      });
+      bindPiPCombobox(pip.document, 'client_id');
+      bindPiPCombobox(pip.document, 'task_type');
+      const descriptionInput = timerInput(pip.document, 'description');
+      descriptionInput.addEventListener('input', () => captureDraft(pip.document));
+      descriptionInput.addEventListener('change', () => captureDraft(pip.document));
       shell.querySelectorAll('[data-timer-pip-action="exit"]').forEach(button => button.addEventListener('click', () => pip.close()));
       shell.querySelector('[data-timer-pip-action="start"]').addEventListener('click', () => startTimer(pip.document));
       resizePiP(state.pipNotice ? 'idleError' : 'idle');
@@ -603,11 +705,14 @@
     const typedClient = clientInput && !clientInput.matches('select') ? clientInput.value.trim() : '';
     const draft = captureDraft(inputRoot);
     const selectedTask = resolveTask(draft.task_type);
+    const workNote = String(draft.description || '').trim();
     if (typedClient && !draft.client_id) {
       return showInputNotice(inputRoot, 'Choose a client from the search results, or clear it for internal work.');
     }
     if (!selectedTask) return showInputNotice(inputRoot, 'Choose the work from the search results.');
+    if (!workNote) return showInputNotice(inputRoot, 'Describe what you are working on before starting the timer.');
     draft.task_type = selectedTask.label;
+    draft.description = workNote;
     draft.work_classification = draft.client_id ? 'client_work' : 'internal';
     state.draft = { ...draft };
 
