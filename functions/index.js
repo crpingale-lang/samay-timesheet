@@ -6,7 +6,7 @@ const {
   sendWeeklyManagementReport
 } = require('./management-report-mailer');
 
-exports.api = onRequest({ secrets: ['JWT_SECRET'] }, app);
+exports.api = onRequest({ secrets: ['JWT_SECRET', 'JWT_SECRET_PREVIOUS'] }, app);
 exports.dailyManagementReport = functions.pubsub
   .schedule('0 20 * * *')
   .timeZone('Asia/Kolkata')

@@ -1,9 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
 const path = require('path');
 const { db } = require('./db');
-const { JWT_SECRET } = require('./config');
+const { verifyJwtToken } = require('./lib/session-jwt');
 
 const authRoutes = require('./routes/auth');
 const staffRoutes = require('./routes/staff');
@@ -71,7 +70,7 @@ async function authMiddleware(req, res, next) {
   const token = req.headers['authorization']?.split(' ')[1] || req.query.token;
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyJwtToken(token);
     const userDoc = await db.collection('users').doc(decoded.id).get();
     if (!userDoc.exists) return res.status(401).json({ error: 'Unauthorized' });
 

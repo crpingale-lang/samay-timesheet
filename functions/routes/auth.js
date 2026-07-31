@@ -3,9 +3,9 @@ const router = express.Router();
 const { db, seedDefaultAdmin } = require('../db');
 const { getUsersMap, invalidateCache } = require('../data-cache');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { JWT_SECRET, SESSION_TTL } = require('../config');
+const { SESSION_TTL } = require('../config');
+const { signJwtToken, verifyJwtToken } = require('../lib/session-jwt');
 const TRUSTED_DEVICE_TTL_SECONDS = 24 * 60 * 60;
 const ROLE_DEFAULT_PERMISSIONS = {
   partner: [
@@ -146,20 +146,19 @@ function buildOtpAuthUrl({ username, secret }) {
 }
 
 function createTotpChallenge({ userId, secret, purpose }) {
-  return jwt.sign(
+  return signJwtToken(
     {
       purpose,
       userId,
       secret: String(secret || '').trim()
     },
-    JWT_SECRET,
     { expiresIn: `${MFA_CHALLENGE_TTL_SECONDS}s` }
   );
 }
 
 function verifyTotpChallenge(token) {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyJwtToken(token);
     if (!decoded?.userId || !['totp-login', 'totp-setup'].includes(decoded?.purpose)) return null;
     if (decoded.purpose === 'totp-setup' && !decoded.secret) return null;
     return decoded;
@@ -171,20 +170,19 @@ function verifyTotpChallenge(token) {
 function createTrustedDeviceToken({ userId, deviceId }) {
   const normalizedDeviceId = String(deviceId || '').trim();
   if (!normalizedDeviceId) return '';
-  return jwt.sign(
+  return signJwtToken(
     {
       purpose: 'trusted-device',
       userId,
       deviceId: normalizedDeviceId
     },
-    JWT_SECRET,
     { expiresIn: `${TRUSTED_DEVICE_TTL_SECONDS}s` }
   );
 }
 
 function verifyTrustedDeviceToken(token) {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyJwtToken(token);
     if (decoded?.purpose !== 'trusted-device' || !decoded?.userId || !decoded?.deviceId) {
       return null;
     }
@@ -359,13 +357,13 @@ function authUserPayload(id, user) {
 }
 
 function issueSessionToken(userId, user, permissions) {
-  return jwt.sign({
+  return signJwtToken({
     id: userId,
     username: user.username,
     role: normalizeRole(user.role),
     name: user.name,
     permissions
-  }, JWT_SECRET, { expiresIn: SESSION_TTL });
+  }, { expiresIn: SESSION_TTL });
 }
 
 async function getAuthorizedUser(req, res) {
@@ -376,7 +374,7 @@ async function getAuthorizedUser(req, res) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = verifyJwtToken(token);
     const userRef = db.collection('users').doc(decoded.id);
     const userDoc = await userRef.get();
     if (!userDoc.exists) {

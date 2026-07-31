@@ -50,7 +50,7 @@ async function run() {
   }
   const functionsIndex = read('functions/index.js');
   assert(
-    functionsIndex.includes("onRequest({ secrets: ['JWT_SECRET'] }, app)"),
+    functionsIndex.includes("onRequest({ secrets: ['JWT_SECRET', 'JWT_SECRET_PREVIOUS'] }, app)"),
     'Firebase API must bind JWT_SECRET from Secret Manager'
   );
 
@@ -71,7 +71,7 @@ async function run() {
 
   const productionConfigChecks = [
     { relative: './config', env: { NODE_ENV: 'production', K_SERVICE: '' } },
-    { relative: './functions/config', env: { NODE_ENV: 'development', K_SERVICE: 'samay-api' } }
+    { relative: './functions/config', env: { NODE_ENV: 'development', K_SERVICE: 'samay-api', FUNCTION_TARGET: 'api' } }
   ];
   for (const checkConfig of productionConfigChecks) {
     const configFile = checkConfig.relative.slice(2) + '.js';
@@ -90,6 +90,13 @@ async function run() {
     const configured = loadConfigForEnv(configFile, { ...checkConfig.env, JWT_SECRET: configuredSecret });
     assert.strictEqual(configured.JWT_SECRET, configuredSecret, `${checkConfig.relative} rejected a configured JWT secret`);
   }
+  const scheduledConfig = loadConfigForEnv('functions/config.js', {
+    NODE_ENV: 'production',
+    K_SERVICE: 'daily-management-report',
+    FUNCTION_TARGET: 'dailyManagementReport',
+    JWT_SECRET: ''
+  });
+  assert.match(scheduledConfig.JWT_SECRET, /^[a-f0-9]{96}$/, 'scheduled reports cannot initialize without API-only secrets');
 
   const functionsTimesheets = read('functions/routes/timesheets.js');
   for (const permission of ['timesheets.view_own', 'timesheets.create_own', 'timesheets.edit_own', 'timesheets.delete_own', 'timesheets.submit_own']) {

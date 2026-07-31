@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { getUsersMap, getClientsMap } = require('../data-cache');
-const { JWT_SECRET } = require('../config');
+const { verifyJwtToken } = require('../lib/session-jwt');
 
 function normalizeWorkClassification(workClassification, billable) {
   if (workClassification) return workClassification;
@@ -495,9 +495,8 @@ router.get('/by-client', async (req, res) => {
 });
 
 router.get('/export', async (req, res) => {
-  const jwt = require('jsonwebtoken');
   if (req.query.token) {
-    try { req.user = jwt.verify(req.query.token, JWT_SECRET); } catch { return res.status(401).send('Unauthorized'); }
+    try { req.user = verifyJwtToken(req.query.token); } catch { return res.status(401).send('Unauthorized'); }
   }
   if (!req.user) return res.status(401).send('Unauthorized');
   if (!['manager','partner'].includes(req.user.role)) return res.status(403).send('Manager or Partner only');
