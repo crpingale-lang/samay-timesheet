@@ -23,6 +23,9 @@ timer. On stop, Samay creates one or more ordinary draft timesheet entries for r
   open the timer in a Document Picture-in-Picture always-on-top window.
 - The PiP window is optional and never owns timer state. Closing it does not stop or
   lose the server-side session.
+- The PiP window is a complete mini workflow: an expanded input state captures linked
+  masters and an optional note, then a compact running state shows only client, work,
+  elapsed time, and Stop. After saving, it returns to input state for the next timer.
 - Completed work continues to use `timesheet_entries` / Firestore `timesheets`, so
   dashboards, approvals, reports, and exports need no parallel reporting path.
 - A normal same-day, non-overlapping timer produces start/end times. An overlapping,
@@ -109,8 +112,10 @@ draft creation run in one Firestore transaction.
 - The on-page launcher remains usable when Document PiP is unavailable.
 - The timer modal uses a single-column layout below 720 px and keeps touch targets at
   least 44 px.
-- The PiP layout is intentionally compact and handles long client/task labels with
-  truncation.
+- The PiP input state targets 360 x 390 pixels. Recording targets 300 x 185 pixels,
+  with long client/task labels truncated; Chromium may clamp these dimensions.
+- After Stop, the floating window stays open, retains client/work/classification for
+  fast consecutive capture, clears the completed note, and confirms the saved draft.
 - The service worker uses network-first behavior for timer JavaScript and CSS.
 - Document PiP is desktop-Chromium-specific and requires a user gesture. The session
   remains active if the PiP window is closed.
@@ -163,7 +168,7 @@ draft creation run in one Firestore transaction.
 | Level | Cases |
 | --- | --- |
 | Soft | Load with no session; start; recover; stop; draft appears |
-| Normal | Client and internal work; optional note; PiP open/close; page refresh |
+| Normal | Client and internal work; PiP input; compact recording; save then start next; page refresh |
 | Edge | Sub-minute stop; midnight split; archived master after start; long labels |
 | Failure | Offline start/stop; API 500; retry after response loss |
 | Security | Missing permission; another user's session; client/master tampering |

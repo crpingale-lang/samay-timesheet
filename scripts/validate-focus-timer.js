@@ -89,6 +89,7 @@ function testStaticContracts() {
   const localRoute = read('routes/timer.js');
   const firebaseRoute = read('functions/routes/timer.js');
   const frontend = read('public/js/focus-timer.js');
+  const timerStyles = read('public/css/focus-timer.css');
   const app = read('public/js/app.js');
   const serviceWorker = read('public/sw.js');
   const schema = read('js/database.js');
@@ -110,6 +111,17 @@ function testStaticContracts() {
   assert(frontend.includes("apiFetch('/timer/start'"));
   assert(frontend.includes("apiFetch('/timer/stop'"));
   assert(frontend.includes("BroadcastChannel('samay-focus-timer')"));
+  assert(frontend.includes('idle: { width: 360, height: 390 }'));
+  assert(frontend.includes('running: { width: 300, height: 185 }'));
+  assert(frontend.includes('data-timer-input="client_id"'));
+  assert(frontend.includes('data-timer-input="task_type"'));
+  assert(frontend.includes('data-timer-input="work_classification"'));
+  assert(frontend.includes('data-timer-input="description"'));
+  assert(frontend.includes('Draft saved. Ready for the next timer.'));
+  assert(frontend.includes('rememberActiveAsDraft(completed, { clearDescription: true })'));
+  assert(!frontend.includes('state.pipWindow?.close()'));
+  assert(timerStyles.includes('.focus-timer-pip-card'));
+  assert(timerStyles.includes('.focus-timer-pip-running'));
   assert(app.includes('bootFocusTimer()'));
   assert(serviceWorker.includes('/js/focus-timer.js'));
   assert(serviceWorker.includes('/css/focus-timer.css'));

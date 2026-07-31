@@ -369,38 +369,214 @@
   line-height: 1.45;
 }
 
+.focus-timer-pip-body {
+  margin: 0;
+  overflow: hidden;
+  background: #edf8f6;
+}
+
 .focus-timer-pip {
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 18px;
-  background: linear-gradient(150deg, #f0fdfa 0%, #ffffff 70%);
+  padding: 8px;
+  background: linear-gradient(145deg, #e8f8f5 0%, #f8fbff 100%);
   color: var(--timer-ink);
   font-family: Inter, ui-rounded, "Segoe UI", system-ui, sans-serif;
 }
 
-.focus-timer-pip .focus-timer-running-card {
-  padding: 17px;
+.focus-timer-pip-card,
+.focus-timer-pip-running {
+  box-sizing: border-box;
+  border: 1px solid rgba(15, 118, 110, 0.17);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.11);
 }
 
-.focus-timer-pip .focus-timer-running-time {
-  font-size: 38px;
+.focus-timer-pip-card {
+  padding: 12px;
 }
 
-.focus-timer-pip .focus-timer-context {
-  grid-template-columns: 1fr;
-  gap: 8px;
-  margin-top: 14px;
+.focus-timer-pip-head,
+.focus-timer-pip-running-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.focus-timer-pip .focus-timer-actions {
-  margin-top: 14px;
-  padding-top: 14px;
+.focus-timer-pip-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--timer-teal);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.focus-timer-pip .focus-timer-btn {
-  flex: 1;
+.focus-timer-pip-kicker span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #14b8a6;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);
 }
 
+.focus-timer-pip-head h1 {
+  margin: 3px 0 0;
+  color: var(--timer-ink);
+  font-size: 17px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.focus-timer-pip-close {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid var(--timer-border);
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #64748b;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.focus-timer-pip-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.focus-timer-pip-form label {
+  display: block;
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.focus-timer-pip-form label > span,
+.focus-timer-pip-form small {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.focus-timer-pip-form small {
+  display: none;
+}
+
+.focus-timer-pip-form select,
+.focus-timer-pip-form input {
+  width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+  margin-top: 3px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--timer-ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.focus-timer-pip-form select {
+  padding: 0 32px 0 10px;
+}
+
+.focus-timer-pip-form input {
+  padding: 0 10px;
+}
+
+.focus-timer-pip-form select:focus-visible,
+.focus-timer-pip-form input:focus-visible,
+.focus-timer-pip-close:focus-visible,
+.focus-timer-pip .focus-timer-btn:focus-visible {
+  outline: 3px solid rgba(45, 212, 191, 0.3);
+  outline-offset: 1px;
+}
+
+.focus-timer-pip-start {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 10px;
+  border-radius: 11px;
+}
+
+.focus-timer-pip-footnote {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.focus-timer-pip-notice {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border: 1px solid #fed7aa;
+  border-radius: 9px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.focus-timer-pip-notice.is-compact {
+  margin: 7px 0 0;
+}
+
+.focus-timer-pip-running {
+  padding: 12px;
+}
+
+.focus-timer-pip-running-client,
+.focus-timer-pip-running-task {
+  overflow: hidden;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-timer-pip-running-client {
+  max-width: 205px;
+}
+
+.focus-timer-pip-running .focus-timer-live-mark {
+  padding: 4px 7px;
+  font-size: 9px;
+}
+
+.focus-timer-pip-running .focus-timer-live-mark::before {
+  width: 6px;
+  height: 6px;
+}
+
+.focus-timer-pip-running .focus-timer-running-time {
+  margin-top: 7px;
+  font-size: 34px;
+  line-height: 0.98;
+}
+
+.focus-timer-pip-running-task {
+  margin-top: 5px;
+  color: var(--timer-muted);
+}
+
+.focus-timer-pip-running .focus-timer-btn-stop {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 9px;
+  border-radius: 10px;
+  font-size: 12px;
+}
 @media (max-width: 720px) {
   .focus-timer-launcher {
     right: 14px;
