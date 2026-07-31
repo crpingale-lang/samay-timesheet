@@ -854,6 +854,7 @@ router.post('/submit', async (req, res) => {
     }
 
     const targetStatus = nextSubmissionStatus(req.user.role);
+    const submittedAt = new Date().toISOString();
     const batch = db.batch();
     for (const doc of docs) {
       if (!doc.exists) continue;
@@ -862,7 +863,9 @@ router.post('/submit', async (req, res) => {
       const updates = {
         status: targetStatus,
         rejection_reason: null,
-        updated_at: new Date().toISOString()
+        submission_source: 'manual',
+        submitted_at: submittedAt,
+        updated_at: submittedAt
       };
       if (targetStatus === 'approved') {
         if (normalizeRole(req.user.role) === 'manager') updates.approved_by_manager = req.user.id;

@@ -154,3 +154,23 @@ The production JWT signing key is sourced only from Firebase Secret Manager and 
 | --- | --- |
 | Soft | Banner appears for a user with no dismissal preference |
 | Normal | Download ZIP; expand/collapse instructions; dismiss and keep hidden on reload |
+
+## Daily draft auto-submit assessment
+
+- Current-data-first result: eligibility and target status come from existing
+  timesheets.entry_date, timesheets.status, timesheets.requires_time_confirmation,
+  and the owning user's existing role, active state, and permissions. No new collection,
+  table, index, or duplicated workflow record is required.
+- Two optional transaction fields are added only when submission occurs:
+  submission_source identifies manual versus daily_8pm submission, and submitted_at
+  records the server execution time. These fields are necessary because updated_at alone
+  cannot distinguish submission from an ordinary edit.
+- The Firebase scheduled function is the only privileged automation consumer. It reads
+  current-day timesheets and users, applies the same role-based transition as the
+  authenticated manual API, and writes only eligible draft records.
+- Security boundary: no browser token or credential is used. Inactive, missing, and
+  explicitly submission-restricted users are skipped. Logs contain aggregate counts only.
+- Downstream impact: approval queues and management reporting see the same existing status
+  values. The daily management report moves from 8:00 PM to 8:05 PM to avoid reading a
+  partially submitted state.
+- Compatibility: old records without the optional metadata remain valid. Rollback removes

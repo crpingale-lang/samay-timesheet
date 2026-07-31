@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samay-v15';
+const CACHE_NAME = 'samay-v16';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

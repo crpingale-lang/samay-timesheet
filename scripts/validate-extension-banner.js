@@ -83,7 +83,7 @@ function validateBannerContract() {
   assert(styles.includes('.extension-promo[hidden]'));
   assert(styles.includes('@media (max-width: 620px)'));
   assert(styles.includes('grid-template-columns: 1fr'));
-  assert(serviceWorker.includes("const CACHE_NAME = 'samay-v15'"));
+  assert(serviceWorker.includes("const CACHE_NAME = 'samay-v16'"));
   assert(serviceWorker.includes("'/css/extension-promo.css?v=1'"));
 }
 
