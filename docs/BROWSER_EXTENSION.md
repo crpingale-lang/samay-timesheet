@@ -77,9 +77,17 @@ Chrome and Edge do not permit extensions to inject overlays into browser-owned p
 - Test sign-in, wrong credentials, expired session, no clients, no categories, internal work, client work, start conflict, pause, resume, end, and cross-tab synchronization.
 - Test 100%, 125%, and 150% scaling in current Chrome and Edge.
 - Verify keyboard-only operation and reduced-motion behavior.
-- Review requested permissions and publish a privacy disclosure stating that page content and URLs are not collected.
+- Review requested permissions and keep the public privacy disclosure accurate. Page content and URLs are not collected.
 - Package the contents of `extension/` as the store upload ZIP; do not wrap them in an extra parent folder.
 
+
+## Chrome Web Store release material
+
+- Store listing copy, permission justifications, privacy declarations, and reviewer steps live in `docs/CHROME_WEB_STORE_LISTING.md`.
+- Public privacy policy: `https://samay-timesheet.web.app/extension-privacy.html`.
+- Public support page: `https://samay-timesheet.web.app/extension-support.html`.
+- Store graphics live in `store-assets/chrome-web-store/` and must match the version being uploaded.
+- The upload ZIP is generated from the contents of `extension/` and keeps `manifest.json` at the archive root.
 ## Test matrix
 
 | Level | Extension cases |

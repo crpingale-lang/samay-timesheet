@@ -29,10 +29,18 @@
   </div>
   <script>
     const listeners = [];
+    const previewParams = new URLSearchParams(location.search);
     const state = {
       authenticated: true,
       user: { name: 'Aarav Mehta', role: 'manager' },
-      active: null,
+      active: previewParams.has('active') ? {
+        status: previewParams.get('active') === 'paused' ? 'paused' : 'running',
+        started_at: new Date(Date.now() - 3723000).toISOString(),
+        total_paused_ms: 0,
+        client_name: 'Aster Advisory',
+        task_type: 'Statutory Audit',
+        description: 'Review working papers and close open points'
+      } : null,
       clients: [
         { id: 'c1', name: 'Aster Advisory', code: 'AST' },
         { id: 'c2', name: 'Blue Oak Industries', code: 'BOI' },
@@ -78,5 +86,10 @@
     };
   </script>
   <script src="../../extension/content.js"></script>
+  <script>
+    if (previewParams.has('expanded')) {
+      listeners.forEach(listener => listener({ type: 'SAMAY_OVERLAY_SHOW' }));
+    }
+  </script>
 </body>
 </html>

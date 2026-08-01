@@ -36,7 +36,7 @@ check('all HTML inline scripts parse beside the shared app', () => {
 });
 
 check('every product screen loads the revamp stylesheet', () => {
-  const excluded = new Set();
+  const excluded = new Set(['extension-privacy.html', 'extension-support.html']);
   const missing = htmlFiles.filter(file => !excluded.has(file))
     .filter(file => !fs.readFileSync(path.join(publicDir, file), 'utf8').includes('/css/revamp.css'));
   assert.deepStrictEqual(missing, []);

@@ -5,6 +5,9 @@
   "minimum_chrome_version": "102",
   "description": "A subtle Samay timer that follows your work across Chrome and Edge.",
   "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
     "72": "icons/icon-72.png",
     "96": "icons/icon-96.png",
     "128": "icons/icon-128.png"
@@ -13,6 +16,9 @@
     "default_title": "Samay Focus Timer",
     "default_popup": "popup.html",
     "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
       "72": "icons/icon-72.png",
       "96": "icons/icon-96.png",
       "128": "icons/icon-128.png"
@@ -22,7 +28,6 @@
     "service_worker": "background.js"
   },
   "permissions": [
-    "activeTab",
     "alarms",
     "storage"
   ],
